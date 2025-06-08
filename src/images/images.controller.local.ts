@@ -1,5 +1,8 @@
 import {
   Controller,
+  Get,
+  Query,
+  Res,
   Post,
   Param,
   UploadedFile,
@@ -16,10 +19,12 @@ import {
   ApiConsumes,
   ApiBody,
   ApiProperty,
+  ApiResponse,
 } from '@nestjs/swagger'
-import { Express } from 'express'
+import { Express, Response } from 'express'
 import axios from 'axios'
 import { IsString, IsUrl } from 'class-validator'
+import { URL } from 'url'
 
 export class ImageFromUrlDto {
   @ApiProperty({ example: 'mein-channel' })
@@ -48,26 +53,13 @@ export class ImagesLocalController {
       throw new BadRequestException('channelName und url sind erforderlich')
     }
 
-    // Bild von der URL holen
-    let response
     try {
-      response = await axios.get(url, { responseType: 'arraybuffer' })
-    } catch (e) {
-      throw new BadRequestException('Bild konnte nicht geladen werden')
+      const { buffer, contentType } = await fetchImageBufferFromUrl(url)
+      await this.imagesService.saveImage(channelName, buffer, contentType)
+      return { message: 'Bild erfolgreich gespeichert' }
+    } catch (err: any) {
+      throw new BadRequestException('Bild konnte nicht geladen oder war kein gültiges Bild')
     }
-
-    const contentType = response.headers['content-type']
-    if (!contentType?.startsWith('image/')) {
-      throw new BadRequestException('Die URL liefert kein Bild')
-    }
-
-    await this.imagesService.saveImage(
-      channelName,
-      Buffer.from(response.data),
-      contentType
-    )
-
-    return { message: 'Bild erfolgreich gespeichert' }
   }
 
   @Post(':channelName')
@@ -95,5 +87,64 @@ export class ImagesLocalController {
     }
     await this.imagesService.saveImage(channelName, file.buffer, file.mimetype)
     return { message: 'Bild erfolgreich gespeichert' }
+  }
+
+ @Get('img-from-url')
+  @ApiOperation({ summary: 'Proxy: Liefert ein Bild von einer externen URL zurück' })
+  @ApiParam({
+    name: 'url',
+    type: String,
+    required: true,
+    description: 'Die externe Bild-URL (als Query-Parameter)',
+    example: 'https://example.com/image.jpg',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Das Bild als Binary-Stream',
+    content: { 'image/*': { schema: { type: 'string', format: 'binary' } } },
+  })
+  @ApiResponse({ status: 400, description: 'Ungültige oder fehlende URL' })
+  async proxyImage(@Query('url') url: string, @Res() res: Response) {
+    if (!url) {
+      throw new BadRequestException('Query-Parameter "url" fehlt')
+    }
+
+    // Sicherstellen, dass es eine valide URL ist
+    try {
+      new URL(url)
+    } catch {
+      throw new BadRequestException('Ungültige URL')
+    }
+
+    try {
+      const response = await axios.get(url, { responseType: 'arraybuffer' })
+      const contentType = response.headers['content-type']
+
+      if (!contentType?.startsWith('image/')) {
+        throw new BadRequestException('Die angegebene URL liefert kein Bild')
+      }
+
+      res.setHeader('Content-Type', contentType)
+      res.send(Buffer.from(response.data))
+    } catch {
+      throw new BadRequestException('Bild konnte nicht geladen werden')
+    }
+  }
+}
+
+async function fetchImageBufferFromUrl(url: string): Promise<{
+  buffer: Buffer
+  contentType: string
+}> {
+  const response = await axios.get(url, { responseType: 'arraybuffer' })
+
+  const contentType = response.headers['content-type']
+  if (!contentType?.startsWith('image/')) {
+    throw new Error('Kein gültiges Bild')
+  }
+
+  return {
+    buffer: Buffer.from(response.data),
+    contentType,
   }
 }
