@@ -28,6 +28,7 @@ import { URL } from 'url'
 
 import { TeamSpeak } from 'ts3-nodejs-library'
 import { TS_HOST, TS_QUERY_PORT, TS_SERVER_PORT, TS_USERNAME, TS_USERPASSWORD } from '../../config'
+import { normalizeChannelName } from '../util/util'
 
 export class ImageFromUrlDto {
   @ApiProperty({ example: 'mein-channel' })
@@ -38,6 +39,8 @@ export class ImageFromUrlDto {
   @IsUrl()
   url!: string
 }
+
+
 
 async function fetchImageBufferFromUrl(url: string): Promise<{
   buffer: Buffer
@@ -81,7 +84,7 @@ async function listChannels() {
     }
     console.log('[listChannels] Verbindung zu TeamSpeak hergestellt.');
     const channels = await ts3.channelList();
-    const channelNames = channels.map(c => c.name);
+    const channelNames = channels.map(c => normalizeChannelName(c.name));
     console.log('[listChannels] Gefundene Channels:', channelNames);
     await ts3.quit();
     console.log('[listChannels] Verbindung zu TeamSpeak beendet.');
@@ -105,16 +108,17 @@ export class ImagesLocalController {
     @Body() body: ImageFromUrlDto
   ) {
     const { channelName, url } = body
-    console.log(`[from-url] Request: channelName=${channelName}, url=${url}`)
-    if (!channelName || !url) {
+    const normalizedChannel = normalizeChannelName(channelName);
+    console.log(`[from-url] Request: channelName=${normalizedChannel}, url=${url}`)
+    if (!normalizedChannel || !url) {
       console.warn(`[from-url] Fehlende Parameter`)
       throw new BadRequestException('channelName und url sind erforderlich')
     }
 
     try {
       const { buffer, contentType } = await fetchImageBufferFromUrl(url)
-      await this.imagesService.saveImage(channelName, buffer, contentType)
-      console.log(`[from-url] Bild erfolgreich gespeichert für ${channelName}`)
+      await this.imagesService.saveImage(normalizedChannel, buffer, contentType)
+      console.log(`[from-url] Bild erfolgreich gespeichert für ${normalizedChannel}`)
       return { message: 'Bild erfolgreich gespeichert' }
     } catch (err: any) {
       console.error(`[from-url] Fehler:`, err)
@@ -142,13 +146,14 @@ export class ImagesLocalController {
     @Param('channelName') channelName: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    console.log(`[uploadImage] Request: channelName=${channelName}, fileSize=${file?.buffer?.length ?? 0}`)
+    const normalizedChannel = normalizeChannelName(channelName);
+    console.log(`[uploadImage] Request: channelName=${normalizedChannel}, fileSize=${file?.buffer?.length ?? 0}`)
     if (!file || !file.buffer) {
       console.warn(`[uploadImage] Keine Datei hochgeladen`)
       throw new BadRequestException('Keine Datei hochgeladen')
     }
-    await this.imagesService.saveImage(channelName, file.buffer, file.mimetype)
-    console.log(`[uploadImage] Bild erfolgreich gespeichert für ${channelName}`)
+    await this.imagesService.saveImage(normalizedChannel, file.buffer, file.mimetype)
+    console.log(`[uploadImage] Bild erfolgreich gespeichert für ${normalizedChannel}`)
     return { message: 'Bild erfolgreich gespeichert' }
   }
 
@@ -217,7 +222,6 @@ export class ImagesLocalController {
     console.log('[GET /images-local/channels] Anfrage erhalten');
     try {
       const result = await listChannels();
-      console.log('[GET /images-local/channels] Erfolgreich zurückgegeben:', result);
       return { channels: result };
     } catch (err) {
       console.error('[GET /images-local/channels] Fehler:', err);

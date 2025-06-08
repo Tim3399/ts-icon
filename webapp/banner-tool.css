@@ -30,3 +30,14 @@ button {
   margin-top: 10px;
   border: 1px dashed #999;
 }
+
+#channel-display {
+  margin-top: 10px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+#channel-list-display {
+  list-style: none;
+  padding-left: 0;
+  font-family: monospace;
+}
