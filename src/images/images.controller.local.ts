@@ -59,22 +59,30 @@ async function fetchImageBufferFromUrl(url: string): Promise<{
 }
 
 async function listChannels() {
+  console.log('[listChannels] Starte Verbindung zu TeamSpeak...');
   const ts3 = new TeamSpeak({
     host: TS_HOST,
     queryport: TS_QUERY_PORT,
     serverport: TS_SERVER_PORT,
     username: TS_USERNAME,
     password: TS_USERPASSWORD,
-  })
+  });
 
-  await ts3.connect()
-  const channels = await ts3.channelList()
-  console.log(channels.map(c => ({ id: c.cid, name: c.name })))
-  console.log('TS3 Channels:', channels)
-  await ts3.quit()
-  return channels
+  try {
+    await ts3.connect();
+    console.log('[listChannels] Verbindung zu TeamSpeak hergestellt.');
+    const channels = await ts3.channelList();
+    const channelNames = channels.map(c => c.name);
+    console.log('[listChannels] Gefundene Channels:', channelNames);
+    await ts3.quit();
+    console.log('[listChannels] Verbindung zu TeamSpeak beendet.');
+    return channelNames;
+  } catch (err) {
+    console.error('[listChannels] Fehler beim Abrufen der Channels:', err);
+    try { await ts3.quit(); } catch {}
+    throw new Error('Fehler beim Abrufen der TeamSpeak-Channels');
+  }
 }
-
 @ApiTags('images-local')
 @Controller('images-local')
 export class ImagesLocalController {
