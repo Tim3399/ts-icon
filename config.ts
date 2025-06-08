@@ -1,0 +1,1 @@
+export const IMG_PORT = process.env.IMG_PORT || '3000';
