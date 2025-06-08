@@ -3,6 +3,7 @@ version: '3.9'
 services:
   public:
     build: .
+    image: tsicon-public
     command: npm run start:public
     ports:
       - "3000:3000"
@@ -14,6 +15,7 @@ services:
 
   local:
     build: .
+    image: tsicon-local
     command: npm run start:local
     ports:
       - "3001:3001"
