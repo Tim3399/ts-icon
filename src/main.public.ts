@@ -11,10 +11,6 @@ async function bootstrap() {
     .setDescription('Stellt Channel-Bilder bereit (GET)')
     .setVersion('1.0')
     .build()
-
-  const document = SwaggerModule.createDocument(app, config)
-  SwaggerModule.setup('swagger', app, document)
-
   await app.listen(IMG_WEB_PORT)
 }
 bootstrap()
