@@ -7,3 +7,6 @@ export const CORS_ORIGINS = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
+
+  export const DATABASE_URL = process.env.DATABASE_URL || 'file:./dev.db';
+  console.log("Database URL is set to:", DATABASE_URL);
