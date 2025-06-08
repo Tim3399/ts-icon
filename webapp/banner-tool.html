@@ -9,10 +9,11 @@
 </head>
 <body>
 
-  <h1>TS5 Banner Generator (500×22)</h1>
+  <h1>TS5 Banner Generator (500×44)</h1>
 
   <label for="channel">Channelname:</label>
-  <input type="text" id="channel" placeholder="lobby" required />
+  <input type="text" id="channel" list="channel-list" placeholder="lobby" required />
+  <datalist id="channel-list"></datalist>
 
   <input type="file" id="fileInput" accept="image/*" />
 
@@ -24,7 +25,7 @@
     <img id="preview" alt="Vorschau" />
   </div>
 
-  <canvas id="canvas-preview" width="500" height="22" style="display: none;"></canvas>
+  <canvas id="canvas-preview" width="500" height="44" style="display: none;"></canvas>
 
   <button id="uploadBtn">Bild zuschneiden & senden</button>
 
@@ -39,37 +40,53 @@
     const canvas = document.getElementById('canvas-preview');
     const uploadBtn = document.getElementById('uploadBtn');
     const channelInput = document.getElementById('channel');
+    const channelList = document.getElementById('channel-list');
     const loadUrlBtn = document.getElementById('loadUrlBtn');
     const imageUrlInput = document.getElementById('imageUrl');
 
     let cropper;
 
-    function initCropper() {
-    if (cropper) cropper.destroy();
-    cropper = new Cropper(preview, {
-      aspectRatio: TARGET_RATIO,
-      viewMode: 1,
-      autoCropArea: 1,
-      dragMode: 'move',
-      cropBoxResizable: false,
-      ready() {
-        // Setze CropBox auf maximal mögliche Größe im Seitenverhältnis
-        const imageData = cropper.getImageData();
-        let cropBoxWidth = imageData.naturalWidth;
-        let cropBoxHeight = cropBoxWidth / TARGET_RATIO;
-        if (cropBoxHeight > imageData.naturalHeight) {
-          cropBoxHeight = imageData.naturalHeight;
-          cropBoxWidth = cropBoxHeight * TARGET_RATIO;
-        }
-        cropper.setCropBoxData({
-          width: cropBoxWidth,
-          height: cropBoxHeight,
-          left: (imageData.width - cropBoxWidth) / 2,
-          top: (imageData.height - cropBoxHeight) / 2,
+    // Channelnamen abrufen und Datalist befüllen
+    fetch('/images-local/channels')
+      .then(res => res.json())
+      .then(channels => {
+        channelList.innerHTML = '';
+        channels.forEach(name => {
+          const option = document.createElement('option');
+          option.value = name;
+          channelList.appendChild(option);
         });
-      }
-    });
-  }
+      })
+      .catch(err => {
+        console.warn('Konnte Channel-Liste nicht laden:', err);
+      });
+
+    function initCropper() {
+      if (cropper) cropper.destroy();
+      cropper = new Cropper(preview, {
+        aspectRatio: TARGET_RATIO,
+        viewMode: 1,
+        autoCropArea: 1,
+        dragMode: 'move',
+        cropBoxResizable: false,
+        ready() {
+          // Setze CropBox auf maximal mögliche Größe im Seitenverhältnis
+          const imageData = cropper.getImageData();
+          let cropBoxWidth = imageData.naturalWidth;
+          let cropBoxHeight = cropBoxWidth / TARGET_RATIO;
+          if (cropBoxHeight > imageData.naturalHeight) {
+            cropBoxHeight = imageData.naturalHeight;
+            cropBoxWidth = cropBoxHeight * TARGET_RATIO;
+          }
+          cropper.setCropBoxData({
+            width: cropBoxWidth,
+            height: cropBoxHeight,
+            left: (imageData.width - cropBoxWidth) / 2,
+            top: (imageData.height - cropBoxHeight) / 2,
+          });
+        }
+      });
+    }
 
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
@@ -107,30 +124,29 @@
       const channelName = channelInput.value.trim();
       if (!channelName) return alert('Bitte einen Channelnamen eingeben.');
 
-    // Hole den maximalen Crop in Originalauflösung
-    const cropData = cropper.getData(true);
-    const imageData = cropper.getImageData();
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = cropData.width;
-    tempCanvas.height = cropData.height;
-    const ctx = tempCanvas.getContext('2d');
-    ctx.drawImage(
-      preview,
-      cropData.x, cropData.y, cropData.width, cropData.height,
-      0, 0, cropData.width, cropData.height
-    );
+      // Hole den maximalen Crop in Originalauflösung
+      const cropData = cropper.getData(true);
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = cropData.width;
+      tempCanvas.height = cropData.height;
+      const ctx = tempCanvas.getContext('2d');
+      ctx.drawImage(
+        preview,
+        cropData.x, cropData.y, cropData.width, cropData.height,
+        0, 0, cropData.width, cropData.height
+      );
 
-    // Vorschau bleibt 500x44
-    canvas.width = TARGET_WIDTH;
-    canvas.height = TARGET_HEIGHT;
-    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-    canvas.getContext('2d').drawImage(tempCanvas, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-    canvas.style.display = 'block';
+      // Vorschau bleibt 500x44
+      canvas.width = TARGET_WIDTH;
+      canvas.height = TARGET_HEIGHT;
+      canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+      canvas.getContext('2d').drawImage(tempCanvas, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+      canvas.style.display = 'block';
 
-    // Speichere das Bild in maximaler Qualität (Original-Crop)
-    tempCanvas.toBlob((blob) => {
-      const formData = new FormData();
-      formData.append('file', blob, 'banner.png');
+      // Speichere das Bild in maximaler Qualität (Original-Crop)
+      tempCanvas.toBlob((blob) => {
+        const formData = new FormData();
+        formData.append('file', blob, 'banner.png');
 
         fetch(`${API_URL}${encodeURIComponent(channelName)}`, {
           method: 'POST',

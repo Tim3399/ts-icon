@@ -26,6 +26,9 @@ import axios from 'axios'
 import { IsString, IsUrl } from 'class-validator'
 import { URL } from 'url'
 
+import { TeamSpeak } from 'ts3-nodejs-library'
+import { TS_HOST, TS_QUERY_PORT, TS_SERVER_PORT, TS_USERNAME, TS_USERPASSWORD } from '../../config'
+
 export class ImageFromUrlDto {
   @ApiProperty({ example: 'mein-channel' })
   @IsString()
@@ -36,6 +39,41 @@ export class ImageFromUrlDto {
   url!: string
 }
 
+async function fetchImageBufferFromUrl(url: string): Promise<{
+  buffer: Buffer
+  contentType: string
+}> {
+  console.log(`[fetchImageBufferFromUrl] Lade Bild von: ${url}`)
+  const response = await axios.get(url, { responseType: 'arraybuffer' })
+
+  const contentType = response.headers['content-type']
+  if (!contentType?.startsWith('image/')) {
+    console.warn(`[fetchImageBufferFromUrl] Kein Bild: ${url}`)
+    throw new Error('Kein gültiges Bild')
+  }
+
+  return {
+    buffer: Buffer.from(response.data),
+    contentType,
+  }
+}
+
+async function listChannels() {
+  const ts3 = new TeamSpeak({
+    host: TS_HOST,
+    queryport: TS_QUERY_PORT,
+    serverport: TS_SERVER_PORT,
+    username: TS_USERNAME,
+    password: TS_USERPASSWORD,
+  })
+
+  await ts3.connect()
+  const channels = await ts3.channelList()
+  console.log(channels.map(c => ({ id: c.cid, name: c.name })))
+  console.log('TS3 Channels:', channels)
+  await ts3.quit()
+  return channels
+}
 
 @ApiTags('images-local')
 @Controller('images-local')
@@ -143,23 +181,11 @@ export class ImagesLocalController {
       throw new BadRequestException('Bild konnte nicht geladen werden')
     }
   }
-}
-
-async function fetchImageBufferFromUrl(url: string): Promise<{
-  buffer: Buffer
-  contentType: string
-}> {
-  console.log(`[fetchImageBufferFromUrl] Lade Bild von: ${url}`)
-  const response = await axios.get(url, { responseType: 'arraybuffer' })
-
-  const contentType = response.headers['content-type']
-  if (!contentType?.startsWith('image/')) {
-    console.warn(`[fetchImageBufferFromUrl] Kein Bild: ${url}`)
-    throw new Error('Kein gültiges Bild')
-  }
-
-  return {
-    buffer: Buffer.from(response.data),
-    contentType,
+  @Get('channels')
+  @ApiOperation({ summary: 'Liefert eine Liste aller Channels (TeamSpeak)' })
+  @ApiResponse({ status: 200, description: 'Liste der Channels', type: [String] })
+  async listChannels() {
+    return await listChannels()
   }
 }
+
