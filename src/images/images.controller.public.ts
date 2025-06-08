@@ -15,11 +15,14 @@ export class ImagesPublicController {
     @Param('channelName') channelName: string,
     @Res() res: Response,
   ) {
+    console.log(`[getImage] Request: channelName=${channelName}`)
     const image = await this.imagesService.getImage(channelName)
     if (!image) {
+      console.warn(`[getImage] Bild nicht gefunden für ${channelName}`)
       throw new NotFoundException('Bild nicht gefunden')
     }
     res.setHeader('Content-Type', image.mimeType)
+    console.log(`[getImage] Bild erfolgreich geliefert für ${channelName}`)
     return res.send(image.image)
   }
 }

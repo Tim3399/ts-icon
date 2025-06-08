@@ -49,15 +49,19 @@ export class ImagesLocalController {
     @Body() body: ImageFromUrlDto
   ) {
     const { channelName, url } = body
+    console.log(`[from-url] Request: channelName=${channelName}, url=${url}`)
     if (!channelName || !url) {
+      console.warn(`[from-url] Fehlende Parameter`)
       throw new BadRequestException('channelName und url sind erforderlich')
     }
 
     try {
       const { buffer, contentType } = await fetchImageBufferFromUrl(url)
       await this.imagesService.saveImage(channelName, buffer, contentType)
+      console.log(`[from-url] Bild erfolgreich gespeichert für ${channelName}`)
       return { message: 'Bild erfolgreich gespeichert' }
     } catch (err: any) {
+      console.error(`[from-url] Fehler:`, err)
       throw new BadRequestException('Bild konnte nicht geladen oder war kein gültiges Bild')
     }
   }
@@ -82,14 +86,17 @@ export class ImagesLocalController {
     @Param('channelName') channelName: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
+    console.log(`[uploadImage] Request: channelName=${channelName}, fileSize=${file?.buffer?.length ?? 0}`)
     if (!file || !file.buffer) {
+      console.warn(`[uploadImage] Keine Datei hochgeladen`)
       throw new BadRequestException('Keine Datei hochgeladen')
     }
     await this.imagesService.saveImage(channelName, file.buffer, file.mimetype)
+    console.log(`[uploadImage] Bild erfolgreich gespeichert für ${channelName}`)
     return { message: 'Bild erfolgreich gespeichert' }
   }
 
- @Get('img-from-url')
+  @Get('img-from-url')
   @ApiOperation({ summary: 'Proxy: Liefert ein Bild von einer externen URL zurück' })
   @ApiParam({
     name: 'url',
@@ -105,7 +112,9 @@ export class ImagesLocalController {
   })
   @ApiResponse({ status: 400, description: 'Ungültige oder fehlende URL' })
   async proxyImage(@Query('url') url: string, @Res() res: Response) {
+    console.log(`[img-from-url] Proxy-Request: url=${url}`)
     if (!url) {
+      console.warn(`[img-from-url] Fehlender Query-Parameter "url"`)
       throw new BadRequestException('Query-Parameter "url" fehlt')
     }
 
@@ -113,6 +122,7 @@ export class ImagesLocalController {
     try {
       new URL(url)
     } catch {
+      console.warn(`[img-from-url] Ungültige URL: ${url}`)
       throw new BadRequestException('Ungültige URL')
     }
 
@@ -121,12 +131,15 @@ export class ImagesLocalController {
       const contentType = response.headers['content-type']
 
       if (!contentType?.startsWith('image/')) {
+        console.warn(`[img-from-url] Kein Bild: ${url}`)
         throw new BadRequestException('Die angegebene URL liefert kein Bild')
       }
 
       res.setHeader('Content-Type', contentType)
       res.send(Buffer.from(response.data))
-    } catch {
+      console.log(`[img-from-url] Bild erfolgreich proxied: ${url}`)
+    } catch (err) {
+      console.error(`[img-from-url] Fehler beim Laden:`, err)
       throw new BadRequestException('Bild konnte nicht geladen werden')
     }
   }
@@ -136,10 +149,12 @@ async function fetchImageBufferFromUrl(url: string): Promise<{
   buffer: Buffer
   contentType: string
 }> {
+  console.log(`[fetchImageBufferFromUrl] Lade Bild von: ${url}`)
   const response = await axios.get(url, { responseType: 'arraybuffer' })
 
   const contentType = response.headers['content-type']
   if (!contentType?.startsWith('image/')) {
+    console.warn(`[fetchImageBufferFromUrl] Kein Bild: ${url}`)
     throw new Error('Kein gültiges Bild')
   }
 
