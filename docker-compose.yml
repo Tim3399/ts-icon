@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  public:
+    build: .
+    command: npm run start:public
+    ports:
+      - "3000:3000"
+    environment:
+      - IMG_WEB_PORT=3000
+      - DATABASE_URL=file:./dev.db
+    volumes:
+      - ./dev.db:/app/dev.db
+
+  local:
+    build: .
+    command: npm run start:local
+    ports:
+      - "3001:3001"
+    environment:
+      - IMG_API_PORT=3001
+      - DATABASE_URL=file:./dev.db
+    volumes:
+      - ./dev.db:/app/dev.db

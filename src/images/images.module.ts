@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common'
-import { ImagesController } from './images.controller'
+import { ImagesPublicController } from './images.controller.public'
+import { ImagesLocalController } from './images.controller.local'
 import { ImagesService } from './images.service'
 
 @Module({
-  controllers: [ImagesController],
+  controllers: [ImagesPublicController, ImagesLocalController],
   providers: [ImagesService],
 })
 export class ImagesModule {}
