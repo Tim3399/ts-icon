@@ -1,9 +1,8 @@
-// src/app.module.ts
 import { Module } from '@nestjs/common'
 import { PrismaModule } from './prisma/prisma.module'
-import { ImagesModule } from './images/images.module'
+import { ImagesModulePublic } from './images/images.module.public'
 
 @Module({
-  imports: [PrismaModule, ImagesModule],
+  imports: [PrismaModule, ImagesModulePublic],
 })
 export class AppModule {}

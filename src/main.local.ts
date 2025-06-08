@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { AppModule } from './app.module.local';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { IMG_API_PORT, CORS_ORIGINS } from '../config';
 
