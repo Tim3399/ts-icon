@@ -4,14 +4,14 @@ services:
   public:
     build: .
     image: tsicon-public
-    command: sh -c "npx prisma db push && npm run start:public"
+    command: npm run start:public
     ports:
       - "3000:3000"
     environment:
       - IMG_WEB_PORT=3000
       - DATABASE_URL=file:/data/dev.db
     volumes:
-      - db-data:/app/dev.db
+      - db-data:/data
 
   local:
     build: .
@@ -23,7 +23,7 @@ services:
       - IMG_API_PORT=3001
       - DATABASE_URL=file:/data/dev.db
     volumes:
-      - db-data:/app/dev.db
+      - db-data:/data
 
 volumes:
   db-data:
