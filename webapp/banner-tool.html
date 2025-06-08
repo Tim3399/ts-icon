@@ -46,12 +46,12 @@
 
     let cropper;
 
-    // Channelnamen abrufen und Datalist befüllen
-    fetch('/images-local/channels')
+    fetch(`${API_URL}channels`)
       .then(res => res.json())
-      .then(channels => {
+      .then(data => {
+        if (!Array.isArray(data.channels)) throw new Error('Antwort enthält kein gültiges channels-Array');
         channelList.innerHTML = '';
-        channels.forEach(name => {
+        data.channels.forEach(name => {
           const option = document.createElement('option');
           option.value = name;
           channelList.appendChild(option);
