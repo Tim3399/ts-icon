@@ -4,7 +4,7 @@ services:
   public:
     build: .
     image: tsicon-public
-    command: npm run start:public
+    command: sh -c "npx prisma db push && npm run start:public"
     ports:
       - "3000:3000"
     environment:
@@ -16,7 +16,7 @@ services:
   local:
     build: .
     image: tsicon-local
-    command: npm run start:local
+    command: sh -c "npx prisma db push && npm run start:local"
     ports:
       - "3001:3001"
     environment:
