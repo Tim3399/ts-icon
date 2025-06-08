@@ -1,10 +1,16 @@
 node_modules
 dist
+.env
 *.log
 .git
 .gitignore
 Dockerfile
 docker-compose.yml
+.dockerignore
 test
+test/
 coverage
+coverage/
 *.md
+*.tsbuildinfo
+*.local.ts
