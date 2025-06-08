@@ -30,6 +30,10 @@
 
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script>
+    const TARGET_WIDTH = 500;
+    const TARGET_HEIGHT = 44;
+    const TARGET_RATIO = TARGET_WIDTH / TARGET_HEIGHT;
+
     const fileInput = document.getElementById('fileInput');
     const preview = document.getElementById('preview');
     const canvas = document.getElementById('canvas-preview');
@@ -41,26 +45,31 @@
     let cropper;
 
     function initCropper() {
-      if (cropper) cropper.destroy();
-      cropper = new Cropper(preview, {
-        aspectRatio: 500 / 22,
-        viewMode: 1,
-        autoCropArea: 1,
-        dragMode: 'move',
-        cropBoxResizable: false,
-        ready() {
-          const imageData = cropper.getImageData();
-          const cropBoxWidth = Math.min(500, imageData.naturalWidth);
-          const cropBoxHeight = Math.min(22, imageData.naturalHeight);
-          cropper.setCropBoxData({
-            width: cropBoxWidth,
-            height: cropBoxHeight,
-            left: (imageData.width - cropBoxWidth) / 2,
-            top: (imageData.height - cropBoxHeight) / 2,
-          });
+    if (cropper) cropper.destroy();
+    cropper = new Cropper(preview, {
+      aspectRatio: TARGET_RATIO,
+      viewMode: 1,
+      autoCropArea: 1,
+      dragMode: 'move',
+      cropBoxResizable: false,
+      ready() {
+        // Setze CropBox auf maximal mögliche Größe im Seitenverhältnis
+        const imageData = cropper.getImageData();
+        let cropBoxWidth = imageData.naturalWidth;
+        let cropBoxHeight = cropBoxWidth / TARGET_RATIO;
+        if (cropBoxHeight > imageData.naturalHeight) {
+          cropBoxHeight = imageData.naturalHeight;
+          cropBoxWidth = cropBoxHeight * TARGET_RATIO;
         }
-      });
-    }
+        cropper.setCropBoxData({
+          width: cropBoxWidth,
+          height: cropBoxHeight,
+          left: (imageData.width - cropBoxWidth) / 2,
+          top: (imageData.height - cropBoxHeight) / 2,
+        });
+      }
+    });
+  }
 
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
@@ -98,14 +107,30 @@
       const channelName = channelInput.value.trim();
       if (!channelName) return alert('Bitte einen Channelnamen eingeben.');
 
-      const canvasData = cropper.getCroppedCanvas({ width: 500, height: 22 });
-      canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-      canvas.getContext('2d').drawImage(canvasData, 0, 0, 500, 22);
-      canvas.style.display = 'block';
+    // Hole den maximalen Crop in Originalauflösung
+    const cropData = cropper.getData(true);
+    const imageData = cropper.getImageData();
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = cropData.width;
+    tempCanvas.height = cropData.height;
+    const ctx = tempCanvas.getContext('2d');
+    ctx.drawImage(
+      preview,
+      cropData.x, cropData.y, cropData.width, cropData.height,
+      0, 0, cropData.width, cropData.height
+    );
 
-      canvasData.toBlob((blob) => {
-        const formData = new FormData();
-        formData.append('file', blob, 'banner.png');
+    // Vorschau bleibt 500x44
+    canvas.width = TARGET_WIDTH;
+    canvas.height = TARGET_HEIGHT;
+    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    canvas.getContext('2d').drawImage(tempCanvas, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+    canvas.style.display = 'block';
+
+    // Speichere das Bild in maximaler Qualität (Original-Crop)
+    tempCanvas.toBlob((blob) => {
+      const formData = new FormData();
+      formData.append('file', blob, 'banner.png');
 
         fetch(`${API_URL}${encodeURIComponent(channelName)}`, {
           method: 'POST',
