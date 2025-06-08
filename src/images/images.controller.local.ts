@@ -68,6 +68,10 @@ async function listChannels() {
     password: TS_USERPASSWORD,
   });
 
+  ts3.on('error', (err) => {
+    console.error('[listChannels] TeamSpeak-Client-Fehler:', err);
+  });
+
   try {
     await ts3.connect();
     console.log('[listChannels] Verbindung zu TeamSpeak hergestellt.');
@@ -80,9 +84,10 @@ async function listChannels() {
   } catch (err) {
     console.error('[listChannels] Fehler beim Abrufen der Channels:', err);
     try { await ts3.quit(); } catch {}
-    throw new Error('Fehler beim Abrufen der TeamSpeak-Channels');
+    throw err;
   }
 }
+
 @ApiTags('images-local')
 @Controller('images-local')
 export class ImagesLocalController {
@@ -191,16 +196,29 @@ export class ImagesLocalController {
   }
   @Get('channels')
   @ApiOperation({ summary: 'Liefert eine Liste aller Channels (TeamSpeak)' })
-  @ApiResponse({ status: 200, description: 'Liste der Channels', type: [String] })
+  @ApiResponse({
+    status: 200,
+    description: 'Liste der Channels oder Fehlermeldung',
+    schema: {
+      type: 'object',
+      properties: {
+        channels: { type: 'array', items: { type: 'string' } },
+        error: { type: 'string' }
+      }
+    }
+  })
   async listChannels() {
     console.log('[GET /images-local/channels] Anfrage erhalten');
     try {
       const result = await listChannels();
       console.log('[GET /images-local/channels] Erfolgreich zurückgegeben:', result);
-      return result;
+      return { channels: result };
     } catch (err) {
       console.error('[GET /images-local/channels] Fehler:', err);
-      throw new BadRequestException('Channels konnten nicht geladen werden');
+      return {
+        channels: [],
+        error: 'TeamSpeak nicht erreichbar oder Fehler beim Abrufen der Channels'
+      };
     }
   }
 }
