@@ -193,7 +193,15 @@ export class ImagesLocalController {
   @ApiOperation({ summary: 'Liefert eine Liste aller Channels (TeamSpeak)' })
   @ApiResponse({ status: 200, description: 'Liste der Channels', type: [String] })
   async listChannels() {
-    return await listChannels()
+    console.log('[GET /images-local/channels] Anfrage erhalten');
+    try {
+      const result = await listChannels();
+      console.log('[GET /images-local/channels] Erfolgreich zurückgegeben:', result);
+      return result;
+    } catch (err) {
+      console.error('[GET /images-local/channels] Fehler:', err);
+      throw new BadRequestException('Channels konnten nicht geladen werden');
+    }
   }
 }
 
