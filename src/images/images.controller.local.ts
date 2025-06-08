@@ -73,7 +73,12 @@ async function listChannels() {
   });
 
   try {
-    await ts3.connect();
+    try {
+      await ts3.connect();
+    } catch (err) {
+      console.error('[TeamSpeak] Verbindungsfehler:', err);
+      return [];
+    }
     console.log('[listChannels] Verbindung zu TeamSpeak hergestellt.');
     const channels = await ts3.channelList();
     const channelNames = channels.map(c => c.name);
@@ -194,6 +199,7 @@ export class ImagesLocalController {
       throw new BadRequestException('Bild konnte nicht geladen werden')
     }
   }
+
   @Get('channels')
   @ApiOperation({ summary: 'Liefert eine Liste aller Channels (TeamSpeak)' })
   @ApiResponse({
