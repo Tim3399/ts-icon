@@ -11,7 +11,7 @@ services:
       - IMG_WEB_PORT=3000
       - DATABASE_URL=file:./dev.db
     volumes:
-      - db-data:/data
+      - db-data:/app/dev.db
 
   local:
     build: .
@@ -23,7 +23,7 @@ services:
       - IMG_API_PORT=3001
       - DATABASE_URL=file:./dev.db
     volumes:
-      - db-data:/data
-      
+      - db-data:/app/dev.db
+
 volumes:
   db-data:
