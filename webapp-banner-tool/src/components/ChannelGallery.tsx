@@ -7,6 +7,7 @@ type Channel = {
 
 const ChannelGallery: React.FC = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [missingImages, setMissingImages] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetch(`${GET_CHANNELS_LIST_URL}`)
@@ -27,28 +28,47 @@ const ChannelGallery: React.FC = () => {
       .then(res => res.ok && alert('Bild aktualisiert!'));
   };
 
+  const handleImageError = (channelName: string) => {
+    setMissingImages(prev => ({ ...prev, [channelName]: true }));
+  };
+
   return (
     <div>
       <h2>Channel-Bilder verwalten</h2>
-      {channels.map(channel => (
-        <div key={channel.name} style={{ marginBottom: 24 }}>
+      {channels.map((channel, idx) => (
+        <div key={channel.name || idx} style={{ marginBottom: 24 }}>
           <div>
-            <img
-              src={`http://localhost:3000/images/${encodeURIComponent(channel.name)}`}
-              alt={channel.name}
-              style={{
+            {!missingImages[channel.name] ? (
+              <img
+                src={`http://localhost:3000/images/${encodeURIComponent(channel.name)}`}
+                alt={channel.name}
+                style={{
+                  width: 200,
+                  height: 44,
+                  objectFit: 'contain',
+                  border: '1px solid #ccc',
+                  display: 'block'
+                }}
+                onError={() => handleImageError(channel.name)}
+              />
+            ) : (
+              <div style={{
                 width: 200,
                 height: 44,
-                objectFit: 'contain',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 border: '1px solid #ccc',
-                display: 'block'
-              }}
-              onError={e => {
-                (e.currentTarget as HTMLImageElement).style.display = 'none';
-              }}
-            />
+                background: '#f5f5f5',
+                color: '#888'
+              }}>
+                Kein Bild vorhanden
+              </div>
+            )}
           </div>
-          <div style={{ margin: '4px 0', fontWeight: 'bold' }}>{channel.name}</div>
+          <div style={{ margin: '4px 0', fontWeight: 'bold', textAlign: 'center' }}>
+            {channel.name}
+          </div>
           <input
             type="file"
             accept="image/*"
