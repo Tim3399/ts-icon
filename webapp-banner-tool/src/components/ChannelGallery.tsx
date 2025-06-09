@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { API_URL, VIEW_IMAGE_URL, GET_CHANNELS_LIST_URL } from '../config';
+import { API_URL, GET_CHANNELS_LIST_URL } from '../config';
 
 type Channel = {
   name: string;
-  imageUrl?: string;
 };
 
 const ChannelGallery: React.FC = () => {
@@ -28,34 +27,39 @@ const ChannelGallery: React.FC = () => {
       .then(res => res.ok && alert('Bild aktualisiert!'));
   };
 
-return (
-  <div>
-    <h2>Channel-Bilder verwalten</h2>
-    {channels.map(channel => (
-      <div key={channel.name} style={{ marginBottom: 24 }}>
-        <div>
-          {channel.imageUrl ? (
+  return (
+    <div>
+      <h2>Channel-Bilder verwalten</h2>
+      {channels.map(channel => (
+        <div key={channel.name} style={{ marginBottom: 24 }}>
+          <div>
             <img
-              src={channel.imageUrl}
+              src={`http://localhost:3000/images/${encodeURIComponent(channel.name)}`}
               alt={channel.name}
-              style={{ width: 200, height: 44, objectFit: 'contain', border: '1px solid #ccc', display: 'block' }}
+              style={{
+                width: 200,
+                height: 44,
+                objectFit: 'contain',
+                border: '1px solid #ccc',
+                display: 'block'
+              }}
+              onError={e => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
             />
-          ) : (
-            <span>Kein Bild gesetzt</span>
-          )}
+          </div>
+          <div style={{ margin: '4px 0', fontWeight: 'bold' }}>{channel.name}</div>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={e => {
+              if (e.target.files?.[0]) handleImageChange(channel.name, e.target.files[0]);
+            }}
+          />
         </div>
-        <div style={{ margin: '4px 0', fontWeight: 'bold' }}>{channel.name}</div>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={e => {
-            if (e.target.files?.[0]) handleImageChange(channel.name, e.target.files[0]);
-          }}
-        />
-      </div>
-    ))}
-  </div>
-);
+      ))}
+    </div>
+  );
 };
 
 export default ChannelGallery;
