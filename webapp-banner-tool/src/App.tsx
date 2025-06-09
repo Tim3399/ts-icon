@@ -1,10 +1,12 @@
+import { Routes, Route } from 'react-router-dom';
 import BannerCropper from './components/BannerCropper';
+import ChannelGallery from './components/ChannelGallery';
 
 export default function App() {
   return (
-    <div>
-      <h1>TS5 Banner Generator (500×44)</h1>
-      <BannerCropper />
-    </div>
+    <Routes>
+      <Route path="/" element={<BannerCropper />} />
+      <Route path="/channels" element={<ChannelGallery />} />
+    </Routes>
   );
 }
