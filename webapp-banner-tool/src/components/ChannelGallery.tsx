@@ -14,7 +14,7 @@ const ChannelGallery: React.FC = () => {
       .then(res => res.json())
       .then(data => {
         if (!Array.isArray(data.channels)) throw new Error('Antwort enthält kein gültiges channels-Array');
-        // Fallback: falls das Feld nicht "name" heißt, passe hier an!
+        console.log('API channels:', data.channels); 
         setChannels(
           data.channels.map((c: any) => ({
             name: c.name || c.channel || c.id || 'Unbekannt'
