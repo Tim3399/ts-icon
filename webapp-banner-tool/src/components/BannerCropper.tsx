@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Cropper from 'cropperjs';
 import { API_URL, GET_IMAGE_URL } from '../config';
 
@@ -18,6 +19,7 @@ const BannerCropper: React.FC = () => {
   const [isZoomed, setIsZoomed] = useState(false);
 
   const toggleZoom = () => setIsZoomed(z => !z);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (previewRef.current && previewRef.current.src) {
@@ -201,6 +203,8 @@ const BannerCropper: React.FC = () => {
         placeholder="https://example.com/banner.png"
       />
       <button onClick={handleUrlLoad}>Bild von URL laden</button>
+
+      <button onClick={() => navigate('/channels')}>Channel-Bilder verwalten</button>
 
       <button type="button" onClick={toggleZoom} style={{ marginBottom: 8 }}>
         {isZoomed ? 'Ansicht verkleinern' : 'Ansicht vergrößern'}
