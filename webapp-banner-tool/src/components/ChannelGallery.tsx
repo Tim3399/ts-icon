@@ -16,9 +16,11 @@ const ChannelGallery: React.FC = () => {
         if (!Array.isArray(data.channels)) throw new Error('Antwort enthält kein gültiges channels-Array');
         console.log('API channels:', data.channels); 
         setChannels(
-          data.channels.map((c: any) => ({
-            name: c.name || c.channel || c.id || 'Unbekannt'
-          }))
+        data.channels.map((c: any) =>
+            typeof c === 'string'
+            ? { name: c }
+            : { name: c.name || c.channel || c.id || 'Unbekannt' }
+        )
         );
       });
   }, []);
