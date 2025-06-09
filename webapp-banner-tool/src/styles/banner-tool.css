@@ -1,0 +1,60 @@
+body {
+  font-family: sans-serif;
+  padding: 20px;
+  background: #f9f9f9;
+}
+
+input,
+button {
+  margin-top: 10px;
+  display: inline-block;
+}
+
+#crop-container {
+  width: 600px;
+  height: 150px;
+  border: 1px solid #ccc;
+  overflow: hidden;
+  position: relative;
+  margin-top: 10px;
+}
+
+#preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+#canvas-preview {
+  margin-top: 10px;
+  border: 1px dashed #999;
+}
+
+#channel-display {
+  margin-top: 10px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+#channel-list-display {
+  list-style: none;
+  padding-left: 0;
+  font-family: monospace;
+}
+
+.preview-large {
+  width: 100%;
+  height: 60vh;
+  display: block;
+  object-fit: contain;
+  transition: width 0.2s, height 0.2s;
+}
+
+.preview-small {
+  width: 100%;
+  height: 30vh;
+  display: block;
+  object-fit: contain;
+  transition: width 0.2s, height 0.2s;
+}
