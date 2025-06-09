@@ -34,11 +34,13 @@ const ChannelGallery: React.FC = () => {
     setMissingImages(prev => ({ ...prev, [channelName]: true }));
   };
 
+    const allChannels = [{ name: 'spacer' }, ...channels];
+
   return (
     <div>
       <button onClick={() => navigate('/')}>Zurück</button>
       <h2>Channel-Bilder verwalten</h2>
-      {channels.map((channel, idx) => (
+      {allChannels.map((channel, idx) => (
         <div key={channel.name || idx} style={{ marginBottom: 24 }}>
           <div>
             {!missingImages[channel.name] ? (
