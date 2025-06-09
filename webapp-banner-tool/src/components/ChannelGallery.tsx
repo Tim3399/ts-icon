@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { API_URL, VIEW_IMAGE_URL } from '../config';
+import { API_URL, VIEW_IMAGE_URL, GET_CHANNELS_LIST_URL } from '../config';
 
 type Channel = {
   name: string;
@@ -10,7 +10,7 @@ const ChannelGallery: React.FC = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
 
   useEffect(() => {
-    fetch(`${VIEW_IMAGE_URL}channels`)
+    fetch(`${GET_CHANNELS_LIST_URL}`)
       .then(res => res.json())
       .then(data => {
         if (!Array.isArray(data.channels)) throw new Error('Antwort enthält kein gültiges channels-Array');
