@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { API_URL, GET_CHANNELS_LIST_URL } from '../config';
+import { useNavigate } from 'react-router-dom';
 
 type Channel = {
   name: string;
@@ -8,20 +9,14 @@ type Channel = {
 const ChannelGallery: React.FC = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [missingImages, setMissingImages] = useState<Record<string, boolean>>({});
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetch(`${GET_CHANNELS_LIST_URL}`)
       .then(res => res.json())
       .then(data => {
         if (!Array.isArray(data.channels)) throw new Error('Antwort enthält kein gültiges channels-Array');
-        console.log('API channels:', data.channels); 
-        setChannels(
-        data.channels.map((c: any) =>
-            typeof c === 'string'
-            ? { name: c }
-            : { name: c.name || c.channel || c.id || 'Unbekannt' }
-        )
-        );
+        setChannels(data.channels.map((c: string) => ({ name: c })));
       });
   }, []);
 
@@ -41,6 +36,7 @@ const ChannelGallery: React.FC = () => {
 
   return (
     <div>
+      <button onClick={() => navigate('/')}>Zurück</button>
       <h2>Channel-Bilder verwalten</h2>
       {channels.map((channel, idx) => (
         <div key={channel.name || idx} style={{ marginBottom: 24 }}>
