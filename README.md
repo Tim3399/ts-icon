@@ -60,7 +60,6 @@ A project for managing and cropping channel banners with a web frontend and a Ne
 ## Notes
 - Do not commit `.env` or `dev.db` to public repos
 - Default credentials in `config.ts` are placeholders; set real values via environment variables
-- For production, update CORS and credentials
 
 ## Security Warning
 - This project does **not** implement authentication. Services for changing icons should **not** be exposed to the public internet without proper access control.
