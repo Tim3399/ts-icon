@@ -1,8 +1,3 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
-
-
 # ts-icon
 
 A project for managing and cropping channel banners with a web frontend and a NestJS backend. Includes Docker setup and Prisma for database management.
