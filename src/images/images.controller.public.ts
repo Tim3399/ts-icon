@@ -25,6 +25,8 @@ export class ImagesPublicController {
       throw new NotFoundException('Bild nicht gefunden')
     }
     res.setHeader('Content-Type', image.mimeType)
+    // Setze Cache-Control Header für 1 Tag (86400 Sekunden)
+    res.setHeader('Cache-Control', 'public, max-age=86400')
     console.log(`[getImage] Bild erfolgreich geliefert für ${normalizedChannel}`)
     return res.send(image.image)
   }

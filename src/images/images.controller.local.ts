@@ -30,6 +30,23 @@ import { TeamSpeak } from 'ts3-nodejs-library'
 import { TS_HOST, TS_QUERY_PORT, TS_SERVER_PORT, TS_USERNAME, TS_USERPASSWORD } from '../../config'
 import { normalizeChannelName } from '../util/util'
 
+const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+])
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
+const AXIOS_TIMEOUT = 5000 // 5s
+const AXIOS_MAX_CONTENT = 10 * 1024 * 1024 // 10 MB
+
+function imageFileFilter(req: any, file: Express.Multer.File, cb: (err: Error | null, acceptFile: boolean) => void) {
+  if (!file || !file.mimetype) return cb(new Error('Invalid file'), false)
+  if (ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) return cb(null, true)
+  return cb(new Error('Invalid file type'), false)
+}
+
 export class ImageFromUrlDto {
   @ApiProperty({ example: 'mein-channel' })
   @IsString()
@@ -47,7 +64,7 @@ async function fetchImageBufferFromUrl(url: string): Promise<{
   contentType: string
 }> {
   console.log(`[fetchImageBufferFromUrl] Lade Bild von: ${url}`)
-  const response = await axios.get(url, { responseType: 'arraybuffer' })
+  const response = await axios.get(url, { responseType: 'arraybuffer', timeout: AXIOS_TIMEOUT, maxContentLength: AXIOS_MAX_CONTENT })
 
   const contentType = response.headers['content-type']
   if (!contentType?.startsWith('image/')) {
@@ -141,7 +158,8 @@ export class ImagesLocalController {
       },
     },
   })
-  @UseInterceptors(FileInterceptor('file'))
+  // Enforce file size limits and allowed mime types
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_SIZE }, fileFilter: imageFileFilter }))
   async uploadImage(
     @Param('channelName') channelName: string,
     @UploadedFile() file: Express.Multer.File,
@@ -188,7 +206,7 @@ export class ImagesLocalController {
     }
 
     try {
-      const response = await axios.get(url, { responseType: 'arraybuffer' })
+      const response = await axios.get(url, { responseType: 'arraybuffer', timeout: AXIOS_TIMEOUT, maxContentLength: AXIOS_MAX_CONTENT })
       const contentType = response.headers['content-type']
 
       if (!contentType?.startsWith('image/')) {
