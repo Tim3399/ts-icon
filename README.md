@@ -13,7 +13,7 @@ A project for managing and cropping channel banners with a web frontend and a Ne
 - Built with React and Vite
 - Main entry: `webapp-banner-tool/src/App.tsx`
 - Start locally:
-  ```sh
+  ```powershell
   cd webapp-banner-tool
   npm install
   npm run dev
@@ -23,17 +23,21 @@ A project for managing and cropping channel banners with a web frontend and a Ne
 ## Backend
 - Located in `src/`
 - Built with NestJS
-- Main entry: `src/main.local.ts` (local) or `src/main.public.ts` (public)
-- Start locally:
-  ```sh
+- Main entries:
+  - `src/main.local.ts` — local server (editing endpoints). Use this when you need to upload, change or crop images for TeamSpeak. This server must run in a trusted environment and should not be exposed publicly without access controls.
+  - `src/main.public.ts` — public server (viewing endpoints). Use this to serve images to TeamSpeak clients or web frontends.
+- Start the local (editing) server:
+  ```powershell
   npm install
   npm run start:local
   ```
-- API endpoints for image and channel management
+- API overview:
+  - Editing operations (create/update/delete) are provided by the local backend (`images-local`).
+  - Viewing operations (GET /images/:channelName) are provided by the public backend (`images`) so TeamSpeak or other clients can fetch images.
 
 ## Docker Setup
 - Build and run with Docker Compose:
-  ```sh
+  ```powershell
   docker-compose up --build
   ```
 - Uses SQLite by default (`dev.db`)
@@ -43,17 +47,17 @@ A project for managing and cropping channel banners with a web frontend and a Ne
 - Prisma schema in `prisma/schema.prisma`
 - Migrations in `prisma/migrations/`
 - To push schema changes:
-  ```sh
+  ```powershell
   npx prisma db push
   ```
 
 ## Useful Commands
 - Run backend tests:
-  ```sh
+  ```powershell
   npm run test
   ```
 - Run e2e tests:
-  ```sh
+  ```powershell
   npm run test:e2e
   ```
 
@@ -62,7 +66,8 @@ A project for managing and cropping channel banners with a web frontend and a Ne
 - Default credentials in `config.ts` are placeholders; set real values via environment variables
 
 ## Security Warning
-- This project does **not** implement authentication. Services for changing icons should **not** be exposed to the public internet without proper access control.
+- This project does **not** implement authentication. The local backend exposes editing endpoints (upload/change/delete). Do not expose the local editing server to the public internet without proper access control.
+- The public backend should be limited to read-only/viewing endpoints when possible.
 
 ## License
 MIT
