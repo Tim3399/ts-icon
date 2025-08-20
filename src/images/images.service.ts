@@ -36,4 +36,9 @@ export class ImagesService {
       },
     })
   }
+
+  async listOptions(): Promise<Array<{ channelName: string; mimeType: string }>> {
+    const rows = await this.prisma.channelImage.findMany({ select: { channelName: true, mimeType: true } })
+    return rows.map(r => ({ channelName: r.channelName, mimeType: r.mimeType }))
+  }
 }

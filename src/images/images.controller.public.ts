@@ -10,6 +10,13 @@ import { normalizeChannelName } from '../util/util'
 export class ImagesPublicController {
   constructor(private readonly imagesService: ImagesService) {}
 
+  @Get('options')
+  @ApiOperation({ summary: 'Listet alle Bilder aus der Datenbank auf (channelName, mimeType)' })
+  async listOptions() {
+    const options = await this.imagesService.listOptions()
+    return { options }
+  }
+
   @Get(':channelName')
   @ApiOperation({ summary: 'Hole Channel-Bild aus der Datenbank' })
   @ApiParam({ name: 'channelName', type: String })
