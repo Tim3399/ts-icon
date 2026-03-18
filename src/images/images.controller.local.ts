@@ -80,25 +80,19 @@ async function fetchImageBufferFromUrl(url: string): Promise<{
 
 async function listChannels() {
   console.log('[listChannels] Starte Verbindung zu TeamSpeak...');
-  const ts3 = new TeamSpeak({
-    host: TS_HOST,
-    queryport: TS_QUERY_PORT,
-    serverport: TS_SERVER_PORT,
-    username: TS_USERNAME,
-    password: TS_USERPASSWORD,
-  });
-
-  ts3.on('error', (err) => {
-    console.error('[listChannels] TeamSpeak-Client-Fehler:', err);
-  });
-
   try {
-    try {
-      await ts3.connect();
-    } catch (err) {
-      console.error('[TeamSpeak] Verbindungsfehler:', err);
-      return [];
-    }
+    const ts3 = await TeamSpeak.connect({
+      host: TS_HOST,
+      queryport: TS_QUERY_PORT,
+      serverport: TS_SERVER_PORT,
+      username: TS_USERNAME,
+      password: TS_USERPASSWORD,
+    });
+
+    ts3.on('error', (err) => {
+      console.error('[listChannels] TeamSpeak-Client-Fehler:', err);
+    });
+
     console.log('[listChannels] Verbindung zu TeamSpeak hergestellt.');
     const channels = await ts3.channelList();
     const channelNames = channels.map(c => normalizeChannelName(c.name));
@@ -107,9 +101,8 @@ async function listChannels() {
     console.log('[listChannels] Verbindung zu TeamSpeak beendet.');
     return channelNames;
   } catch (err) {
-    console.error('[listChannels] Fehler beim Abrufen der Channels:', err);
-    try { await ts3.quit(); } catch {}
-    throw err;
+    console.error('[listChannels] Fehler beim Verbinden/Abrufen der Channels:', err);
+    return [];
   }
 }
 

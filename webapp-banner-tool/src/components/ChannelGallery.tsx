@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { API_URL, GET_CHANNELS_LIST_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthProvider';
 
 type Channel = {
   name: string;
@@ -10,21 +11,28 @@ const ChannelGallery: React.FC = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [missingImages, setMissingImages] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
+  const { getToken } = useAuth();
 
   useEffect(() => {
-    fetch(`${GET_CHANNELS_LIST_URL}`)
-      .then(res => res.json())
-      .then(data => {
-        if (!Array.isArray(data.channels)) throw new Error('Antwort enthält kein gültiges channels-Array');
-        setChannels(data.channels.map((c: string) => ({ name: c })));
-      });
+    getToken().then(token => {
+      fetch(`${GET_CHANNELS_LIST_URL}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (!Array.isArray(data.channels)) throw new Error('Antwort enthält kein gültiges channels-Array');
+          setChannels(data.channels.map((c: string) => ({ name: c })));
+        });
+    });
   }, []);
 
-  const handleImageChange = (channelName: string, file: File) => {
+  const handleImageChange = async (channelName: string, file: File) => {
+    const token = await getToken();
     const formData = new FormData();
     formData.append('file', file, 'banner.png');
     fetch(`${API_URL}${encodeURIComponent(channelName)}`, {
       method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData
     })
       .then(res => res.ok && alert('Bild aktualisiert!'));

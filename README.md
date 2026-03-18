@@ -5,6 +5,7 @@ A project for managing and cropping channel banners with a web frontend and a Ne
 ## Features
 - Web frontend for cropping and uploading banners
 - Backend API for image and channel management
+- Keycloak authentication (OpenID Connect) for the web frontend
 - Prisma ORM with SQLite (default)
 - Docker support for easy setup
 
@@ -21,8 +22,22 @@ The repository contains a small React + Vite frontend located at `webapp-banner-
   npm run dev
   ```
 - Access via `http://localhost:5173` (default)
+- Authentication via Keycloak (optional) – users are redirected to the Keycloak login page before accessing the app
+- All API calls include a `Bearer` token in the `Authorization` header when Keycloak is enabled
 
 - Default frontend configuration (see `webapp-banner-tool/src/config.ts`):
+  - `KEYCLOAK_URL` = `http://localhost:8080`
+  - `KEYCLOAK_REALM` = `ts-icon`
+  - `KEYCLOAK_CLIENT_ID` = `webapp-banner-tool`
+
+- To disable Keycloak authentication, create a `.env` file in `webapp-banner-tool/`:
+  ```env
+  VITE_KEYCLOAK_ENABLED=false
+  ```
+  | Value | Behavior |
+  |---|---|
+  | not set / `true` | Keycloak login required, Bearer token sent with API calls |
+  | `false` | No login required, app usable immediately without Keycloak |
 
 
 ## Backend
@@ -84,6 +99,20 @@ Other notes
 - Cache: public image responses include a `Cache-Control` header (default `public, max-age=86400` = 1 day). Do not expose the local editing server to the public internet.
 
 
+## Keycloak Setup
+The web frontend supports optional Keycloak authentication. If enabled (default), configure it as follows:
+
+1. Create a realm named `ts-icon` (or adjust `KEYCLOAK_REALM` in `webapp-banner-tool/src/config.ts`)
+2. Create a client:
+   - **Client ID:** `webapp-banner-tool`
+   - **Client Protocol:** openid-connect
+   - **Access Type:** public (no client secret needed for SPAs)
+   - **Valid Redirect URIs:** `http://localhost:5173/*`
+   - **Web Origins:** `http://localhost:5173`
+3. Create users as needed within the realm
+4. Adjust `KEYCLOAK_URL` in `webapp-banner-tool/src/config.ts` if your Keycloak runs on a different host/port
+
+
 ## Docker Setup
 - Build and run with Docker Compose:
   ```powershell
@@ -119,7 +148,8 @@ Other notes
 
 
 ## Security Warning
-- This project does **not** implement authentication. The local backend exposes editing endpoints (upload/change/delete). Do not expose the local editing server to the public internet without proper access control.
+- The web frontend can be protected by **Keycloak authentication** (OpenID Connect). When enabled, users must log in before accessing the app, and all API calls include a Bearer token. Keycloak can be disabled via `VITE_KEYCLOAK_ENABLED=false` for local development.
+- **Note:** The local backend does not yet validate tokens server-side. Do not expose the local editing server to the public internet without adding backend-side token verification (e.g. a NestJS Keycloak Guard).
 - The public backend should be limited to read-only/viewing endpoints when possible.
 
 

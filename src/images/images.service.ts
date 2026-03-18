@@ -23,16 +23,17 @@ export class ImagesService {
   }
 
   async saveImage(channelName: string, buffer: Buffer, mimeType: string) {
+    const image = new Uint8Array(buffer)
     await this.prisma.channelImage.upsert({
       where: { channelName },
       update: {
-        image: buffer,
-        mimeType: mimeType,
+        image,
+        mimeType,
       },
       create: {
         channelName,
-        image: buffer,
-        mimeType: mimeType,
+        image,
+        mimeType,
       },
     })
   }

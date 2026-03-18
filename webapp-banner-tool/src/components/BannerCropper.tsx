@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Cropper from 'cropperjs';
 import { API_URL, GET_IMAGE_URL } from '../config';
+import { useAuth } from '../auth/AuthProvider';
 
 const TARGET_WIDTH = 500;
 const TARGET_HEIGHT = 44;
@@ -20,6 +21,7 @@ const BannerCropper: React.FC = () => {
 
   const toggleZoom = () => setIsZoomed(z => !z);
   const navigate = useNavigate();
+  const { getToken } = useAuth();
 
   useEffect(() => {
     if (previewRef.current && previewRef.current.src) {
@@ -30,15 +32,19 @@ const BannerCropper: React.FC = () => {
   }, [isZoomed]);
 
   useEffect(() => {
-    fetch(`${API_URL}channels`)
-      .then(res => res.json())
-      .then(data => {
-        if (!Array.isArray(data.channels)) throw new Error('Antwort enthält kein gültiges channels-Array');
-        setChannelList(data.channels);
+    getToken().then(token => {
+      fetch(`${API_URL}channels`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
-      .catch(err => {
-        console.warn('Konnte Channel-Liste nicht laden:', err);
-      });
+        .then(res => res.json())
+        .then(data => {
+          if (!Array.isArray(data.channels)) throw new Error('Antwort enthält kein gültiges channels-Array');
+          setChannelList(data.channels);
+        })
+        .catch(err => {
+          console.warn('Konnte Channel-Liste nicht laden:', err);
+        });
+    });
   }, []);
 
   const initCropper = () => {
@@ -95,7 +101,10 @@ const BannerCropper: React.FC = () => {
     if (!imageUrl.trim()) return alert('Bitte eine Bild-URL eingeben.');
 
     try {
-      const response = await fetch(`${GET_IMAGE_URL}?url=${encodeURIComponent(imageUrl)}`);
+      const token = await getToken();
+      const response = await fetch(`${GET_IMAGE_URL}?url=${encodeURIComponent(imageUrl)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!response.ok) throw new Error('Bild konnte nicht geladen werden');
 
       const blob = await response.blob();
@@ -141,14 +150,16 @@ const BannerCropper: React.FC = () => {
     finalCtx.drawImage(tempCanvas, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
     canvas.style.display = 'block';
 
-    tempCanvas.toBlob((blob) => {
+    tempCanvas.toBlob(async (blob) => {
       if (!blob) return;
 
+      const token = await getToken();
       const formData = new FormData();
       formData.append('file', blob, 'banner.png');
 
       fetch(`${API_URL}${encodeURIComponent(channelName)}`, {
         method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData
       })
         .then(res => {
