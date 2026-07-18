@@ -5,5 +5,5 @@ export function normalizeChannelName(name: string): string {
     .replace(/[öÖ]/g, 'o')
     .replace(/[üÜ]/g, 'u')
     .replace(/\s+/g, '-')              // Leerzeichen → Bindestrich
-    .replace(/[^a-z0-9\-]/g, '');      // Entfernt alles außer Kleinbuchstaben, Zahlen und Bindestrich
+    .replace(/[^a-z0-9-]/g, '');      // Entfernt alles außer Kleinbuchstaben, Zahlen und Bindestrich
 }

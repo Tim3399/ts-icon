@@ -15,17 +15,25 @@ function createAdapter() {
   return new PrismaBetterSqlite3({ url: dbPath })
 }
 
-function sanitizeArgs(args: any): any {
-  if (!args || typeof args !== 'object') return args
-  const copy = Array.isArray(args) ? [...args] : { ...args }
-  for (const key in copy) {
-    if (Buffer.isBuffer(copy[key])) {
-      copy[key] = `<Buffer (${copy[key].length} bytes)>`
-    } else if (typeof copy[key] === 'object') {
-      copy[key] = sanitizeArgs(copy[key])
-    }
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Buffer.isBuffer(value) && !Array.isArray(value)
+}
+
+function sanitizeArgs(args: unknown): unknown {
+  if (Buffer.isBuffer(args)) {
+    return `<Buffer (${args.length} bytes)>`
   }
-  return copy
+  if (Array.isArray(args)) {
+    return (args as unknown[]).map((item) => sanitizeArgs(item))
+  }
+  if (isPlainRecord(args)) {
+    const result: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(args)) {
+      result[key] = sanitizeArgs(value)
+    }
+    return result
+  }
+  return args
 }
 
 function createPrismaClient() {

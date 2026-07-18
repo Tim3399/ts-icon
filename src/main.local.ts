@@ -22,4 +22,7 @@ async function bootstrap() {
 
   await app.listen(IMG_API_PORT);
 }
-bootstrap();
+bootstrap().catch((err: unknown) => {
+  console.error('Fatal error during bootstrap:', err);
+  process.exit(1);
+});

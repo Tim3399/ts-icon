@@ -1,16 +1,18 @@
 {
   "name": "webapp-banner-tool",
   "private": true,
+  "license": "MIT",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "typecheck": "tsc -b",
     "preview": "vite preview"
   },
   "dependencies": {
-    "cropperjs": "^1.6.2",
+    "cropperjs": "1.6.2",
     "keycloak-js": "^26.2.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

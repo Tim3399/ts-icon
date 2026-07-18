@@ -41,7 +41,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
 const AXIOS_TIMEOUT = 5000 // 5s
 const AXIOS_MAX_CONTENT = 10 * 1024 * 1024 // 10 MB
 
-function imageFileFilter(req: any, file: Express.Multer.File, cb: (err: Error | null, acceptFile: boolean) => void) {
+function imageFileFilter(req: unknown, file: Express.Multer.File, cb: (err: Error | null, acceptFile: boolean) => void) {
   if (!file || !file.mimetype) return cb(new Error('Invalid file'), false)
   if (ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) return cb(null, true)
   return cb(new Error('Invalid file type'), false)
@@ -59,14 +59,20 @@ export class ImageFromUrlDto {
 
 
 
+function getResponseHeader(headers: unknown, name: string): string | undefined {
+  if (!headers || typeof headers !== 'object') return undefined
+  const value = (headers as Record<string, unknown>)[name]
+  return typeof value === 'string' ? value : undefined
+}
+
 async function fetchImageBufferFromUrl(url: string): Promise<{
   buffer: Buffer
   contentType: string
 }> {
   console.log(`[fetchImageBufferFromUrl] Lade Bild von: ${url}`)
-  const response = await axios.get(url, { responseType: 'arraybuffer', timeout: AXIOS_TIMEOUT, maxContentLength: AXIOS_MAX_CONTENT })
+  const response = await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: AXIOS_TIMEOUT, maxContentLength: AXIOS_MAX_CONTENT })
 
-  const contentType = response.headers['content-type']
+  const contentType = getResponseHeader(response.headers, 'content-type')
   if (!contentType?.startsWith('image/')) {
     console.warn(`[fetchImageBufferFromUrl] Kein Bild: ${url}`)
     throw new Error('Kein gültiges Bild')
@@ -130,7 +136,7 @@ export class ImagesLocalController {
       await this.imagesService.saveImage(normalizedChannel, buffer, contentType)
       console.log(`[from-url] Bild erfolgreich gespeichert für ${normalizedChannel}`)
       return { message: 'Bild erfolgreich gespeichert' }
-    } catch (err: any) {
+    } catch (err) {
       console.error(`[from-url] Fehler:`, err)
       throw new BadRequestException('Bild konnte nicht geladen oder war kein gültiges Bild')
     }
@@ -199,8 +205,8 @@ export class ImagesLocalController {
     }
 
     try {
-      const response = await axios.get(url, { responseType: 'arraybuffer', timeout: AXIOS_TIMEOUT, maxContentLength: AXIOS_MAX_CONTENT })
-      const contentType = response.headers['content-type']
+      const response = await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: AXIOS_TIMEOUT, maxContentLength: AXIOS_MAX_CONTENT })
+      const contentType = getResponseHeader(response.headers, 'content-type')
 
       if (!contentType?.startsWith('image/')) {
         console.warn(`[img-from-url] Kein Bild: ${url}`)
