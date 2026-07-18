@@ -22,7 +22,7 @@ The repository contains a small React + Vite frontend located at `webapp-banner-
   npm run dev
   ```
 - Access via `http://localhost:5173` (default)
-- Authentication via Keycloak (optional) – users are redirected to the Keycloak login page before accessing the app
+- Authentication via Keycloak – users are redirected to the Keycloak login page before accessing the app. Keycloak can only be turned off when the app is actually served from `localhost`/`127.0.0.1`; on any other hostname it is always required, regardless of configuration.
 - All API calls include a `Bearer` token in the `Authorization` header when Keycloak is enabled
 
 - Default frontend configuration (see `webapp-banner-tool/src/config.ts`):
@@ -30,14 +30,12 @@ The repository contains a small React + Vite frontend located at `webapp-banner-
   - `KEYCLOAK_REALM` = `ts-icon`
   - `KEYCLOAK_CLIENT_ID` = `webapp-banner-tool`
 
-- To disable Keycloak authentication, create a `.env` file in `webapp-banner-tool/`:
-  ```env
-  VITE_KEYCLOAK_ENABLED=false
-  ```
-  | Value | Behavior |
-  |---|---|
-  | not set / `true` | Keycloak login required, Bearer token sent with API calls |
-  | `false` | No login required, app usable immediately without Keycloak |
+- `VITE_KEYCLOAK_ENABLED=false` (in a `.env` file in `webapp-banner-tool/`) skips the Keycloak login **only when the app is served from `localhost`/`127.0.0.1`**. On any other hostname this setting is ignored and login is always required — there is no way to disable authentication on a real deployment.
+  | Hostname | `VITE_KEYCLOAK_ENABLED` | Behavior |
+  |---|---|---|
+  | `localhost` / `127.0.0.1` | not set / `true` | Keycloak login required, Bearer token sent with API calls |
+  | `localhost` / `127.0.0.1` | `false` | No login required, app usable immediately without Keycloak |
+  | anything else | any value | Keycloak login always required |
 
 
 ## Backend
@@ -77,13 +75,13 @@ Local server (editing, default port 3001) — run in trusted environment only
 - POST /images-local/:channelName
   - Description: Upload a file for the channel (multipart/form-data).
   - Body: form field `file` (binary)
-  - Response: JSON `{ "message": "Bild erfolgreich gespeichert" }` on success
+  - Response: JSON `{ "message": "Image saved successfully" }` on success
   - Example (curl): `curl -F "file=@banner.png" http://localhost:3001/images-local/news`
 
 - POST /images-local/from-url
   - Description: Fetch an external URL and save it as the channel image.
   - Body: JSON `{ "channelName": "news", "url": "https://example.com/banner.png" }`
-  - Response: JSON `{ "message": "Bild erfolgreich gespeichert" }` on success
+  - Response: JSON `{ "message": "Image saved successfully" }` on success
 
 - GET /images-local/img-from-url?url=... 
   - Description: Proxy an external image URL and return it (use with caution — SSRF risk).
@@ -100,7 +98,7 @@ Other notes
 
 
 ## Keycloak Setup
-The web frontend supports optional Keycloak authentication. If enabled (default), configure it as follows:
+The web frontend requires Keycloak authentication, except when served from `localhost` (see above). Configure it as follows:
 
 1. Create a realm named `ts-icon` (or adjust `KEYCLOAK_REALM` in `webapp-banner-tool/src/config.ts`)
 2. Create a client:
@@ -148,7 +146,7 @@ The web frontend supports optional Keycloak authentication. If enabled (default)
 
 
 ## Security Warning
-- The web frontend can be protected by **Keycloak authentication** (OpenID Connect). When enabled, users must log in before accessing the app, and all API calls include a Bearer token. Keycloak can be disabled via `VITE_KEYCLOAK_ENABLED=false` for local development.
+- The web frontend is protected by **Keycloak authentication** (OpenID Connect). Users must log in before accessing the app, and all API calls include a Bearer token. `VITE_KEYCLOAK_ENABLED=false` only has any effect when the app is served from `localhost`/`127.0.0.1` (pure local development) — on any other hostname Keycloak is always required, with no override.
 - **Note:** The local backend does not yet validate tokens server-side. Do not expose the local editing server to the public internet without adding backend-side token verification (e.g. a NestJS Keycloak Guard).
 - The public backend should be limited to read-only/viewing endpoints when possible.
 

@@ -1,10 +1,10 @@
 # --- Build Stage ---
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
 
 COPY . .
@@ -14,15 +14,26 @@ RUN npm run build
 
 
 # --- Production Stage ---
-FROM node:18-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install --omit=dev && npm cache clean --force
+ENV NODE_ENV=production
 
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma /app/node_modules/.prisma
+# Minimal init process so SIGTERM (and reaping) is handled correctly for
+# whatever start command docker-compose supplies as CMD.
+RUN apk add --no-cache tini
+
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force && chown -R node:node /app
+
+COPY --from=builder --chown=node:node /app/dist ./dist
+COPY --from=builder --chown=node:node /app/prisma ./prisma
+COPY --from=builder --chown=node:node /app/node_modules/.prisma /app/node_modules/.prisma
+
+USER node
 
 EXPOSE 3000
+EXPOSE 3001
+
+ENTRYPOINT ["/sbin/tini", "--"]

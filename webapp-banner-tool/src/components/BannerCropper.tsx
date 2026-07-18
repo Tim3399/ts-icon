@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import Cropper from 'cropperjs';
 import { API_URL, GET_IMAGE_URL } from '../config';
 import { useAuth } from '../auth/AuthProvider';
+import { apiFetch, apiFetchBlob, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
+import { useToast } from './Toast';
 
 const TARGET_WIDTH = 500;
 const TARGET_HEIGHT = 44;
@@ -22,6 +24,9 @@ const BannerCropper: React.FC = () => {
   const toggleZoom = () => setIsZoomed(z => !z);
   const navigate = useNavigate();
   const { getToken } = useAuth();
+  const { showToast } = useToast();
+  const [isLoadingUrl, setIsLoadingUrl] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (previewRef.current && previewRef.current.src) {
@@ -32,20 +37,24 @@ const BannerCropper: React.FC = () => {
   }, [isZoomed]);
 
   useEffect(() => {
-    getToken().then(token => {
-      fetch(`${API_URL}channels`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    let cancelled = false;
+
+    apiFetchJson<{ channels: string[] }>(`${API_URL}channels`, { getToken })
+      .then((data) => {
+        if (cancelled) return;
+        if (!Array.isArray(data.channels)) throw new Error('Response does not contain a valid channels array');
+        setChannelList(data.channels);
       })
-        .then(res => res.json())
-        .then(data => {
-          if (!Array.isArray(data.channels)) throw new Error('Antwort enthält kein gültiges channels-Array');
-          setChannelList(data.channels);
-        })
-        .catch(err => {
-          console.warn('Konnte Channel-Liste nicht laden:', err);
-        });
-    });
-  }, []);
+      .catch((err) => {
+        if (cancelled) return;
+        console.warn('Could not load channel list:', err);
+        showToast(describeApiError(err, 'Channel list could not be loaded'), 'error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, showToast]);
 
   const initCropper = () => {
     if (cropperRef.current) {
@@ -54,7 +63,7 @@ const BannerCropper: React.FC = () => {
     }
 
     const image = previewRef.current!;
-    const options = {
+    const options: Cropper.Options = {
       aspectRatio: TARGET_RATIO,
       viewMode: 1,
       autoCropArea: 1,
@@ -80,7 +89,7 @@ const BannerCropper: React.FC = () => {
       }
     };
 
-    cropperRef.current = new Cropper(image, options as any);
+    cropperRef.current = new Cropper(image, options);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,30 +107,38 @@ const BannerCropper: React.FC = () => {
   };
 
   const handleUrlLoad = async () => {
-    if (!imageUrl.trim()) return alert('Bitte eine Bild-URL eingeben.');
+    if (!imageUrl.trim()) {
+      showToast('Please enter an image URL.', 'error');
+      return;
+    }
 
+    setIsLoadingUrl(true);
     try {
-      const token = await getToken();
-      const response = await fetch(`${GET_IMAGE_URL}?url=${encodeURIComponent(imageUrl)}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      const blob = await apiFetchBlob(`${GET_IMAGE_URL}?url=${encodeURIComponent(imageUrl)}`, {
+        getToken,
       });
-      if (!response.ok) throw new Error('Bild konnte nicht geladen werden');
-
-      const blob = await response.blob();
       const objectURL = URL.createObjectURL(blob);
 
       if (previewRef.current) {
         previewRef.current.src = objectURL;
         previewRef.current.onload = () => initCropper();
       }
-    } catch (err: any) {
-      alert('Fehler beim Laden des Bildes: ' + err.message);
+    } catch (err) {
+      showToast(describeApiError(err, 'Error loading the image'), 'error');
+    } finally {
+      setIsLoadingUrl(false);
     }
   };
 
   const handleUpload = () => {
-    if (!cropperRef.current) return alert('Bitte zuerst ein Bild auswählen.');
-    if (!channelName.trim()) return alert('Bitte einen Channelnamen eingeben.');
+    if (!cropperRef.current) {
+      showToast('Please select an image first.', 'error');
+      return;
+    }
+    if (!channelName.trim()) {
+      showToast('Please enter a channel name.', 'error');
+      return;
+    }
 
     const cropData = cropperRef.current.getData(true);
     const tempCanvas = document.createElement('canvas');
@@ -153,27 +170,30 @@ const BannerCropper: React.FC = () => {
     tempCanvas.toBlob(async (blob) => {
       if (!blob) return;
 
-      const token = await getToken();
       const formData = new FormData();
       formData.append('file', blob, 'banner.png');
 
-      fetch(`${API_URL}${encodeURIComponent(channelName)}`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData
-      })
-        .then(res => {
-          if (!res.ok) throw new Error('Fehler beim Upload');
-          return res.json();
-        })
-        .then(() => alert('Bild erfolgreich hochgeladen!'))
-        .catch(err => alert('Fehler: ' + err.message));
+      setIsUploading(true);
+      try {
+        // apiFetch throws on non-2xx responses, so reaching here means success.
+        await apiFetch(`${API_URL}${encodeURIComponent(channelName)}`, {
+          method: 'POST',
+          body: formData,
+          getToken,
+          timeoutMs: UPLOAD_TIMEOUT_MS,
+        });
+        showToast('Image uploaded successfully!', 'success');
+      } catch (err) {
+        showToast(describeApiError(err, 'Upload error'), 'error');
+      } finally {
+        setIsUploading(false);
+      }
     }, 'image/png');
   };
 
   return (
     <div style={{ maxHeight: '90vh', overflowY: 'auto', paddingRight: 10 }}>
-      <label htmlFor="channel">Channelname:</label>
+      <label htmlFor="channel">Channel name:</label>
       <input
         type="text"
         id="channel"
@@ -190,7 +210,7 @@ const BannerCropper: React.FC = () => {
       </datalist>
 
       <div id="channel-display">
-        <strong>Gefundene Channels:</strong>
+        <strong>Found channels:</strong>
         <ul id="channel-list-display">
           {channelList.map((name) => (
             <li key={name}>{name}</li>
@@ -205,20 +225,23 @@ const BannerCropper: React.FC = () => {
         accept="image/*"
       />
 
-      <label htmlFor="imageUrl">Bild-URL:</label>
+      <label htmlFor="imageUrl">Image URL:</label>
       <input
         type="text"
         id="imageUrl"
         value={imageUrl}
         onChange={(e) => setImageUrl(e.target.value)}
         placeholder="https://example.com/banner.png"
+        disabled={isLoadingUrl}
       />
-      <button onClick={handleUrlLoad}>Bild von URL laden</button>
+      <button onClick={handleUrlLoad} disabled={isLoadingUrl}>
+        {isLoadingUrl ? 'Loading...' : 'Load image from URL'}
+      </button>
 
-      <button onClick={() => navigate('/channels')}>Channel-Bilder verwalten</button>
+      <button onClick={() => navigate('/channels')}>Manage channel images</button>
 
       <button type="button" onClick={toggleZoom} style={{ marginBottom: 8 }}>
-        {isZoomed ? 'Ansicht verkleinern' : 'Ansicht vergrößern'}
+        {isZoomed ? 'Shrink view' : 'Enlarge view'}
       </button>
 
       <div
@@ -232,7 +255,7 @@ const BannerCropper: React.FC = () => {
       >
         <img
           ref={previewRef}
-          alt="Vorschau"
+          alt="Preview"
           id="preview"
           style={{
             width: '100%',
@@ -245,7 +268,9 @@ const BannerCropper: React.FC = () => {
 
       <canvas ref={canvasRef} id="canvas-preview" width={TARGET_WIDTH} height={TARGET_HEIGHT} style={{ display: 'none' }} />
 
-      <button onClick={handleUpload}>Bild zuschneiden & senden</button>
+      <button onClick={handleUpload} disabled={isUploading}>
+        {isUploading ? 'Uploading...' : 'Crop & send image'}
+      </button>
     </div>
   );
 };

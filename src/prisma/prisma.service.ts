@@ -5,9 +5,9 @@ import { DATABASE_URL } from '../../config'
 import * as path from 'path'
 
 function createAdapter() {
-  // DATABASE_URL ist z.B. 'file:./dev.db' oder 'file:/data/dev.db'
+  // DATABASE_URL is e.g. 'file:./dev.db' or 'file:/data/dev.db'
   let dbPath = DATABASE_URL.replace(/^file:/, '')
-  // Relative Pfade relativ zum prisma/-Ordner auflösen (wie Prisma CLI es tut)
+  // Resolve relative paths relative to the prisma/ folder (like the Prisma CLI does)
   if (!path.isAbsolute(dbPath)) {
     dbPath = path.resolve(__dirname, '..', '..', '..', 'prisma', dbPath)
   }

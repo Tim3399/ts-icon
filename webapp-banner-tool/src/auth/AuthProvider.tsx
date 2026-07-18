@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import keycloak from './keycloak';
-import { KEYCLOAK_ENABLED } from '../config';
+import { KEYCLOAK_ENABLED, KEYCLOAK_CLIENT_ID } from '../config';
+import { ToastProvider } from '../components/Toast';
 
 interface AuthContextType {
   authenticated: boolean;
   token: string | undefined;
   username: string | undefined;
+  roles: string[];
   logout: () => void;
   getToken: () => Promise<string | undefined>;
 }
@@ -14,6 +16,7 @@ const AuthContext = createContext<AuthContextType>({
   authenticated: false,
   token: undefined,
   username: undefined,
+  roles: [],
   logout: () => {},
   getToken: async () => undefined,
 });
@@ -31,29 +34,38 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     if (!KEYCLOAK_ENABLED) return;
 
+    let refreshIntervalId: ReturnType<typeof setInterval> | undefined;
+
     keycloak
       .init({
         onLoad: 'login-required',
         checkLoginIframe: false,
+        pkceMethod: 'S256',
       })
       .then((auth) => {
         setAuthenticated(auth);
         setLoading(false);
 
-        // Automatische Token-Erneuerung
-        setInterval(() => {
+        // Automatic token refresh
+        refreshIntervalId = setInterval(() => {
           keycloak
             .updateToken(60)
             .catch(() => {
-              console.warn('Token-Erneuerung fehlgeschlagen, erneuter Login nötig');
+              console.warn('Token refresh failed, login required again');
               keycloak.login();
             });
         }, 30000);
       })
       .catch((err) => {
-        console.error('Keycloak Initialisierung fehlgeschlagen:', err);
+        console.error('Keycloak initialization failed:', err);
         setLoading(false);
       });
+
+    return () => {
+      if (refreshIntervalId !== undefined) {
+        clearInterval(refreshIntervalId);
+      }
+    };
   }, []);
 
   const logout = useCallback(() => {
@@ -75,32 +87,43 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <p>Authentifizierung läuft...</p>
-      </div>
+      <ToastProvider>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+          <p>Authenticating...</p>
+        </div>
+      </ToastProvider>
     );
   }
 
   if (!authenticated) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <p>Anmeldung fehlgeschlagen. Bitte Seite neu laden.</p>
-      </div>
+      <ToastProvider>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+          <p>Login failed. Please reload the page.</p>
+        </div>
+      </ToastProvider>
     );
   }
 
+  const roles: string[] = KEYCLOAK_ENABLED
+    ? keycloak.tokenParsed?.resource_access?.[KEYCLOAK_CLIENT_ID]?.roles ?? []
+    : [];
+
   return (
-    <AuthContext.Provider
-      value={{
-        authenticated,
-        token: KEYCLOAK_ENABLED ? keycloak.token : undefined,
-        username: KEYCLOAK_ENABLED ? keycloak.tokenParsed?.preferred_username : 'local',
-        logout,
-        getToken,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+    <ToastProvider>
+      <AuthContext.Provider
+        value={{
+          authenticated,
+          token: KEYCLOAK_ENABLED ? keycloak.token : undefined,
+          username: KEYCLOAK_ENABLED ? keycloak.tokenParsed?.preferred_username : 'local',
+          roles,
+          logout,
+          getToken,
+        }}
+      >
+        {children}
+      </AuthContext.Provider>
+    </ToastProvider>
   );
 };
 

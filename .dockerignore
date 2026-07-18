@@ -13,4 +13,4 @@ coverage
 coverage/
 *.md
 *.tsbuildinfo
-*.local.ts
+*.db

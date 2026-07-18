@@ -16,7 +16,7 @@ services:
     image: tsicon-local
     command: sh -c "npx prisma db push && npm run start:local"
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
       - IMG_API_PORT=3001
       - DATABASE_URL=file:/data/dev.db

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { API_URL, GET_CHANNELS_LIST_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
+import { apiFetch, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
+import { useToast } from './Toast';
 
 type Channel = {
   name: string;
@@ -10,32 +12,53 @@ type Channel = {
 const ChannelGallery: React.FC = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [missingImages, setMissingImages] = useState<Record<string, boolean>>({});
+  const [channelsLoading, setChannelsLoading] = useState(true);
+  const [uploadingChannel, setUploadingChannel] = useState<string | null>(null);
   const navigate = useNavigate();
   const { getToken } = useAuth();
+  const { showToast } = useToast();
 
   useEffect(() => {
-    getToken().then(token => {
-      fetch(`${GET_CHANNELS_LIST_URL}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    let cancelled = false;
+
+    setChannelsLoading(true);
+    apiFetchJson<{ channels: string[] }>(GET_CHANNELS_LIST_URL, { getToken })
+      .then((data) => {
+        if (cancelled) return;
+        if (!Array.isArray(data.channels)) throw new Error('Response does not contain a valid channels array');
+        setChannels(data.channels.map((c: string) => ({ name: c })));
       })
-        .then(res => res.json())
-        .then(data => {
-          if (!Array.isArray(data.channels)) throw new Error('Antwort enthält kein gültiges channels-Array');
-          setChannels(data.channels.map((c: string) => ({ name: c })));
-        });
-    });
-  }, []);
+      .catch((err) => {
+        if (cancelled) return;
+        showToast(describeApiError(err,'Channel list could not be loaded'), 'error');
+      })
+      .finally(() => {
+        if (!cancelled) setChannelsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, showToast]);
 
   const handleImageChange = async (channelName: string, file: File) => {
-    const token = await getToken();
+    setUploadingChannel(channelName);
     const formData = new FormData();
     formData.append('file', file, 'banner.png');
-    fetch(`${API_URL}${encodeURIComponent(channelName)}`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData
-    })
-      .then(res => res.ok && alert('Bild aktualisiert!'));
+    try {
+      // apiFetch throws on non-2xx responses, so reaching here means success.
+      await apiFetch(`${API_URL}${encodeURIComponent(channelName)}`, {
+        method: 'POST',
+        body: formData,
+        getToken,
+        timeoutMs: UPLOAD_TIMEOUT_MS,
+      });
+      showToast('Image updated!', 'success');
+    } catch (err) {
+      showToast(describeApiError(err,'Image could not be updated'), 'error');
+    } finally {
+      setUploadingChannel(null);
+    }
   };
 
   const handleImageError = (channelName: string) => {
@@ -46,9 +69,10 @@ const ChannelGallery: React.FC = () => {
 
   return (
     <div>
-      <button onClick={() => navigate('/')}>Zurück</button>
-      <h2>Channel-Bilder verwalten</h2>
-      {allChannels.map((channel, idx) => (
+      <button onClick={() => navigate('/')}>Back</button>
+      <h2>Manage channel images</h2>
+      {channelsLoading && <p>Loading...</p>}
+      {!channelsLoading && allChannels.map((channel, idx) => (
         <div key={channel.name || idx} style={{ marginBottom: 24 }}>
           <div>
             {!missingImages[channel.name] ? (
@@ -75,7 +99,7 @@ const ChannelGallery: React.FC = () => {
                 background: '#f5f5f5',
                 color: '#888'
               }}>
-                Kein Bild vorhanden
+                No image available
               </div>
             )}
           </div>
@@ -85,10 +109,12 @@ const ChannelGallery: React.FC = () => {
           <input
             type="file"
             accept="image/*"
+            disabled={uploadingChannel === channel.name}
             onChange={e => {
               if (e.target.files?.[0]) handleImageChange(channel.name, e.target.files[0]);
             }}
           />
+          {uploadingChannel === channel.name && <span style={{ marginLeft: 8 }}>Uploading...</span>}
         </div>
       ))}
     </div>

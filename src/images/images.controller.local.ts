@@ -9,6 +9,7 @@ import {
   UseInterceptors,
   BadRequestException,
   Body,
+  Logger,
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { ImagesService } from './images.service'
@@ -27,8 +28,10 @@ import { IsString, IsUrl } from 'class-validator'
 import { URL } from 'url'
 
 import { TeamSpeak } from 'ts3-nodejs-library'
-import { TS_HOST, TS_QUERY_PORT, TS_SERVER_PORT, TS_USERNAME, TS_USERPASSWORD } from '../../config'
+import { TS_HOST, TS_QUERY_PORT, TS_SERVER_PORT, getTeamSpeakCredentials } from '../../config'
 import { normalizeChannelName } from '../util/util'
+
+const logger = new Logger('ImagesLocalController')
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/png',
@@ -48,11 +51,11 @@ function imageFileFilter(req: unknown, file: Express.Multer.File, cb: (err: Erro
 }
 
 export class ImageFromUrlDto {
-  @ApiProperty({ example: 'mein-channel' })
+  @ApiProperty({ example: 'my-channel' })
   @IsString()
   channelName!: string
 
-  @ApiProperty({ example: 'https://example.com/bild.png' })
+  @ApiProperty({ example: 'https://example.com/image.png' })
   @IsUrl()
   url!: string
 }
@@ -69,13 +72,13 @@ async function fetchImageBufferFromUrl(url: string): Promise<{
   buffer: Buffer
   contentType: string
 }> {
-  console.log(`[fetchImageBufferFromUrl] Lade Bild von: ${url}`)
+  logger.log(`[fetchImageBufferFromUrl] Loading image from: ${url}`)
   const response = await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: AXIOS_TIMEOUT, maxContentLength: AXIOS_MAX_CONTENT })
 
   const contentType = getResponseHeader(response.headers, 'content-type')
   if (!contentType?.startsWith('image/')) {
-    console.warn(`[fetchImageBufferFromUrl] Kein Bild: ${url}`)
-    throw new Error('Kein gültiges Bild')
+    logger.warn(`[fetchImageBufferFromUrl] Not an image: ${url}`)
+    throw new Error('Not a valid image')
   }
 
   return {
@@ -85,29 +88,30 @@ async function fetchImageBufferFromUrl(url: string): Promise<{
 }
 
 async function listChannels() {
-  console.log('[listChannels] Starte Verbindung zu TeamSpeak...');
+  logger.log('[listChannels] Starting connection to TeamSpeak...');
   try {
+    const { username, password } = getTeamSpeakCredentials();
     const ts3 = await TeamSpeak.connect({
       host: TS_HOST,
       queryport: TS_QUERY_PORT,
       serverport: TS_SERVER_PORT,
-      username: TS_USERNAME,
-      password: TS_USERPASSWORD,
+      username,
+      password,
     });
 
     ts3.on('error', (err) => {
-      console.error('[listChannels] TeamSpeak-Client-Fehler:', err);
+      logger.error('[listChannels] TeamSpeak client error:', err);
     });
 
-    console.log('[listChannels] Verbindung zu TeamSpeak hergestellt.');
+    logger.log('[listChannels] Connection to TeamSpeak established.');
     const channels = await ts3.channelList();
     const channelNames = channels.map(c => normalizeChannelName(c.name));
-    console.log('[listChannels] Gefundene Channels:', channelNames);
+    logger.log(`[listChannels] Found channels: ${channelNames.join(', ')}`);
     await ts3.quit();
-    console.log('[listChannels] Verbindung zu TeamSpeak beendet.');
+    logger.log('[listChannels] Connection to TeamSpeak closed.');
     return channelNames;
   } catch (err) {
-    console.error('[listChannels] Fehler beim Verbinden/Abrufen der Channels:', err);
+    logger.error('[listChannels] Error connecting to / fetching channels:', err);
     return [];
   }
 }
@@ -118,32 +122,32 @@ export class ImagesLocalController {
   constructor(private readonly imagesService: ImagesService) {}
 
   @Post('from-url')
-  @ApiOperation({ summary: 'Lade ein Bild von einer URL für den Channel hoch (nur lokal)' })
+  @ApiOperation({ summary: 'Upload an image from a URL for the channel (local only)' })
   @ApiBody({ type: ImageFromUrlDto })
   async uploadImageFromUrl(
     @Body() body: ImageFromUrlDto
   ) {
     const { channelName, url } = body
     const normalizedChannel = normalizeChannelName(channelName);
-    console.log(`[from-url] Request: channelName=${normalizedChannel}, url=${url}`)
+    logger.log(`[from-url] Request: channelName=${normalizedChannel}, url=${url}`)
     if (!normalizedChannel || !url) {
-      console.warn(`[from-url] Fehlende Parameter`)
-      throw new BadRequestException('channelName und url sind erforderlich')
+      logger.warn(`[from-url] Missing parameters`)
+      throw new BadRequestException('channelName and url are required')
     }
 
     try {
       const { buffer, contentType } = await fetchImageBufferFromUrl(url)
       await this.imagesService.saveImage(normalizedChannel, buffer, contentType)
-      console.log(`[from-url] Bild erfolgreich gespeichert für ${normalizedChannel}`)
-      return { message: 'Bild erfolgreich gespeichert' }
+      logger.log(`[from-url] Image saved successfully for ${normalizedChannel}`)
+      return { message: 'Image saved successfully' }
     } catch (err) {
-      console.error(`[from-url] Fehler:`, err)
-      throw new BadRequestException('Bild konnte nicht geladen oder war kein gültiges Bild')
+      logger.error(`[from-url] Error:`, err)
+      throw new BadRequestException('Image could not be loaded or was not a valid image')
     }
   }
 
   @Post(':channelName')
-  @ApiOperation({ summary: 'Lade ein Bild für den Channel hoch (nur lokal)' })
+  @ApiOperation({ summary: 'Upload an image for the channel (local only)' })
   @ApiParam({ name: 'channelName', type: String })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -164,44 +168,51 @@ export class ImagesLocalController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     const normalizedChannel = normalizeChannelName(channelName);
-    console.log(`[uploadImage] Request: channelName=${normalizedChannel}, fileSize=${file?.buffer?.length ?? 0}`)
+    logger.log(`[uploadImage] Request: channelName=${normalizedChannel}, fileSize=${file?.buffer?.length ?? 0}`)
     if (!file || !file.buffer) {
-      console.warn(`[uploadImage] Keine Datei hochgeladen`)
-      throw new BadRequestException('Keine Datei hochgeladen')
+      logger.warn(`[uploadImage] No file uploaded`)
+      throw new BadRequestException('No file uploaded')
     }
     await this.imagesService.saveImage(normalizedChannel, file.buffer, file.mimetype)
-    console.log(`[uploadImage] Bild erfolgreich gespeichert für ${normalizedChannel}`)
-    return { message: 'Bild erfolgreich gespeichert' }
+    logger.log(`[uploadImage] Image saved successfully for ${normalizedChannel}`)
+    return { message: 'Image saved successfully' }
+  }
+
+  @Get('options')
+  @ApiOperation({ summary: 'Lists all images from the database (channelName, mimeType)' })
+  async listOptions() {
+    const options = await this.imagesService.listOptions()
+    return { options }
   }
 
   @Get('img-from-url')
-  @ApiOperation({ summary: 'Proxy: Liefert ein Bild von einer externen URL zurück' })
+  @ApiOperation({ summary: 'Proxy: returns an image from an external URL' })
   @ApiParam({
     name: 'url',
     type: String,
     required: true,
-    description: 'Die externe Bild-URL (als Query-Parameter)',
+    description: 'The external image URL (as a query parameter)',
     example: 'https://example.com/image.jpg',
   })
   @ApiResponse({
     status: 200,
-    description: 'Das Bild als Binary-Stream',
+    description: 'The image as a binary stream',
     content: { 'image/*': { schema: { type: 'string', format: 'binary' } } },
   })
-  @ApiResponse({ status: 400, description: 'Ungültige oder fehlende URL' })
+  @ApiResponse({ status: 400, description: 'Invalid or missing URL' })
   async proxyImage(@Query('url') url: string, @Res() res: Response) {
-    console.log(`[img-from-url] Proxy-Request: url=${url}`)
+    logger.log(`[img-from-url] Proxy request: url=${url}`)
     if (!url) {
-      console.warn(`[img-from-url] Fehlender Query-Parameter "url"`)
-      throw new BadRequestException('Query-Parameter "url" fehlt')
+      logger.warn(`[img-from-url] Missing query parameter "url"`)
+      throw new BadRequestException('Query parameter "url" is missing')
     }
 
-    // Sicherstellen, dass es eine valide URL ist
+    // Make sure it's a valid URL
     try {
       new URL(url)
     } catch {
-      console.warn(`[img-from-url] Ungültige URL: ${url}`)
-      throw new BadRequestException('Ungültige URL')
+      logger.warn(`[img-from-url] Invalid URL: ${url}`)
+      throw new BadRequestException('Invalid URL')
     }
 
     try {
@@ -209,24 +220,24 @@ export class ImagesLocalController {
       const contentType = getResponseHeader(response.headers, 'content-type')
 
       if (!contentType?.startsWith('image/')) {
-        console.warn(`[img-from-url] Kein Bild: ${url}`)
-        throw new BadRequestException('Die angegebene URL liefert kein Bild')
+        logger.warn(`[img-from-url] Not an image: ${url}`)
+        throw new BadRequestException('The given URL does not return an image')
       }
 
       res.setHeader('Content-Type', contentType)
       res.send(Buffer.from(response.data))
-      console.log(`[img-from-url] Bild erfolgreich proxied: ${url}`)
+      logger.log(`[img-from-url] Image proxied successfully: ${url}`)
     } catch (err) {
-      console.error(`[img-from-url] Fehler beim Laden:`, err)
-      throw new BadRequestException('Bild konnte nicht geladen werden')
+      logger.error(`[img-from-url] Error while loading:`, err)
+      throw new BadRequestException('Image could not be loaded')
     }
   }
 
   @Get('channels')
-  @ApiOperation({ summary: 'Liefert eine Liste aller Channels (TeamSpeak)' })
+  @ApiOperation({ summary: 'Returns a list of all channels (TeamSpeak)' })
   @ApiResponse({
     status: 200,
-    description: 'Liste der Channels oder Fehlermeldung',
+    description: 'List of channels or error message',
     schema: {
       type: 'object',
       properties: {
@@ -236,15 +247,15 @@ export class ImagesLocalController {
     }
   })
   async listChannels() {
-    console.log('[GET /images-local/channels] Anfrage erhalten');
+    logger.log('[GET /images-local/channels] Request received');
     try {
       const result = await listChannels();
       return { channels: result };
     } catch (err) {
-      console.error('[GET /images-local/channels] Fehler:', err);
+      logger.error('[GET /images-local/channels] Error:', err);
       return {
         channels: [],
-        error: 'TeamSpeak nicht erreichbar oder Fehler beim Abrufen der Channels'
+        error: 'TeamSpeak unreachable or error fetching channels'
       };
     }
   }

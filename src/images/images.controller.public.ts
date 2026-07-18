@@ -1,40 +1,35 @@
-import { Controller, Get, Param, Res, NotFoundException } from '@nestjs/common'
+import { Controller, Get, Param, Res, NotFoundException, Logger } from '@nestjs/common'
 import { ImagesService } from './images.service'
 import { Response } from 'express'
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger'
 
 import { normalizeChannelName } from '../util/util'
 
+const logger = new Logger('ImagesPublicController')
+
 @ApiTags('images')
 @Controller('images')
 export class ImagesPublicController {
   constructor(private readonly imagesService: ImagesService) {}
 
-  @Get('options')
-  @ApiOperation({ summary: 'Listet alle Bilder aus der Datenbank auf (channelName, mimeType)' })
-  async listOptions() {
-    const options = await this.imagesService.listOptions()
-    return { options }
-  }
-
   @Get(':channelName')
-  @ApiOperation({ summary: 'Hole Channel-Bild aus der Datenbank' })
+  @ApiOperation({ summary: 'Fetch channel image from the database' })
   @ApiParam({ name: 'channelName', type: String })
   async getImage(
     @Param('channelName') channelName: string,
     @Res() res: Response,
   ) {
     const normalizedChannel = normalizeChannelName(channelName)
-    console.log(`[getImage] Request: channelName=${normalizedChannel}`)
+    logger.log(`[getImage] Request: channelName=${normalizedChannel}`)
     const image = await this.imagesService.getImage(normalizedChannel)
     if (!image) {
-      console.warn(`[getImage] Bild nicht gefunden für ${normalizedChannel}`)
-      throw new NotFoundException('Bild nicht gefunden')
+      logger.warn(`[getImage] Image not found for ${normalizedChannel}`)
+      throw new NotFoundException('Image not found')
     }
     res.setHeader('Content-Type', image.mimeType)
-    // Setze Cache-Control Header für 1 Tag (86400 Sekunden)
+    // Set Cache-Control header for 1 day (86400 seconds)
     res.setHeader('Cache-Control', 'public, max-age=86400')
-    console.log(`[getImage] Bild erfolgreich geliefert für ${normalizedChannel}`)
+    logger.log(`[getImage] Image served successfully for ${normalizedChannel}`)
     return res.send(image.image)
   }
 }
