@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module.public';
 import { IMG_WEB_PORT, validateDatabaseConfig } from '../config';
 
@@ -9,6 +10,14 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
   app.enableShutdownHooks();
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
 
   await app.listen(IMG_WEB_PORT);
 }

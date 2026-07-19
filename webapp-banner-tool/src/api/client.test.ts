@@ -57,6 +57,20 @@ describe('apiFetch error categorization', () => {
     expect(error.message).toContain('30');
   });
 
+  it('finds a name-suffixed Retry-After header (e.g. Retry-After-burst), as the backend actually sends', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(null, { status: 429, headers: { 'Retry-After-burst': '1' } })
+      )
+    );
+
+    const error = await expectApiError(apiFetch('https://example.test/x'));
+    expect(error.category).toBe('rate-limited');
+    expect(error.retryAfter).toBe('1');
+    expect(error.message).toContain('1');
+  });
+
   it('categorizes a 429 response without Retry-After as "rate-limited" with a generic message', async () => {
     vi.stubGlobal(
       'fetch',

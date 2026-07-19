@@ -57,6 +57,23 @@ async function resolveToken(options: ApiRequestOptions): Promise<string | undefi
   return undefined;
 }
 
+/**
+ * The backend enforces two named rate-limit windows (see the throttler
+ * config on the public image endpoint), so a 429 response's Retry-After
+ * header comes back name-suffixed (e.g. `Retry-After-burst`,
+ * `Retry-After-per-minute`) rather than as a plain `Retry-After` — a single
+ * exact-match `headers.get('Retry-After')` would never find it. Scan for any
+ * header name starting with `retry-after` instead.
+ */
+function findRetryAfterHeader(headers: Headers): string | null {
+  for (const [name, value] of headers.entries()) {
+    if (name.toLowerCase().startsWith('retry-after')) {
+      return value;
+    }
+  }
+  return null;
+}
+
 function statusToApiError(response: Response): ApiError {
   const status = response.status;
 
@@ -67,7 +84,7 @@ function statusToApiError(response: Response): ApiError {
     return new ApiError('No permission for this action.', 'forbidden', status);
   }
   if (status === 429) {
-    const retryAfter = response.headers.get('Retry-After');
+    const retryAfter = findRetryAfterHeader(response.headers);
     const message = retryAfter
       ? `Too many requests – please try again in ${retryAfter}s.`
       : 'Too many requests – please wait a moment and try again.';

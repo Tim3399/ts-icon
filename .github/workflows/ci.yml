@@ -42,8 +42,15 @@ jobs:
       # `npm ci`. Without this step, PrismaClient resolves to an untyped
       # value under the project's type-aware ESLint config, which turns
       # ordinary Prisma usage into spurious "unsafe" lint errors.
+      #
+      # DATABASE_URL is set here even though `generate` never connects to a
+      # database: prisma.config.ts resolves it via env() as soon as the
+      # Prisma CLI loads its config, for any command, so a value must be
+      # present regardless of whether this specific command needs one.
       - name: Generate Prisma client
         run: npx prisma generate
+        env:
+          DATABASE_URL: file:./dev.db
 
       - name: Lint
         run: npm run lint

@@ -9,6 +9,14 @@ RUN npm ci
 
 COPY . .
 
+# prisma.config.ts resolves DATABASE_URL via env() as soon as the Prisma CLI
+# loads its config, even for a command like `generate` that never actually
+# connects to a database — so a value must be present here regardless. This
+# is a build-time-only placeholder: it doesn't need to point at a real
+# database, and it has no effect on the runner stage below (each Docker
+# stage's ENV is independent; the real DATABASE_URL is supplied at runtime
+# via docker-compose).
+ENV DATABASE_URL=file:./dev.db
 RUN npx prisma generate
 RUN npm run build
 
