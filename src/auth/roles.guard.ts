@@ -10,6 +10,7 @@ import type { Request } from 'express';
 import { ROLES_KEY } from './roles.decorator';
 import { OIDC_CONFIG } from './auth.tokens';
 import type { OidcConfig } from '../../config';
+import { MetricsService } from '../metrics/metrics.service';
 
 /**
  * Enforces `@Roles(...)` on a route, reading the Keycloak client roles
@@ -34,6 +35,7 @@ export class RolesGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     @Inject(OIDC_CONFIG) private readonly oidcConfig: OidcConfig,
+    private readonly metrics: MetricsService,
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -52,6 +54,7 @@ export class RolesGuard implements CanActivate {
       // either populates req.user or rejects the request with a 401 before
       // this guard ever runs) -- but fail closed rather than throwing an
       // unhandled TypeError if guard ordering is ever changed.
+      this.metrics.authorizationFailuresTotal.inc();
       throw new ForbiddenException();
     }
 
@@ -62,6 +65,7 @@ export class RolesGuard implements CanActivate {
 
     const satisfied = requiredRoles.some((role) => effectiveRoles.has(role));
     if (!satisfied) {
+      this.metrics.authorizationFailuresTotal.inc();
       throw new ForbiddenException();
     }
     return true;

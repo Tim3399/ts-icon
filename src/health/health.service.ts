@@ -1,11 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MetricsService } from '../metrics/metrics.service';
 
 @Injectable()
 export class HealthService {
   private readonly logger = new Logger(HealthService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly metrics: MetricsService,
+  ) {}
 
   /**
    * Confirms the database connection is actually alive by running a cheap
@@ -29,6 +33,7 @@ export class HealthService {
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       this.logger.error(`Database readiness check failed: ${reason}`);
+      this.metrics.databaseErrorsTotal.inc({ operation: 'readiness-check' });
       return false;
     }
   }

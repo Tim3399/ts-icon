@@ -19,7 +19,9 @@ import {
   FetchFailedError,
 } from './safe-url-fetcher';
 import { fetchLiveChannels } from '../teamspeak/teamspeak-channels';
+import { processImageForStorage } from './image-processing';
 import type { ImagesService } from './images.service';
+import type { MetricsService } from '../metrics/metrics.service';
 
 jest.mock('./safe-url-fetcher', () => {
   const actual =
@@ -36,11 +38,25 @@ jest.mock('../teamspeak/teamspeak-channels', () => ({
   fetchLiveChannels: jest.fn(),
 }));
 
+jest.mock('./image-processing', () => {
+  const actual =
+    jest.requireActual<typeof import('./image-processing')>(
+      './image-processing',
+    );
+  return {
+    ...actual,
+    processImageForStorage: jest.fn(),
+  };
+});
+
 const mockedFetch = fetchImageSafely as jest.MockedFunction<
   typeof fetchImageSafely
 >;
 const mockedFetchLiveChannels = fetchLiveChannels as jest.MockedFunction<
   typeof fetchLiveChannels
+>;
+const mockedProcessImage = processImageForStorage as jest.MockedFunction<
+  typeof processImageForStorage
 >;
 
 // Returns both the stub itself and direct references to its jest.fn()s.
@@ -65,10 +81,36 @@ function createImagesServiceStub(): {
   return { imagesService, findByChannelId, channelNameInUse };
 }
 
+// Only the counters actually exercised by these tests get real jest.fn()s;
+// everything else on MetricsService is simply absent from the stub, which is
+// fine since no test here touches those other counters.
+function createMetricsStub(): {
+  metrics: MetricsService;
+  imageUploadsIncMock: jest.Mock;
+  teamspeakErrorsIncMock: jest.Mock;
+  ssrfBlockedIncMock: jest.Mock;
+} {
+  const imageUploadsIncMock = jest.fn();
+  const teamspeakErrorsIncMock = jest.fn();
+  const ssrfBlockedIncMock = jest.fn();
+  const metrics = {
+    imageUploadsTotal: { inc: imageUploadsIncMock },
+    teamspeakErrorsTotal: { inc: teamspeakErrorsIncMock },
+    ssrfBlockedTotal: { inc: ssrfBlockedIncMock },
+  } as unknown as MetricsService;
+  return {
+    metrics,
+    imageUploadsIncMock,
+    teamspeakErrorsIncMock,
+    ssrfBlockedIncMock,
+  };
+}
+
 function createController(
   imagesService: ImagesService = createImagesServiceStub().imagesService,
+  metrics: MetricsService = createMetricsStub().metrics,
 ): ImagesLocalController {
-  return new ImagesLocalController(imagesService);
+  return new ImagesLocalController(imagesService, metrics);
 }
 
 function createRes(): { res: Response; setHeader: jest.Mock; send: jest.Mock } {
@@ -332,5 +374,78 @@ describe('ImagesLocalController.uploadImage', () => {
     await expect(
       controller.uploadImage('chan', createFile()),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('increments the upload-success counter on a successful upload', async () => {
+    mockedProcessImage.mockResolvedValue({
+      buffer: Buffer.from('processed'),
+      mimeType: 'image/png',
+    });
+    const { imagesService } = createImagesServiceStub();
+    const { metrics, imageUploadsIncMock } = createMetricsStub();
+    const controller = createController(imagesService, metrics);
+
+    await controller.uploadImage('chan', createFile());
+
+    expect(imageUploadsIncMock).toHaveBeenCalledWith({
+      method: 'upload',
+      result: 'success',
+    });
+    expect(imageUploadsIncMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ result: 'failure' }),
+    );
+  });
+
+  it('increments the upload-failure counter, and the TeamSpeak-error counter, when TeamSpeak is unreachable', async () => {
+    mockedFetchLiveChannels.mockRejectedValue(new Error('ECONNREFUSED'));
+    const { metrics, imageUploadsIncMock, teamspeakErrorsIncMock } =
+      createMetricsStub();
+    const controller = createController(undefined, metrics);
+
+    await expect(
+      controller.uploadImage('chan', createFile()),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(imageUploadsIncMock).toHaveBeenCalledWith({
+      method: 'upload',
+      result: 'failure',
+    });
+    expect(teamspeakErrorsIncMock).toHaveBeenCalledWith({
+      operation: 'resolve-channel',
+    });
+  });
+});
+
+describe('ImagesLocalController.uploadImageFromUrl metrics', () => {
+  it('increments the SSRF-blocked counter, labeled by route, when the URL is rejected', async () => {
+    mockedFetch.mockRejectedValue(new SsrfValidationError('not allowed'));
+    const { metrics, ssrfBlockedIncMock } = createMetricsStub();
+    const controller = createController(undefined, metrics);
+
+    await expect(
+      controller.uploadImageFromUrl({
+        channelName: 'chan',
+        url: 'https://example.com/a.png',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(ssrfBlockedIncMock).toHaveBeenCalledWith({ route: 'from-url' });
+  });
+});
+
+describe('ImagesLocalController.proxyImage metrics', () => {
+  it('increments the SSRF-blocked counter, labeled by route, when the URL is rejected', async () => {
+    mockedFetch.mockRejectedValue(new SsrfValidationError('not allowed'));
+    const { metrics, ssrfBlockedIncMock } = createMetricsStub();
+    const controller = createController(undefined, metrics);
+    const { res } = createRes();
+
+    await expect(
+      controller.proxyImage({ url: 'https://example.com/a.png' }, res),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(ssrfBlockedIncMock).toHaveBeenCalledWith({
+      route: 'img-from-url',
+    });
   });
 });

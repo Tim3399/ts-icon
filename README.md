@@ -162,6 +162,16 @@ When a limit is exceeded, the response is **HTTP 429** with a JSON body (`{ "sta
 ## Health Checks
 Both apps expose `GET /health/live` (process is running, no dependency checks) and `GET /health/ready` (checks the database connection; returns 503 with a minimal `{ "status": "error", "check": "database" }` body on failure, revealing nothing else). Both routes are reachable without a token even in the `local` app, for container/CI probes.
 
+## Metrics
+Both apps expose `GET /metrics` in the Prometheus text exposition format (via `prom-client`), covering HTTP request count/duration by method/route/status, upload success/failure, auth (401) and authorization (403) failure counts, TeamSpeak and database error counts, and SSRF-blocked request counts.
+
+Access to `/metrics` is protected differently on each app, matching how each app is already protected everywhere else:
+
+| App | Protection |
+|---|---|
+| `local` | Same global Keycloak JWT guard as every other route — not a special case. Point a Prometheus scrape job at it with a static bearer token configured in the scrape config (a normal Prometheus feature). |
+| `public` | No Keycloak guard exists on this app by design, so `/metrics` is instead restricted to callers whose source IP is loopback or a private range (`127.0.0.1`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, etc.) — anyone else gets a 403. Scrape it from the same host or network, not over the public internet. |
+
 ## SSRF Protection
 Both URL-import endpoints (`POST /images-local/from-url` and `GET /images-local/img-from-url`) fetch a caller-supplied URL server-side, which is inherently an SSRF risk. Both endpoints go through the same hardening: the target's resolved IP addresses are checked against private/loopback/link-local/reserved ranges before connecting (and the connection is pinned to the addresses that were actually checked, closing the gap between "we checked DNS" and "we connected"), redirects are not followed automatically (each hop is re-validated the same way), and requests are subject to size and time limits. See `src/images/ssrf-guard.ts` and `src/images/safe-url-fetcher.ts` for the implementation.
 

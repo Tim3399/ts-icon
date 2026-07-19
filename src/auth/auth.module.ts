@@ -6,6 +6,7 @@ import { JWKS_KEY_GETTER, OIDC_CONFIG } from './auth.tokens';
 import { createJwksKeyGetter } from './jwks';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
+import { MetricsModule } from '../metrics/metrics.module';
 
 /**
  * Wires up global JWT + role enforcement for whichever app imports it.
@@ -18,8 +19,13 @@ import { RolesGuard } from './roles.guard';
  * Provider order matters: Nest runs multiple `APP_GUARD`s in the order
  * they're registered here, and RolesGuard reads `req.user`, which only
  * JwtAuthGuard populates -- so JwtAuthGuard must come first.
+ *
+ * MetricsModule is imported so both guards can have MetricsService injected
+ * to record auth/authorization failures directly at their existing
+ * rejection points.
  */
 @Module({
+  imports: [MetricsModule],
   providers: [
     {
       provide: OIDC_CONFIG,

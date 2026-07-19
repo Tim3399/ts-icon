@@ -4,6 +4,7 @@ import type { Request } from 'express';
 import { RolesGuard } from './roles.guard';
 import type { RequestUser } from './request-user';
 import type { OidcConfig } from '../../config';
+import type { MetricsService } from '../metrics/metrics.service';
 
 const oidcConfig: OidcConfig = {
   issuerUrl: 'https://auth.example.com/realms/test',
@@ -11,6 +12,24 @@ const oidcConfig: OidcConfig = {
   adminRole: 'ts-icon-admin',
   editorRole: 'ts-icon-editor',
 };
+
+function createMetricsService(): MetricsService {
+  return {
+    authorizationFailuresTotal: { inc: jest.fn() },
+  } as unknown as MetricsService;
+}
+
+// Hands back the jest.fn() reference directly (rather than reading
+// `metrics.authorizationFailuresTotal.inc` back off the object later) to
+// sidestep @typescript-eslint/unbound-method, same as this repo's other
+// specs that stub a class with method-shaped properties.
+function createMetricsStub(): { metrics: MetricsService; inc: jest.Mock } {
+  const inc = jest.fn();
+  const metrics = {
+    authorizationFailuresTotal: { inc },
+  } as unknown as MetricsService;
+  return { metrics, inc };
+}
 
 function createReflectorStub(requiredRoles: string[] | undefined): Reflector {
   return {
@@ -29,7 +48,11 @@ function createContext(user: RequestUser | undefined): ExecutionContext {
 
 describe('RolesGuard', () => {
   it('allows the request through when the route requires no roles', () => {
-    const guard = new RolesGuard(createReflectorStub(undefined), oidcConfig);
+    const guard = new RolesGuard(
+      createReflectorStub(undefined),
+      oidcConfig,
+      createMetricsService(),
+    );
     const context = createContext({ sub: 'u1', roles: [] });
 
     expect(guard.canActivate(context)).toBe(true);
@@ -39,6 +62,7 @@ describe('RolesGuard', () => {
     const guard = new RolesGuard(
       createReflectorStub(['ts-icon-editor']),
       oidcConfig,
+      createMetricsService(),
     );
     const context = createContext({ sub: 'u1', roles: ['ts-icon-editor'] });
 
@@ -49,6 +73,7 @@ describe('RolesGuard', () => {
     const guard = new RolesGuard(
       createReflectorStub(['ts-icon-admin']),
       oidcConfig,
+      createMetricsService(),
     );
     const context = createContext({ sub: 'u1', roles: ['ts-icon-editor'] });
 
@@ -59,6 +84,7 @@ describe('RolesGuard', () => {
     const guard = new RolesGuard(
       createReflectorStub(['ts-icon-editor']),
       oidcConfig,
+      createMetricsService(),
     );
     const context = createContext({ sub: 'u1', roles: [] });
 
@@ -69,6 +95,7 @@ describe('RolesGuard', () => {
     const guard = new RolesGuard(
       createReflectorStub(['ts-icon-editor']),
       oidcConfig,
+      createMetricsService(),
     );
     const context = createContext(undefined);
 
@@ -79,6 +106,7 @@ describe('RolesGuard', () => {
     const guard = new RolesGuard(
       createReflectorStub(['ts-icon-editor']),
       oidcConfig,
+      createMetricsService(),
     );
     const context = createContext({ sub: 'u1', roles: ['ts-icon-admin'] });
 
@@ -89,6 +117,7 @@ describe('RolesGuard', () => {
     const guard = new RolesGuard(
       createReflectorStub(['ts-icon-admin']),
       oidcConfig,
+      createMetricsService(),
     );
     const context = createContext({ sub: 'u1', roles: ['ts-icon-editor'] });
 
@@ -99,9 +128,36 @@ describe('RolesGuard', () => {
     const guard = new RolesGuard(
       createReflectorStub(['ts-icon-admin', 'ts-icon-editor']),
       oidcConfig,
+      createMetricsService(),
     );
     const context = createContext({ sub: 'u1', roles: ['ts-icon-editor'] });
 
     expect(guard.canActivate(context)).toBe(true);
+  });
+
+  it('increments the authorization-failure counter when the user lacks the required role', () => {
+    const { metrics, inc } = createMetricsStub();
+    const guard = new RolesGuard(
+      createReflectorStub(['ts-icon-admin']),
+      oidcConfig,
+      metrics,
+    );
+    const context = createContext({ sub: 'u1', roles: ['ts-icon-editor'] });
+
+    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+    expect(inc).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not increment the authorization-failure counter for an allowed request', () => {
+    const { metrics, inc } = createMetricsStub();
+    const guard = new RolesGuard(
+      createReflectorStub(['ts-icon-editor']),
+      oidcConfig,
+      metrics,
+    );
+    const context = createContext({ sub: 'u1', roles: ['ts-icon-editor'] });
+
+    expect(guard.canActivate(context)).toBe(true);
+    expect(inc).not.toHaveBeenCalled();
   });
 });

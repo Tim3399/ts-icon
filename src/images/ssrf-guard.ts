@@ -63,16 +63,38 @@ const KNOWN_METADATA_ADDRESSES = new Set([
 ]);
 
 /**
+ * Classifies a literal IP address into ipaddr.js's named range (e.g.
+ * 'unicast', 'private', 'loopback', 'linkLocal', 'uniqueLocal',
+ * 'ipv4Mapped', ...), or `null` if the input isn't a valid literal IP
+ * address at all.
+ *
+ * This is the one place that calls into ipaddr.js's range classification.
+ * `isBlockedIp` below builds a default-deny "safe to fetch *to*" check on
+ * top of it (only 'unicast' is allowed); the metrics module's caller-IP
+ * restriction (see src/metrics/private-network.guard.ts) builds a
+ * default-deny "safe to accept a request *from*" check on top of the same
+ * primitive instead. Sharing this function means both checks agree on what
+ * range a given address falls into, even though each interprets that
+ * classification in the opposite direction for its own purpose -- neither
+ * hand-rolls IP-range logic independently.
+ */
+export function classifyIpRange(address: string): string | null {
+  if (net.isIP(address) === 0) return null;
+  if (!ipaddr.isValid(address)) return null;
+  return ipaddr.parse(address).range();
+}
+
+/**
  * Pure, synchronous check for whether a single literal IP address is safe
  * to connect to from the server. Deliberately side-effect free (no DNS, no
  * network) so it can be unit tested directly against literal addresses.
  *
- * Uses ipaddr.js's built-in range classification rather than hand-rolled
- * CIDR math. ipaddr.js classifies every address into a named range
- * (private, loopback, linkLocal, uniqueLocal, multicast, reserved,
- * carrierGradeNat, ipv4Mapped/6to4/teredo/rfc6145/rfc6052, ...) and falls
- * back to 'unicast' only when nothing else matches -- so "allow only
- * unicast" is a default-deny allowlist, not a denylist that can miss a
+ * Uses ipaddr.js's built-in range classification (via classifyIpRange)
+ * rather than hand-rolled CIDR math. ipaddr.js classifies every address
+ * into a named range (private, loopback, linkLocal, uniqueLocal, multicast,
+ * reserved, carrierGradeNat, ipv4Mapped/6to4/teredo/rfc6145/rfc6052, ...)
+ * and falls back to 'unicast' only when nothing else matches -- so "allow
+ * only unicast" is a default-deny allowlist, not a denylist that can miss a
  * range. This also blocks IPv6 forms that embed/tunnel an IPv4 address
  * (::ffff:10.0.0.1, 6to4, Teredo, NAT64) instead of only checking the IPv6
  * address's own bits, closing a common filter-bypass trick.
@@ -80,16 +102,14 @@ const KNOWN_METADATA_ADDRESSES = new Set([
 export function isBlockedIp(address: string): boolean {
   if (KNOWN_METADATA_ADDRESSES.has(address)) return true;
 
-  if (net.isIP(address) === 0) {
+  const range = classifyIpRange(address);
+  if (range === null) {
     // Not a literal IP address at all. Callers should only ever pass
     // addresses that already came out of DNS resolution, so treat anything
     // else as unsafe rather than guessing.
     return true;
   }
 
-  if (!ipaddr.isValid(address)) return true;
-
-  const range = ipaddr.parse(address).range();
   return range !== 'unicast';
 }
 

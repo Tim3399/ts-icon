@@ -11,6 +11,23 @@ import {
 } from 'jose';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import type { OidcConfig } from '../../config';
+import type { MetricsService } from '../metrics/metrics.service';
+
+function createMetricsService(): MetricsService {
+  return {
+    authFailuresTotal: { inc: jest.fn() },
+  } as unknown as MetricsService;
+}
+
+// Hands back the jest.fn() reference directly (rather than reading
+// `metrics.authFailuresTotal.inc` back off the object later) to sidestep
+// @typescript-eslint/unbound-method, same as this repo's other specs that
+// stub a class with method-shaped properties.
+function createMetricsStub(): { metrics: MetricsService; inc: jest.Mock } {
+  const inc = jest.fn();
+  const metrics = { authFailuresTotal: { inc } } as unknown as MetricsService;
+  return { metrics, inc };
+}
 
 const ISSUER = 'https://auth.example.com/realms/test';
 const AUDIENCE = 'ts3img';
@@ -96,8 +113,15 @@ describe('JwtAuthGuard', () => {
       .sign(signingKeyOverride ?? signingKey);
   }
 
-  function createGuard(): JwtAuthGuard {
-    return new JwtAuthGuard(createReflectorStub(false), localJwks, oidcConfig);
+  function createGuard(
+    metrics: MetricsService = createMetricsService(),
+  ): JwtAuthGuard {
+    return new JwtAuthGuard(
+      createReflectorStub(false),
+      localJwks,
+      oidcConfig,
+      metrics,
+    );
   }
 
   it('accepts a valid token and attaches sub + roles to the request', async () => {
@@ -207,9 +231,31 @@ describe('JwtAuthGuard', () => {
       createReflectorStub(true),
       localJwks,
       oidcConfig,
+      createMetricsService(),
     );
     const { context } = createContext(undefined);
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
+  });
+
+  it('increments the auth-failure counter when a request is rejected', async () => {
+    const { metrics, inc } = createMetricsStub();
+    const guard = createGuard(metrics);
+    const { context } = createContext(undefined);
+
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
+    expect(inc).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not increment the auth-failure counter for an accepted request', async () => {
+    const { metrics, inc } = createMetricsStub();
+    const guard = createGuard(metrics);
+    const token = await signToken();
+    const { context } = createContext(`Bearer ${token}`);
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(inc).not.toHaveBeenCalled();
   });
 });

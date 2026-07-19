@@ -13,6 +13,7 @@ import { IS_PUBLIC_KEY } from './public.decorator';
 import { JWKS_KEY_GETTER, OIDC_CONFIG } from './auth.tokens';
 import { toRequestUser } from './request-user';
 import type { OidcConfig } from '../../config';
+import { MetricsService } from '../metrics/metrics.service';
 
 const BEARER_PREFIX = 'Bearer ';
 
@@ -65,6 +66,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     @Inject(JWKS_KEY_GETTER) private readonly getKey: JWTVerifyGetKey,
     @Inject(OIDC_CONFIG) private readonly oidcConfig: OidcConfig,
+    private readonly metrics: MetricsService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -82,6 +84,7 @@ export class JwtAuthGuard implements CanActivate {
       this.logger.warn(
         'Rejected request with a missing or malformed Authorization header',
       );
+      this.metrics.authFailuresTotal.inc();
       throw new UnauthorizedException();
     }
 
@@ -96,6 +99,7 @@ export class JwtAuthGuard implements CanActivate {
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Rejected request with an invalid token: ${reason}`);
+      this.metrics.authFailuresTotal.inc();
       throw new UnauthorizedException();
     }
   }

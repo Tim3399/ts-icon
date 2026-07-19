@@ -50,6 +50,7 @@ import {
   AuditAction,
   AuditLoggingInterceptor,
 } from './audit-logging.interceptor';
+import { MetricsService } from '../metrics/metrics.service';
 
 const logger = new Logger('ImagesLocalController');
 
@@ -160,7 +161,10 @@ export async function resolveUploadChannel(
 @ApiTags('images-local')
 @Controller('images-local')
 export class ImagesLocalController {
-  constructor(private readonly imagesService: ImagesService) {}
+  constructor(
+    private readonly imagesService: ImagesService,
+    private readonly metrics: MetricsService,
+  ) {}
 
   @Post('from-url')
   @Roles(OIDC_EDITOR_ROLE)
@@ -181,6 +185,10 @@ export class ImagesLocalController {
       // against a non-empty name that normalizes away to nothing (e.g. a
       // string of only characters normalizeChannelName strips).
       logger.warn(`[from-url] channelName normalized to an empty string`);
+      this.metrics.imageUploadsTotal.inc({
+        method: 'from-url',
+        result: 'failure',
+      });
       throw new BadRequestException('channelName is invalid');
     }
 
@@ -191,6 +199,10 @@ export class ImagesLocalController {
         normalizedChannel,
       );
     } catch (err) {
+      this.metrics.imageUploadsTotal.inc({
+        method: 'from-url',
+        result: 'failure',
+      });
       if (err instanceof ChannelNotFoundError) {
         logger.warn(`[from-url] ${err.message}`);
         throw new BadRequestException(err.message);
@@ -200,6 +212,7 @@ export class ImagesLocalController {
         throw new ConflictException(err.message);
       }
       logger.error(`[from-url] TeamSpeak channel resolution failed:`, err);
+      this.metrics.teamspeakErrorsTotal.inc({ operation: 'resolve-channel' });
       throw new ServiceUnavailableException(
         'TeamSpeak is currently unreachable',
       );
@@ -222,10 +235,19 @@ export class ImagesLocalController {
       logger.log(
         `[from-url] Image saved successfully for ${normalizedChannel}`,
       );
+      this.metrics.imageUploadsTotal.inc({
+        method: 'from-url',
+        result: 'success',
+      });
       return { message: 'Image saved successfully' };
     } catch (err) {
+      this.metrics.imageUploadsTotal.inc({
+        method: 'from-url',
+        result: 'failure',
+      });
       if (err instanceof SsrfValidationError) {
         logger.warn(`[from-url] Rejected URL: ${url}`);
+        this.metrics.ssrfBlockedTotal.inc({ route: 'from-url' });
         throw new BadRequestException('The given URL is not allowed');
       }
       if (err instanceof FetchFailedError) {
@@ -290,10 +312,18 @@ export class ImagesLocalController {
     );
     if (!file || !file.buffer) {
       logger.warn(`[uploadImage] No file uploaded`);
+      this.metrics.imageUploadsTotal.inc({
+        method: 'upload',
+        result: 'failure',
+      });
       throw new BadRequestException('No file uploaded');
     }
     if (!normalizedChannel) {
       logger.warn(`[uploadImage] channelName normalized to an empty string`);
+      this.metrics.imageUploadsTotal.inc({
+        method: 'upload',
+        result: 'failure',
+      });
       throw new BadRequestException('channelName is invalid');
     }
 
@@ -304,6 +334,10 @@ export class ImagesLocalController {
         normalizedChannel,
       );
     } catch (err) {
+      this.metrics.imageUploadsTotal.inc({
+        method: 'upload',
+        result: 'failure',
+      });
       if (err instanceof ChannelNotFoundError) {
         logger.warn(`[uploadImage] ${err.message}`);
         throw new BadRequestException(err.message);
@@ -313,6 +347,7 @@ export class ImagesLocalController {
         throw new ConflictException(err.message);
       }
       logger.error(`[uploadImage] TeamSpeak channel resolution failed:`, err);
+      this.metrics.teamspeakErrorsTotal.inc({ operation: 'resolve-channel' });
       throw new ServiceUnavailableException(
         'TeamSpeak is currently unreachable',
       );
@@ -336,8 +371,16 @@ export class ImagesLocalController {
       logger.log(
         `[uploadImage] Image saved successfully for ${normalizedChannel}`,
       );
+      this.metrics.imageUploadsTotal.inc({
+        method: 'upload',
+        result: 'success',
+      });
       return { message: 'Image saved successfully' };
     } catch (err) {
+      this.metrics.imageUploadsTotal.inc({
+        method: 'upload',
+        result: 'failure',
+      });
       if (err instanceof InvalidImageError) {
         logger.warn(`[uploadImage] Uploaded content is not a valid image`);
         throw new UnsupportedMediaTypeException(
@@ -397,6 +440,7 @@ export class ImagesLocalController {
     } catch (err) {
       if (err instanceof SsrfValidationError) {
         logger.warn(`[img-from-url] Rejected URL: ${url}`);
+        this.metrics.ssrfBlockedTotal.inc({ route: 'img-from-url' });
         throw new BadRequestException('The given URL is not allowed');
       }
       if (err instanceof FetchFailedError) {
@@ -432,6 +476,7 @@ export class ImagesLocalController {
       return { channels: result };
     } catch (err) {
       logger.error('[GET /images-local/channels] Error:', err);
+      this.metrics.teamspeakErrorsTotal.inc({ operation: 'list-channels' });
       throw new ServiceUnavailableException(
         'TeamSpeak is currently unreachable',
       );
