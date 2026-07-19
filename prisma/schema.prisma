@@ -1,5 +1,9 @@
 model ChannelImage {
-  channelName String @id
+  channelName String  @id
+  // Stable TeamSpeak channel ID. Nullable because existing rows predate this
+  // column and haven't been backfilled yet (see scripts/backfill-channel-ids.ts).
+  // Unique so a given TeamSpeak channel can only ever be tied to one row.
+  channelId   String? @unique
   image       Bytes
   mimeType    String
 }

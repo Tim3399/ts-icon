@@ -9,6 +9,7 @@ import {
   UseInterceptors,
   BadRequestException,
   BadGatewayException,
+  ConflictException,
   ServiceUnavailableException,
   UnsupportedMediaTypeException,
   UnprocessableEntityException,
@@ -28,16 +29,9 @@ import {
 } from '@nestjs/swagger';
 import { Express, Response } from 'express';
 
-import { TeamSpeak } from 'ts3-nodejs-library';
-import {
-  TS_HOST,
-  TS_QUERY_PORT,
-  TS_SERVER_PORT,
-  getTeamSpeakCredentials,
-  OIDC_ADMIN_ROLE,
-  OIDC_EDITOR_ROLE,
-} from '../../config';
+import { OIDC_ADMIN_ROLE, OIDC_EDITOR_ROLE } from '../../config';
 import { normalizeChannelName } from '../util/util';
+import { fetchLiveChannels } from '../teamspeak/teamspeak-channels';
 import {
   fetchImageSafely,
   SsrfValidationError,
@@ -103,28 +97,64 @@ export function imageFileFilter(
   );
 }
 
-async function listChannels(): Promise<string[]> {
-  logger.log('[listChannels] Starting connection to TeamSpeak...');
-  const { username, password } = getTeamSpeakCredentials();
-  const ts3 = await TeamSpeak.connect({
-    host: TS_HOST,
-    queryport: TS_QUERY_PORT,
-    serverport: TS_SERVER_PORT,
-    username,
-    password,
-  });
-
-  ts3.on('error', (err) => {
-    logger.error('[listChannels] TeamSpeak client error:', err);
-  });
-
-  logger.log('[listChannels] Connection to TeamSpeak established.');
-  const channels = await ts3.channelList();
+async function listChannelNames(): Promise<string[]> {
+  const channels = await fetchLiveChannels();
   const channelNames = channels.map((c) => normalizeChannelName(c.name));
-  logger.log(`[listChannels] Found channels: ${channelNames.join(', ')}`);
-  await ts3.quit();
-  logger.log('[listChannels] Connection to TeamSpeak closed.');
+  logger.log(`[listChannelNames] Found channels: ${channelNames.join(', ')}`);
   return channelNames;
+}
+
+/** Thrown when no live TeamSpeak channel matches the admin-provided name. */
+export class ChannelNotFoundError extends Error {}
+
+/**
+ * Thrown when the resolved live channel is genuinely new (no row has its
+ * channelId yet), but a *different* row already occupies the normalized
+ * channelName it resolves to — the actual collision this whole migration
+ * exists to catch, rather than silently overwriting that other channel's
+ * image.
+ */
+export class ChannelNameConflictError extends Error {}
+
+/**
+ * Resolves an admin-provided (already normalized) channel name against the
+ * live TeamSpeak channel list and decides how the upload should be applied:
+ *
+ * - No live channel matches at all -> `ChannelNotFoundError`.
+ * - The matched live channel's ID already has a row -> that's an update
+ *   (the channel may have been renamed since the row was created; that's
+ *   fine, it's still the same channel), return its ID.
+ * - The matched live channel's ID has no row yet, but a different row
+ *   already has this exact channelName -> `ChannelNameConflictError`.
+ * - Otherwise -> a genuinely new channel, return its ID for a new row.
+ */
+export async function resolveUploadChannel(
+  imagesService: ImagesService,
+  normalizedChannelName: string,
+): Promise<{ channelId: string; channelName: string }> {
+  const liveChannels = await fetchLiveChannels();
+  const match = liveChannels.find(
+    (c) => normalizeChannelName(c.name) === normalizedChannelName,
+  );
+  if (!match) {
+    throw new ChannelNotFoundError(
+      `No live TeamSpeak channel matches "${normalizedChannelName}"`,
+    );
+  }
+
+  const existingById = await imagesService.findByChannelId(match.cid);
+  if (existingById) {
+    return { channelId: match.cid, channelName: normalizedChannelName };
+  }
+
+  const nameTaken = await imagesService.channelNameInUse(normalizedChannelName);
+  if (nameTaken) {
+    throw new ChannelNameConflictError(
+      `The channel name "${normalizedChannelName}" is already associated with a different channel`,
+    );
+  }
+
+  return { channelId: match.cid, channelName: normalizedChannelName };
 }
 
 @ApiTags('images-local')
@@ -154,6 +184,27 @@ export class ImagesLocalController {
       throw new BadRequestException('channelName is invalid');
     }
 
+    let resolved: { channelId: string; channelName: string };
+    try {
+      resolved = await resolveUploadChannel(
+        this.imagesService,
+        normalizedChannel,
+      );
+    } catch (err) {
+      if (err instanceof ChannelNotFoundError) {
+        logger.warn(`[from-url] ${err.message}`);
+        throw new BadRequestException(err.message);
+      }
+      if (err instanceof ChannelNameConflictError) {
+        logger.warn(`[from-url] ${err.message}`);
+        throw new ConflictException(err.message);
+      }
+      logger.error(`[from-url] TeamSpeak channel resolution failed:`, err);
+      throw new ServiceUnavailableException(
+        'TeamSpeak is currently unreachable',
+      );
+    }
+
     try {
       const { buffer } = await fetchImageSafely(url);
       // The fetched `Content-Type` header is never trusted for what the
@@ -163,9 +214,10 @@ export class ImagesLocalController {
       // the fixed banner size before anything is persisted.
       const processed = await processImageForStorage(buffer);
       await this.imagesService.saveImage(
-        normalizedChannel,
+        resolved.channelName,
         processed.buffer,
         processed.mimeType,
+        resolved.channelId,
       );
       logger.log(
         `[from-url] Image saved successfully for ${normalizedChannel}`,
@@ -244,6 +296,28 @@ export class ImagesLocalController {
       logger.warn(`[uploadImage] channelName normalized to an empty string`);
       throw new BadRequestException('channelName is invalid');
     }
+
+    let resolved: { channelId: string; channelName: string };
+    try {
+      resolved = await resolveUploadChannel(
+        this.imagesService,
+        normalizedChannel,
+      );
+    } catch (err) {
+      if (err instanceof ChannelNotFoundError) {
+        logger.warn(`[uploadImage] ${err.message}`);
+        throw new BadRequestException(err.message);
+      }
+      if (err instanceof ChannelNameConflictError) {
+        logger.warn(`[uploadImage] ${err.message}`);
+        throw new ConflictException(err.message);
+      }
+      logger.error(`[uploadImage] TeamSpeak channel resolution failed:`, err);
+      throw new ServiceUnavailableException(
+        'TeamSpeak is currently unreachable',
+      );
+    }
+
     try {
       // `imageFileFilter` already did a cheap MIME-type-string pre-check,
       // but the client-supplied `file.mimetype`/bytes are otherwise
@@ -254,9 +328,10 @@ export class ImagesLocalController {
       // before anything is persisted.
       const processed = await processImageForStorage(file.buffer);
       await this.imagesService.saveImage(
-        normalizedChannel,
+        resolved.channelName,
         processed.buffer,
         processed.mimeType,
+        resolved.channelId,
       );
       logger.log(
         `[uploadImage] Image saved successfully for ${normalizedChannel}`,
@@ -353,7 +428,7 @@ export class ImagesLocalController {
   async listChannels() {
     logger.log('[GET /images-local/channels] Request received');
     try {
-      const result = await listChannels();
+      const result = await listChannelNames();
       return { channels: result };
     } catch (err) {
       logger.error('[GET /images-local/channels] Error:', err);

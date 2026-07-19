@@ -1,6 +1,7 @@
 import {
   BadGatewayException,
   BadRequestException,
+  ConflictException,
   ServiceUnavailableException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
@@ -8,13 +9,16 @@ import type { Response } from 'express';
 import {
   ImagesLocalController,
   imageFileFilter,
+  resolveUploadChannel,
+  ChannelNotFoundError,
+  ChannelNameConflictError,
 } from './images.controller.local';
 import {
   fetchImageSafely,
   SsrfValidationError,
   FetchFailedError,
 } from './safe-url-fetcher';
-import { TeamSpeak } from 'ts3-nodejs-library';
+import { fetchLiveChannels } from '../teamspeak/teamspeak-channels';
 import type { ImagesService } from './images.service';
 
 jest.mock('./safe-url-fetcher', () => {
@@ -28,33 +32,42 @@ jest.mock('./safe-url-fetcher', () => {
   };
 });
 
-jest.mock('ts3-nodejs-library', () => ({
-  TeamSpeak: { connect: jest.fn() },
-}));
-
-jest.mock('../../config', () => ({
-  ...jest.requireActual<typeof import('../../config')>('../../config'),
-  getTeamSpeakCredentials: jest.fn(() => ({
-    username: 'user',
-    password: 'pass',
-  })),
+jest.mock('../teamspeak/teamspeak-channels', () => ({
+  fetchLiveChannels: jest.fn(),
 }));
 
 const mockedFetch = fetchImageSafely as jest.MockedFunction<
   typeof fetchImageSafely
 >;
-// `jest.spyOn` (rather than a direct `TeamSpeak.connect` property read) avoids
-// @typescript-eslint/unbound-method, which flags any bare reference to a
-// class's method as a value even when nothing here ever calls it with a
-// `this` binding.
-const mockedConnect = jest.spyOn(TeamSpeak, 'connect');
+const mockedFetchLiveChannels = fetchLiveChannels as jest.MockedFunction<
+  typeof fetchLiveChannels
+>;
 
-function createController(): ImagesLocalController {
+// Returns both the stub itself and direct references to its jest.fn()s.
+// Handing back the mock function references directly (rather than reading
+// e.g. `imagesService.channelNameInUse` back off the object later) sidesteps
+// @typescript-eslint/unbound-method, same as `createRes()` below already does
+// for `Response`.
+function createImagesServiceStub(): {
+  imagesService: ImagesService;
+  findByChannelId: jest.Mock;
+  channelNameInUse: jest.Mock;
+} {
+  const findByChannelId = jest.fn().mockResolvedValue(null);
+  const channelNameInUse = jest.fn().mockResolvedValue(false);
   const imagesService = {
     saveImage: jest.fn(),
     getImage: jest.fn(),
     listOptions: jest.fn(),
+    findByChannelId,
+    channelNameInUse,
   } as unknown as ImagesService;
+  return { imagesService, findByChannelId, channelNameInUse };
+}
+
+function createController(
+  imagesService: ImagesService = createImagesServiceStub().imagesService,
+): ImagesLocalController {
   return new ImagesLocalController(imagesService);
 }
 
@@ -67,6 +80,16 @@ function createRes(): { res: Response; setHeader: jest.Mock; send: jest.Mock } {
   // method the `Response` type declares, mock or not.
   return { res: { setHeader, send } as unknown as Response, setHeader, send };
 }
+
+beforeEach(() => {
+  // Most tests in this file exercise something *other* than channel
+  // resolution (SSRF handling, image-processing errors, etc.), so channel
+  // resolution defaults to "a live channel called 'chan' exists and it's
+  // brand new" unless a specific test overrides it.
+  mockedFetchLiveChannels.mockResolvedValue([
+    { cid: 'cid-chan', name: 'Chan' },
+  ]);
+});
 
 afterEach(() => {
   jest.clearAllMocks();
@@ -99,6 +122,64 @@ describe('imageFileFilter', () => {
     const [err] = cb.mock.calls[0] as [Error, boolean];
     expect(err).toBeInstanceOf(BadRequestException);
     expect((err as BadRequestException).getStatus()).toBe(400);
+  });
+});
+
+describe('resolveUploadChannel', () => {
+  it('rejects with ChannelNotFoundError when no live channel matches the given name', async () => {
+    mockedFetchLiveChannels.mockResolvedValue([
+      { cid: 'cid-1', name: 'Something Else' },
+    ]);
+    const { imagesService } = createImagesServiceStub();
+
+    await expect(
+      resolveUploadChannel(imagesService, 'chan'),
+    ).rejects.toBeInstanceOf(ChannelNotFoundError);
+  });
+
+  it('resolves as an update when an existing row already has this exact channelId', async () => {
+    mockedFetchLiveChannels.mockResolvedValue([
+      { cid: 'cid-chan', name: 'Chan' },
+    ]);
+    const { imagesService, findByChannelId, channelNameInUse } =
+      createImagesServiceStub();
+    findByChannelId.mockResolvedValue({ channelName: 'chan' });
+
+    const result = await resolveUploadChannel(imagesService, 'chan');
+
+    expect(result).toEqual({ channelId: 'cid-chan', channelName: 'chan' });
+    // The collision check must not even run once the channelId itself is
+    // already known -- a rename to an unrelated name would otherwise risk a
+    // false-positive conflict against the channel's own previous name.
+    expect(channelNameInUse).not.toHaveBeenCalled();
+  });
+
+  it('resolves as a plain new-channel create when the channelId is new and the name is not taken', async () => {
+    mockedFetchLiveChannels.mockResolvedValue([
+      { cid: 'cid-chan', name: 'Chan' },
+    ]);
+    const { imagesService, findByChannelId, channelNameInUse } =
+      createImagesServiceStub();
+    findByChannelId.mockResolvedValue(null);
+    channelNameInUse.mockResolvedValue(false);
+
+    const result = await resolveUploadChannel(imagesService, 'chan');
+
+    expect(result).toEqual({ channelId: 'cid-chan', channelName: 'chan' });
+  });
+
+  it('rejects with ChannelNameConflictError when the channelId is new but a different row already owns this channelName', async () => {
+    mockedFetchLiveChannels.mockResolvedValue([
+      { cid: 'cid-chan', name: 'Chan' },
+    ]);
+    const { imagesService, findByChannelId, channelNameInUse } =
+      createImagesServiceStub();
+    findByChannelId.mockResolvedValue(null);
+    channelNameInUse.mockResolvedValue(true);
+
+    await expect(
+      resolveUploadChannel(imagesService, 'chan'),
+    ).rejects.toBeInstanceOf(ChannelNameConflictError);
   });
 });
 
@@ -145,6 +226,34 @@ describe('ImagesLocalController.uploadImageFromUrl', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(mockedFetch).not.toHaveBeenCalled();
   });
+
+  it('rejects with 400 when no live channel matches the given name', async () => {
+    mockedFetchLiveChannels.mockResolvedValue([]);
+    const controller = createController();
+    await expect(
+      controller.uploadImageFromUrl({
+        channelName: 'chan',
+        url: 'https://example.com/a.png',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects with 409 on a channelName collision with a different channel', async () => {
+    const { imagesService, findByChannelId, channelNameInUse } =
+      createImagesServiceStub();
+    findByChannelId.mockResolvedValue(null);
+    channelNameInUse.mockResolvedValue(true);
+    const controller = createController(imagesService);
+
+    await expect(
+      controller.uploadImageFromUrl({
+        channelName: 'chan',
+        url: 'https://example.com/a.png',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(mockedFetch).not.toHaveBeenCalled();
+  });
 });
 
 describe('ImagesLocalController.proxyImage', () => {
@@ -181,7 +290,7 @@ describe('ImagesLocalController.proxyImage', () => {
 
 describe('ImagesLocalController.listChannels', () => {
   it('returns 503 when TeamSpeak is unreachable, instead of a 200 with an error field', async () => {
-    mockedConnect.mockRejectedValue(new Error('ECONNREFUSED'));
+    mockedFetchLiveChannels.mockRejectedValue(new Error('ECONNREFUSED'));
     const controller = createController();
     await expect(controller.listChannels()).rejects.toBeInstanceOf(
       ServiceUnavailableException,
@@ -189,15 +298,39 @@ describe('ImagesLocalController.listChannels', () => {
   });
 
   it('returns the normalized channel list on success', async () => {
-    const fakeTeamSpeak = {
-      on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([{ name: 'Foo Bar' }]),
-      quit: jest.fn().mockResolvedValue(undefined),
-    };
-    mockedConnect.mockResolvedValue(fakeTeamSpeak as unknown as TeamSpeak);
+    mockedFetchLiveChannels.mockResolvedValue([{ cid: '1', name: 'Foo Bar' }]);
     const controller = createController();
     await expect(controller.listChannels()).resolves.toEqual({
       channels: ['foo-bar'],
     });
+  });
+});
+
+describe('ImagesLocalController.uploadImage', () => {
+  function createFile(): Express.Multer.File {
+    return {
+      buffer: Buffer.from('img-bytes'),
+      mimetype: 'image/png',
+    } as Express.Multer.File;
+  }
+
+  it('rejects with 400 when no live channel matches the given name', async () => {
+    mockedFetchLiveChannels.mockResolvedValue([]);
+    const controller = createController();
+    await expect(
+      controller.uploadImage('chan', createFile()),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects with 409 on a channelName collision with a different channel', async () => {
+    const { imagesService, findByChannelId, channelNameInUse } =
+      createImagesServiceStub();
+    findByChannelId.mockResolvedValue(null);
+    channelNameInUse.mockResolvedValue(true);
+    const controller = createController(imagesService);
+
+    await expect(
+      controller.uploadImage('chan', createFile()),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });

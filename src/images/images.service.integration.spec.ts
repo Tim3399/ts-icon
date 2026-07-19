@@ -149,4 +149,61 @@ describe('ImagesService (integration: real SQLite + real Prisma migrations)', ()
     expect(channelA?.mimeType).toBe('image/png');
     expect(channelB?.mimeType).toBe('image/webp');
   });
+
+  it('saves a new row with a channelId when one is given', async () => {
+    await service.saveImage(
+      'with-id',
+      Buffer.from('v1'),
+      'image/png',
+      'ts-cid-1',
+    );
+
+    const row = await service.findByChannelId('ts-cid-1');
+    expect(row).toEqual({ channelName: 'with-id' });
+
+    const fetched = await service.getImage('with-id');
+    expect(fetched?.mimeType).toBe('image/png');
+  });
+
+  it('saving again with the same channelId but a changed channelName updates the same row (rename), not a second one', async () => {
+    await service.saveImage(
+      'old-name',
+      Buffer.from('v1'),
+      'image/png',
+      'ts-cid-rename',
+    );
+    await service.saveImage(
+      'new-name',
+      Buffer.from('v2'),
+      'image/jpeg',
+      'ts-cid-rename',
+    );
+
+    // The row now lives under the new channelName; the old one is gone.
+    const renamed = await service.getImage('new-name');
+    expect(renamed?.mimeType).toBe('image/jpeg');
+    expect(
+      Buffer.compare(renamed?.image ?? Buffer.alloc(0), Buffer.from('v2')),
+    ).toBe(0);
+
+    const stale = await service.getImage('old-name');
+    expect(stale).toBeNull();
+
+    const byId = await service.findByChannelId('ts-cid-rename');
+    expect(byId).toEqual({ channelName: 'new-name' });
+
+    // Exactly one row exists for this channelId across the whole table, not
+    // one row per name it has ever been saved under.
+    const options = await service.listOptions();
+    const matchingNames = options.filter(
+      (o) => o.channelName === 'old-name' || o.channelName === 'new-name',
+    );
+    expect(matchingNames).toHaveLength(1);
+  });
+
+  it('channelNameInUse reflects rows saved without a channelId too', async () => {
+    expect(await service.channelNameInUse('not-yet-saved')).toBe(false);
+    await service.saveImage('now-saved', Buffer.from('x'), 'image/png');
+    expect(await service.channelNameInUse('now-saved')).toBe(true);
+  });
 });
