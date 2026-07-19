@@ -11,6 +11,7 @@ import {
   BadGatewayException,
   ServiceUnavailableException,
   UnsupportedMediaTypeException,
+  UnprocessableEntityException,
   Body,
   Logger,
 } from '@nestjs/common';
@@ -42,6 +43,11 @@ import {
   SsrfValidationError,
   FetchFailedError,
 } from './safe-url-fetcher';
+import {
+  processImageForStorage,
+  InvalidImageError,
+  ImageTooLargeError,
+} from './image-processing';
 import { Roles } from '../auth/roles.decorator';
 import { ImageFromUrlDto } from './dto/image-from-url.dto';
 import { ImgFromUrlQueryDto } from './dto/img-from-url-query.dto';
@@ -74,6 +80,12 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
  * separately by Multer's own `LIMIT_FILE_SIZE` error, which
  * `transformException()` already maps to a 413 `PayloadTooLargeException`
  * without any help from this filter.)
+ *
+ * This only checks the client-supplied MIME type string, which a caller can
+ * set to anything regardless of the file's actual bytes -- it's a cheap,
+ * fast-fail pre-check, not a security boundary. The real check is
+ * `processImageForStorage()` fully decoding the uploaded bytes and trusting
+ * only what it actually detects.
  */
 export function imageFileFilter(
   req: unknown,
@@ -143,11 +155,17 @@ export class ImagesLocalController {
     }
 
     try {
-      const { buffer, contentType } = await fetchImageSafely(url);
+      const { buffer } = await fetchImageSafely(url);
+      // The fetched `Content-Type` header is never trusted for what the
+      // bytes actually are -- this endpoint has no client-side cropping
+      // step at all, so `processImageForStorage()` is what validates the
+      // decoded format, enforces dimensions, and center-crops/resizes to
+      // the fixed banner size before anything is persisted.
+      const processed = await processImageForStorage(buffer);
       await this.imagesService.saveImage(
         normalizedChannel,
-        buffer,
-        contentType,
+        processed.buffer,
+        processed.mimeType,
       );
       logger.log(
         `[from-url] Image saved successfully for ${normalizedChannel}`,
@@ -162,6 +180,18 @@ export class ImagesLocalController {
         logger.warn(`[from-url] Fetch failed: ${url}`);
         throw new BadGatewayException(
           'Image could not be loaded or was not a valid image',
+        );
+      }
+      if (err instanceof InvalidImageError) {
+        logger.warn(`[from-url] Fetched content is not a valid image: ${url}`);
+        throw new UnsupportedMediaTypeException(
+          'The fetched content is not a valid image',
+        );
+      }
+      if (err instanceof ImageTooLargeError) {
+        logger.warn(`[from-url] Fetched image dimensions too large: ${url}`);
+        throw new UnprocessableEntityException(
+          'The fetched image dimensions are too large to process',
         );
       }
       // Anything else is unexpected and not the caller's fault — let it
@@ -214,15 +244,40 @@ export class ImagesLocalController {
       logger.warn(`[uploadImage] channelName normalized to an empty string`);
       throw new BadRequestException('channelName is invalid');
     }
-    await this.imagesService.saveImage(
-      normalizedChannel,
-      file.buffer,
-      file.mimetype,
-    );
-    logger.log(
-      `[uploadImage] Image saved successfully for ${normalizedChannel}`,
-    );
-    return { message: 'Image saved successfully' };
+    try {
+      // `imageFileFilter` already did a cheap MIME-type-string pre-check,
+      // but the client-supplied `file.mimetype`/bytes are otherwise
+      // untrusted here -- a client that bypasses the cropping UI (or edits
+      // the request) could send an arbitrarily-sized or malformed file.
+      // `processImageForStorage()` fully decodes the bytes, enforces
+      // dimensions, and center-crops/resizes to the fixed banner size
+      // before anything is persisted.
+      const processed = await processImageForStorage(file.buffer);
+      await this.imagesService.saveImage(
+        normalizedChannel,
+        processed.buffer,
+        processed.mimeType,
+      );
+      logger.log(
+        `[uploadImage] Image saved successfully for ${normalizedChannel}`,
+      );
+      return { message: 'Image saved successfully' };
+    } catch (err) {
+      if (err instanceof InvalidImageError) {
+        logger.warn(`[uploadImage] Uploaded content is not a valid image`);
+        throw new UnsupportedMediaTypeException(
+          'The uploaded file is not a valid image',
+        );
+      }
+      if (err instanceof ImageTooLargeError) {
+        logger.warn(`[uploadImage] Uploaded image dimensions too large`);
+        throw new UnprocessableEntityException(
+          'The uploaded image dimensions are too large to process',
+        );
+      }
+      logger.error(`[uploadImage] Unexpected error:`, err);
+      throw err;
+    }
   }
 
   @Get('options')
