@@ -1,3 +1,7 @@
+// See the equivalent comment in main.local.ts: loads a local .env file, if
+// one exists, before anything else in this module (including config.ts,
+// which reads process.env at import time) runs.
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module.public';

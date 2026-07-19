@@ -1,3 +1,11 @@
+// Loads a local .env file into process.env, if one exists. Must be the
+// first thing this module does: config.ts reads process.env at import time,
+// so anything imported before this line would see an incomplete
+// environment. Docker/Compose deployments set real environment variables
+// directly and don't rely on this at all — this only matters for running
+// the app directly (e.g. `npm run start:local`) outside a container, where
+// nothing else would ever load `.env` into the process.
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module.local';
