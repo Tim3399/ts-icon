@@ -1,10 +1,11 @@
 {
   "name": "ts-icon",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "NestJS backend for managing and serving TeamSpeak channel banner images, paired with a React admin frontend for uploading and cropping banners.",
   "author": "",
   "private": true,
   "license": "MIT",
+  "packageManager": "npm@11.7.0",
   "scripts": {
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "build": "tsc -p tsconfig.build.json",
@@ -33,6 +34,7 @@
     "better-sqlite3": "^12.6.2",
     "class-validator": "^0.14.2",
     "dotenv": "^17.2.4",
+    "ipaddr.js": "^2.4.0",
     "multer": "^2.0.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",

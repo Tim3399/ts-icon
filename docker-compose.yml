@@ -3,6 +3,12 @@ services:
     build: .
     image: tsicon-public
     command: npm run start:public
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       - "3000:3000"
     environment:
@@ -14,13 +20,49 @@ services:
   local:
     build: .
     image: tsicon-local
-    command: sh -c "npx prisma db push && npm run start:local"
+    command: npm run start:local
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Reads TS_USERNAME/TS_USERPASSWORD/TS_QUERY_PORT/TS_SERVER_PORT (and any
+    # other operator-supplied secrets) from the root .env file. The
+    # environment block below intentionally overrides a few keys with
+    # container-specific values (env_file values lose to environment: on a
+    # key collision).
+    env_file: .env
     ports:
       - "127.0.0.1:3001:3001"
     environment:
       - IMG_API_PORT=3001
       - DATABASE_URL=file:/data/dev.db
       - TS_HOST=host.docker.internal
+    volumes:
+      - db-data:/data
+
+  # One-off database migration/schema-setup service. Builds only the
+  # "builder" stage of the Dockerfile (the only stage with the Prisma CLI —
+  # the production stage strips it via `npm ci --omit=dev`). This service
+  # does not run as part of `docker compose up`; it must be run explicitly:
+  #
+  #   docker compose run --rm migrate
+  #
+  # Run it once before the very first start against a fresh database volume,
+  # and again after any change to the Prisma schema/migrations. The trailing
+  # chown hands the database file back to the same non-root user the
+  # long-running app containers run as, since this service's image runs as
+  # root and would otherwise leave the file unwritable by them.
+  migrate:
+    build:
+      context: .
+      target: builder
+    image: tsicon-migrate
+    profiles: ["tools"]
+    command: sh -c "npx prisma migrate deploy && chown -R node:node /data"
+    environment:
+      - DATABASE_URL=file:/data/dev.db
     volumes:
       - db-data:/data
 

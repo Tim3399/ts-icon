@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { API_URL, GET_CHANNELS_LIST_URL } from '../config';
+import { API_URL, GET_CHANNELS_LIST_URL, VIEW_IMAGE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { apiFetch, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
@@ -77,7 +77,7 @@ const ChannelGallery: React.FC = () => {
           <div>
             {!missingImages[channel.name] ? (
               <img
-                src={`http://localhost:3000/images/${encodeURIComponent(channel.name)}`}
+                src={`${VIEW_IMAGE_URL}${encodeURIComponent(channel.name)}`}
                 alt={channel.name}
                 style={{
                   width: 200,

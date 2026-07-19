@@ -23,13 +23,12 @@ import {
   ApiResponse,
 } from '@nestjs/swagger'
 import { Express, Response } from 'express'
-import axios from 'axios'
 import { IsString, IsUrl } from 'class-validator'
-import { URL } from 'url'
 
 import { TeamSpeak } from 'ts3-nodejs-library'
 import { TS_HOST, TS_QUERY_PORT, TS_SERVER_PORT, getTeamSpeakCredentials } from '../../config'
 import { normalizeChannelName } from '../util/util'
+import { fetchImageSafely, SsrfValidationError, FetchFailedError } from './safe-url-fetcher'
 
 const logger = new Logger('ImagesLocalController')
 
@@ -41,8 +40,6 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set([
 ])
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
-const AXIOS_TIMEOUT = 5000 // 5s
-const AXIOS_MAX_CONTENT = 10 * 1024 * 1024 // 10 MB
 
 function imageFileFilter(req: unknown, file: Express.Multer.File, cb: (err: Error | null, acceptFile: boolean) => void) {
   if (!file || !file.mimetype) return cb(new Error('Invalid file'), false)
@@ -61,31 +58,6 @@ export class ImageFromUrlDto {
 }
 
 
-
-function getResponseHeader(headers: unknown, name: string): string | undefined {
-  if (!headers || typeof headers !== 'object') return undefined
-  const value = (headers as Record<string, unknown>)[name]
-  return typeof value === 'string' ? value : undefined
-}
-
-async function fetchImageBufferFromUrl(url: string): Promise<{
-  buffer: Buffer
-  contentType: string
-}> {
-  logger.log(`[fetchImageBufferFromUrl] Loading image from: ${url}`)
-  const response = await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: AXIOS_TIMEOUT, maxContentLength: AXIOS_MAX_CONTENT })
-
-  const contentType = getResponseHeader(response.headers, 'content-type')
-  if (!contentType?.startsWith('image/')) {
-    logger.warn(`[fetchImageBufferFromUrl] Not an image: ${url}`)
-    throw new Error('Not a valid image')
-  }
-
-  return {
-    buffer: Buffer.from(response.data),
-    contentType,
-  }
-}
 
 async function listChannels() {
   logger.log('[listChannels] Starting connection to TeamSpeak...');
@@ -136,12 +108,20 @@ export class ImagesLocalController {
     }
 
     try {
-      const { buffer, contentType } = await fetchImageBufferFromUrl(url)
+      const { buffer, contentType } = await fetchImageSafely(url)
       await this.imagesService.saveImage(normalizedChannel, buffer, contentType)
       logger.log(`[from-url] Image saved successfully for ${normalizedChannel}`)
       return { message: 'Image saved successfully' }
     } catch (err) {
-      logger.error(`[from-url] Error:`, err)
+      if (err instanceof SsrfValidationError) {
+        logger.warn(`[from-url] Rejected URL: ${url}`)
+        throw new BadRequestException('The given URL is not allowed')
+      }
+      if (err instanceof FetchFailedError) {
+        logger.warn(`[from-url] Fetch failed: ${url}`)
+        throw new BadRequestException('Image could not be loaded or was not a valid image')
+      }
+      logger.error(`[from-url] Unexpected error:`, err)
       throw new BadRequestException('Image could not be loaded or was not a valid image')
     }
   }
@@ -207,28 +187,21 @@ export class ImagesLocalController {
       throw new BadRequestException('Query parameter "url" is missing')
     }
 
-    // Make sure it's a valid URL
     try {
-      new URL(url)
-    } catch {
-      logger.warn(`[img-from-url] Invalid URL: ${url}`)
-      throw new BadRequestException('Invalid URL')
-    }
-
-    try {
-      const response = await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: AXIOS_TIMEOUT, maxContentLength: AXIOS_MAX_CONTENT })
-      const contentType = getResponseHeader(response.headers, 'content-type')
-
-      if (!contentType?.startsWith('image/')) {
-        logger.warn(`[img-from-url] Not an image: ${url}`)
-        throw new BadRequestException('The given URL does not return an image')
-      }
-
+      const { buffer, contentType } = await fetchImageSafely(url)
       res.setHeader('Content-Type', contentType)
-      res.send(Buffer.from(response.data))
+      res.send(buffer)
       logger.log(`[img-from-url] Image proxied successfully: ${url}`)
     } catch (err) {
-      logger.error(`[img-from-url] Error while loading:`, err)
+      if (err instanceof SsrfValidationError) {
+        logger.warn(`[img-from-url] Rejected URL: ${url}`)
+        throw new BadRequestException('The given URL is not allowed')
+      }
+      if (err instanceof FetchFailedError) {
+        logger.warn(`[img-from-url] Fetch failed: ${url}`)
+        throw new BadRequestException('Image could not be loaded')
+      }
+      logger.error(`[img-from-url] Unexpected error while loading:`, err)
       throw new BadRequestException('Image could not be loaded')
     }
   }

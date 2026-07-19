@@ -167,7 +167,7 @@ const BannerCropper: React.FC = () => {
     finalCtx.drawImage(tempCanvas, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
     canvas.style.display = 'block';
 
-    tempCanvas.toBlob(async (blob) => {
+    canvas.toBlob(async (blob) => {
       if (!blob) return;
 
       const formData = new FormData();

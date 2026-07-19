@@ -27,6 +27,34 @@ interface AuthProviderProps {
   children: React.ReactNode;
 }
 
+// `keycloak-js` allows exactly one `init()` call for the lifetime of a given
+// `Keycloak` instance; a second call throws "A 'Keycloak' instance can only
+// be initialized once." The imported `keycloak` object is a module-level
+// singleton (one instance for the whole page), so the promise returned by
+// its first `init()` call is cached here at module scope too. Any mount of
+// AuthProvider reuses that same in-flight-or-resolved promise instead of
+// calling `.init()` again: this covers React StrictMode's development-only
+// double-invoke of effects (mount, cleanup, mount again, all synchronously
+// before the promise can resolve), and it also covers a genuine later
+// unmount/remount on the same page, since calling `.init()` a second time
+// on the same instance would throw regardless of the reason. Re-deriving
+// `authenticated`/`loading` from the cached promise's outcome on a real
+// remount is correct either way, successful or failed: the underlying
+// Keycloak instance cannot be re-initialized, so there is no fresher result
+// to wait for.
+let keycloakInitPromise: Promise<boolean> | null = null;
+
+function initializeKeycloakOnce(): Promise<boolean> {
+  if (!keycloakInitPromise) {
+    keycloakInitPromise = keycloak.init({
+      onLoad: 'login-required',
+      checkLoginIframe: false,
+      pkceMethod: 'S256',
+    });
+  }
+  return keycloakInitPromise;
+}
+
 const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [authenticated, setAuthenticated] = useState(!KEYCLOAK_ENABLED);
   const [loading, setLoading] = useState(KEYCLOAK_ENABLED);
@@ -34,15 +62,12 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     if (!KEYCLOAK_ENABLED) return;
 
+    let cancelled = false;
     let refreshIntervalId: ReturnType<typeof setInterval> | undefined;
 
-    keycloak
-      .init({
-        onLoad: 'login-required',
-        checkLoginIframe: false,
-        pkceMethod: 'S256',
-      })
+    initializeKeycloakOnce()
       .then((auth) => {
+        if (cancelled) return;
         setAuthenticated(auth);
         setLoading(false);
 
@@ -57,11 +82,13 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }, 30000);
       })
       .catch((err) => {
+        if (cancelled) return;
         console.error('Keycloak initialization failed:', err);
         setLoading(false);
       });
 
     return () => {
+      cancelled = true;
       if (refreshIntervalId !== undefined) {
         clearInterval(refreshIntervalId);
       }

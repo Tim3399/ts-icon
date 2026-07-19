@@ -31,6 +31,11 @@ COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --from=builder --chown=node:node /app/prisma ./prisma
 COPY --from=builder --chown=node:node /app/node_modules/.prisma /app/node_modules/.prisma
 
+# The SQLite database file lives on a mounted volume at /data, outside /app.
+# A fresh named volume is created root-owned, so without this the non-root
+# user below cannot create or write the database file on first start.
+RUN mkdir -p /data && chown node:node /data
+
 USER node
 
 EXPOSE 3000

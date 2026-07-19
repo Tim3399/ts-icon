@@ -1,8 +1,9 @@
 name: CI
 
-# CI only: install, lint, typecheck, build, test for both apps. Deliberately
-# does not include Docker image build/push or deployment — those need
-# registry/host secrets that aren't configured yet.
+# CI: install, lint, typecheck, build, test for both apps, plus a
+# build-only Docker image validation job. Deliberately does not include
+# pushing an image anywhere or deployment — those need registry/host
+# secrets that aren't configured yet.
 on: [push, pull_request]
 
 # Cancel superseded runs on the same branch/PR so we don't burn minutes on
@@ -107,3 +108,47 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Unit tests
+        run: npm test
+
+  docker-build:
+    name: Docker image build (validation only, no push)
+    runs-on: ubuntu-latest
+    # Independent of the backend/frontend jobs above: a Dockerfile mistake
+    # (missing file in the build context, broken RUN step, wrong stage
+    # reference, etc.) is a different failure mode than lint/typecheck/test
+    # and previously wasn't caught by CI at all. No registry credentials are
+    # needed since nothing here is pushed anywhere.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Builds the Dockerfile's final stage ("runner"), i.e. exactly what
+      # `docker build .` produces without `--target` — the image that
+      # actually ships. This is the build most likely to break in practice
+      # (e.g. a bad COPY path, a runtime-stage dependency that's missing
+      # after `npm ci --omit=dev`), so it's validated first.
+      - name: Build default (runner) stage
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha,scope=docker-runner
+          cache-to: type=gha,mode=max,scope=docker-runner
+
+      # Also validates the "builder" stage on its own (the stage the
+      # docker-compose "migrate" one-off service builds from, since it's the
+      # only stage with the Prisma CLI available). Cheap extra coverage
+      # given the layer cache above is mostly shared with it.
+      - name: Build builder stage
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: builder
+          push: false
+          cache-from: type=gha,scope=docker-builder
+          cache-to: type=gha,mode=max,scope=docker-builder
