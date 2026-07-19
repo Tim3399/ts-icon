@@ -1,11 +1,13 @@
-import { Injectable } from '@nestjs/common'
-import { PrismaService } from '../prisma/prisma.service'
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ImagesService {
   constructor(private prisma: PrismaService) {}
 
-  async getImage(channelName: string): Promise<{ image: Buffer; mimeType: string } | null> {
+  async getImage(
+    channelName: string,
+  ): Promise<{ image: Buffer; mimeType: string } | null> {
     const result = await this.prisma.channelImage.findUnique({
       where: { channelName },
       select: {
@@ -23,7 +25,7 @@ export class ImagesService {
   }
 
   async saveImage(channelName: string, buffer: Buffer, mimeType: string) {
-    const image = new Uint8Array(buffer)
+    const image = new Uint8Array(buffer);
     await this.prisma.channelImage.upsert({
       where: { channelName },
       update: {
@@ -35,11 +37,18 @@ export class ImagesService {
         image,
         mimeType,
       },
-    })
+    });
   }
 
-  async listOptions(): Promise<Array<{ channelName: string; mimeType: string }>> {
-    const rows = await this.prisma.channelImage.findMany({ select: { channelName: true, mimeType: true } })
-    return rows.map(r => ({ channelName: r.channelName, mimeType: r.mimeType }))
+  async listOptions(): Promise<
+    Array<{ channelName: string; mimeType: string }>
+  > {
+    const rows = await this.prisma.channelImage.findMany({
+      select: { channelName: true, mimeType: true },
+    });
+    return rows.map((r) => ({
+      channelName: r.channelName,
+      mimeType: r.mimeType,
+    }));
   }
 }

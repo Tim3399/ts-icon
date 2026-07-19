@@ -46,6 +46,10 @@ import { Roles } from '../auth/roles.decorator';
 import { ImageFromUrlDto } from './dto/image-from-url.dto';
 import { ImgFromUrlQueryDto } from './dto/img-from-url-query.dto';
 import { ChannelNameValidationPipe } from './dto/channel-name-validation.pipe';
+import {
+  AuditAction,
+  AuditLoggingInterceptor,
+} from './audit-logging.interceptor';
 
 const logger = new Logger('ImagesLocalController');
 
@@ -118,6 +122,8 @@ export class ImagesLocalController {
 
   @Post('from-url')
   @Roles(OIDC_EDITOR_ROLE)
+  @AuditAction('from-url')
+  @UseInterceptors(AuditLoggingInterceptor)
   @ApiOperation({
     summary: 'Upload an image from a URL for the channel (local only)',
   })
@@ -182,12 +188,15 @@ export class ImagesLocalController {
       },
     },
   })
-  // Enforce file size limits and allowed mime types
+  @AuditAction('upload')
+  // Enforce file size limits and allowed mime types, and log a success audit
+  // entry once the upload actually completes.
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: MAX_FILE_SIZE },
       fileFilter: imageFileFilter,
     }),
+    AuditLoggingInterceptor,
   )
   async uploadImage(
     @Param('channelName', ChannelNameValidationPipe) channelName: string,

@@ -1,8 +1,8 @@
-import { Module } from '@nestjs/common'
-import { APP_GUARD } from '@nestjs/core'
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
-import { ImagesPublicController } from './images.controller.public'
-import { ImagesService } from './images.service'
+import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ImagesPublicController } from './images.controller.public';
+import { ImagesService } from './images.service';
 
 @Module({
   imports: [

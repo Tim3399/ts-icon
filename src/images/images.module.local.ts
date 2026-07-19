@@ -1,6 +1,6 @@
-import { Module } from '@nestjs/common'
-import { ImagesLocalController } from './images.controller.local'
-import { ImagesService } from './images.service'
+import { Module } from '@nestjs/common';
+import { ImagesLocalController } from './images.controller.local';
+import { ImagesService } from './images.service';
 
 @Module({
   controllers: [ImagesLocalController],
