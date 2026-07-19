@@ -51,3 +51,44 @@ export function getTeamSpeakCredentials(): { username: string; password: string 
   }
   return { username: TS_USERNAME, password: TS_USERPASSWORD };
 }
+
+// Issuer/audience have no sensible default: accepting tokens from an
+// unspecified issuer, or without checking a specific audience, would defeat
+// JWT validation entirely, so both are hard-required (see getOidcConfig()).
+// The role names, by contrast, are just claim values to compare against —
+// 'ts-icon-admin'/'ts-icon-editor' are already the agreed-on names (see
+// agents/keycloak.md), so defaulting to them is a convenience, not a
+// security-relevant fallback the way TS_USERNAME/TS_USERPASSWORD's removed
+// defaults were.
+const OIDC_ISSUER_URL = process.env.OIDC_ISSUER_URL;
+const OIDC_AUDIENCE = process.env.OIDC_AUDIENCE;
+export const OIDC_ADMIN_ROLE = process.env.OIDC_ADMIN_ROLE || 'ts-icon-admin';
+export const OIDC_EDITOR_ROLE = process.env.OIDC_EDITOR_ROLE || 'ts-icon-editor';
+
+export interface OidcConfig {
+  issuerUrl: string;
+  audience: string;
+  adminRole: string;
+  editorRole: string;
+}
+
+/**
+ * Returns the OIDC issuer/audience/role configuration, throwing a clear
+ * startup error if the issuer or audience is unset. Only the `local` app
+ * validates JWTs, so only its bootstrap needs to call this directly — but
+ * it's also safe (and cheap) to call again anywhere the values are needed,
+ * since it does no I/O of its own.
+ */
+export function getOidcConfig(): OidcConfig {
+  if (!OIDC_ISSUER_URL || !OIDC_AUDIENCE) {
+    throw new Error(
+      'OIDC_ISSUER_URL and OIDC_AUDIENCE must be set via environment variables — there is no default issuer or audience for JWT validation.',
+    );
+  }
+  return {
+    issuerUrl: OIDC_ISSUER_URL,
+    audience: OIDC_AUDIENCE,
+    adminRole: OIDC_ADMIN_ROLE,
+    editorRole: OIDC_EDITOR_ROLE,
+  };
+}

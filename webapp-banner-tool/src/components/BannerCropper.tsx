@@ -3,8 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import Cropper from 'cropperjs';
 import { API_URL, GET_IMAGE_URL } from '../config';
 import { useAuth } from '../auth/AuthProvider';
+import { useCanUpload } from '../auth/permissions';
 import { apiFetch, apiFetchBlob, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
 import { useToast } from './Toast';
+
+const NO_UPLOAD_PERMISSION_MESSAGE =
+  "You don't have permission to upload images. Contact an administrator if you believe this is a mistake.";
 
 const TARGET_WIDTH = 500;
 const TARGET_HEIGHT = 44;
@@ -25,6 +29,7 @@ const BannerCropper: React.FC = () => {
   const navigate = useNavigate();
   const { getToken } = useAuth();
   const { showToast } = useToast();
+  const canUpload = useCanUpload();
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -107,6 +112,10 @@ const BannerCropper: React.FC = () => {
   };
 
   const handleUrlLoad = async () => {
+    if (!canUpload) {
+      showToast(NO_UPLOAD_PERMISSION_MESSAGE, 'error');
+      return;
+    }
     if (!imageUrl.trim()) {
       showToast('Please enter an image URL.', 'error');
       return;
@@ -131,6 +140,10 @@ const BannerCropper: React.FC = () => {
   };
 
   const handleUpload = () => {
+    if (!canUpload) {
+      showToast(NO_UPLOAD_PERMISSION_MESSAGE, 'error');
+      return;
+    }
     if (!cropperRef.current) {
       showToast('Please select an image first.', 'error');
       return;
@@ -218,11 +231,18 @@ const BannerCropper: React.FC = () => {
         </ul>
       </div>
 
+      {!canUpload && (
+        <p role="alert" style={{ color: '#c62828', fontWeight: 'bold' }}>
+          {NO_UPLOAD_PERMISSION_MESSAGE}
+        </p>
+      )}
+
       <input
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
         accept="image/*"
+        disabled={!canUpload}
       />
 
       <label htmlFor="imageUrl">Image URL:</label>
@@ -232,9 +252,9 @@ const BannerCropper: React.FC = () => {
         value={imageUrl}
         onChange={(e) => setImageUrl(e.target.value)}
         placeholder="https://example.com/banner.png"
-        disabled={isLoadingUrl}
+        disabled={isLoadingUrl || !canUpload}
       />
-      <button onClick={handleUrlLoad} disabled={isLoadingUrl}>
+      <button onClick={handleUrlLoad} disabled={isLoadingUrl || !canUpload}>
         {isLoadingUrl ? 'Loading...' : 'Load image from URL'}
       </button>
 
@@ -268,7 +288,7 @@ const BannerCropper: React.FC = () => {
 
       <canvas ref={canvasRef} id="canvas-preview" width={TARGET_WIDTH} height={TARGET_HEIGHT} style={{ display: 'none' }} />
 
-      <button onClick={handleUpload} disabled={isUploading}>
+      <button onClick={handleUpload} disabled={isUploading || !canUpload}>
         {isUploading ? 'Uploading...' : 'Crop & send image'}
       </button>
     </div>

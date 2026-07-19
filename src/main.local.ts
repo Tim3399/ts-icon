@@ -7,6 +7,7 @@ import {
   CORS_ORIGINS,
   validateDatabaseConfig,
   getTeamSpeakCredentials,
+  getOidcConfig,
 } from '../config';
 import { version } from '../package.json';
 
@@ -16,6 +17,7 @@ async function bootstrap() {
   // Fail fast on missing/unsafe config before the app even starts listening.
   validateDatabaseConfig();
   getTeamSpeakCredentials();
+  getOidcConfig();
 
   const app = await NestFactory.create(AppModule);
   app.enableShutdownHooks();

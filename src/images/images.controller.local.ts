@@ -26,9 +26,17 @@ import { Express, Response } from 'express'
 import { IsString, IsUrl } from 'class-validator'
 
 import { TeamSpeak } from 'ts3-nodejs-library'
-import { TS_HOST, TS_QUERY_PORT, TS_SERVER_PORT, getTeamSpeakCredentials } from '../../config'
+import {
+  TS_HOST,
+  TS_QUERY_PORT,
+  TS_SERVER_PORT,
+  getTeamSpeakCredentials,
+  OIDC_ADMIN_ROLE,
+  OIDC_EDITOR_ROLE,
+} from '../../config'
 import { normalizeChannelName } from '../util/util'
 import { fetchImageSafely, SsrfValidationError, FetchFailedError } from './safe-url-fetcher'
+import { Roles } from '../auth/roles.decorator'
 
 const logger = new Logger('ImagesLocalController')
 
@@ -94,6 +102,7 @@ export class ImagesLocalController {
   constructor(private readonly imagesService: ImagesService) {}
 
   @Post('from-url')
+  @Roles(OIDC_EDITOR_ROLE)
   @ApiOperation({ summary: 'Upload an image from a URL for the channel (local only)' })
   @ApiBody({ type: ImageFromUrlDto })
   async uploadImageFromUrl(
@@ -127,6 +136,7 @@ export class ImagesLocalController {
   }
 
   @Post(':channelName')
+  @Roles(OIDC_EDITOR_ROLE)
   @ApiOperation({ summary: 'Upload an image for the channel (local only)' })
   @ApiParam({ name: 'channelName', type: String })
   @ApiConsumes('multipart/form-data')
@@ -159,6 +169,7 @@ export class ImagesLocalController {
   }
 
   @Get('options')
+  @Roles(OIDC_ADMIN_ROLE)
   @ApiOperation({ summary: 'Lists all images from the database (channelName, mimeType)' })
   async listOptions() {
     const options = await this.imagesService.listOptions()
@@ -166,6 +177,7 @@ export class ImagesLocalController {
   }
 
   @Get('img-from-url')
+  @Roles(OIDC_EDITOR_ROLE)
   @ApiOperation({ summary: 'Proxy: returns an image from an external URL' })
   @ApiParam({
     name: 'url',
@@ -207,6 +219,7 @@ export class ImagesLocalController {
   }
 
   @Get('channels')
+  @Roles(OIDC_EDITOR_ROLE)
   @ApiOperation({ summary: 'Returns a list of all channels (TeamSpeak)' })
   @ApiResponse({
     status: 200,
