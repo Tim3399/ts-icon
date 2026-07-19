@@ -5,6 +5,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import {
   IMG_API_PORT,
   CORS_ORIGINS,
+  LOG_LEVEL,
   validateDatabaseConfig,
   getTeamSpeakCredentials,
   getOidcConfig,
@@ -14,6 +15,8 @@ import { version } from '../package.json';
 import { createJwksKeyGetter } from './auth/jwks';
 import { jwtVerify } from 'jose';
 import type { Request, Response, NextFunction } from 'express';
+import { AppLogger } from './logging/app-logger';
+import { requestIdMiddleware } from './logging/request-id.middleware';
 
 const logger = new Logger('Bootstrap');
 
@@ -81,8 +84,25 @@ async function bootstrap() {
   getTeamSpeakCredentials();
   const oidcConfig = getOidcConfig();
 
-  const app = await NestFactory.create(AppModule);
+  // Custom logger passed via NestFactory.create's `logger` option (not
+  // app.useLogger(...) afterwards) so it's already in place for Nest's own
+  // bootstrap-time log lines, not just ones emitted after this call
+  // resolves. Every existing `new Logger('SomeContext')` call site
+  // elsewhere in this app is unaffected by this change and automatically
+  // gets JSON output in production, the configured LOG_LEVEL, and the
+  // current request id, without any of those call sites changing.
+  const app = await NestFactory.create(AppModule, {
+    logger: new AppLogger({
+      json: process.env.NODE_ENV === 'production',
+      logLevel: LOG_LEVEL,
+    }),
+  });
   app.enableShutdownHooks();
+
+  // Registered as plain Express middleware ahead of Nest's own routing, so
+  // the request id it establishes is available to guards/interceptors/
+  // controllers alike, not just to code reachable from a controller.
+  app.use(requestIdMiddleware);
 
   app.useGlobalPipes(
     new ValidationPipe({

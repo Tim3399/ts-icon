@@ -5,7 +5,7 @@ export const IMG_API_URL = `http://localhost:${IMG_API_PORT}/images-local/`;
 
 export const CORS_ORIGINS = (process.env.CORS_ORIGINS || '')
   .split(',')
-  .map(origin => origin.trim())
+  .map((origin) => origin.trim())
   .filter(Boolean);
 
 // No hardcoded fallback in production: a missing DATABASE_URL in production
@@ -25,6 +25,34 @@ export function validateDatabaseConfig(): void {
   }
 }
 
+// LOG_LEVEL controls the minimum severity AppLogger (src/logging/app-logger.ts)
+// prints; everything less severe is suppressed. Unlike the credential/OIDC
+// config above, an unset or unrecognized value has an obviously safe
+// default rather than a security concern, so this fails soft, not fast.
+const KNOWN_LOG_LEVELS = [
+  'verbose',
+  'debug',
+  'log',
+  'warn',
+  'error',
+  'fatal',
+] as const;
+type ConfigLogLevel = (typeof KNOWN_LOG_LEVELS)[number];
+
+function resolveLogLevel(): ConfigLogLevel {
+  const defaultLevel: ConfigLogLevel =
+    process.env.NODE_ENV === 'production' ? 'log' : 'debug';
+  const configured = process.env.LOG_LEVEL;
+  if (!configured) {
+    return defaultLevel;
+  }
+  return (KNOWN_LOG_LEVELS as readonly string[]).includes(configured)
+    ? (configured as ConfigLogLevel)
+    : defaultLevel;
+}
+
+export const LOG_LEVEL: ConfigLogLevel = resolveLogLevel();
+
 export const TS_HOST = process.env.TS_HOST || 'localhost';
 export const TS_QUERY_PORT = Number(process.env.TS_QUERY_PORT) || 10011;
 export const TS_SERVER_PORT = Number(process.env.TS_SERVER_PORT) || 9987;
@@ -43,7 +71,10 @@ const TS_USERPASSWORD = process.env.TS_USERPASSWORD;
  * the `public` app never uses these values and must not be required to set
  * them.
  */
-export function getTeamSpeakCredentials(): { username: string; password: string } {
+export function getTeamSpeakCredentials(): {
+  username: string;
+  password: string;
+} {
   if (!TS_USERNAME || !TS_USERPASSWORD) {
     throw new Error(
       'TS_USERNAME and TS_USERPASSWORD must be set via environment variables — there is no default credential fallback.',
@@ -63,7 +94,8 @@ export function getTeamSpeakCredentials(): { username: string; password: string 
 const OIDC_ISSUER_URL = process.env.OIDC_ISSUER_URL;
 const OIDC_AUDIENCE = process.env.OIDC_AUDIENCE;
 export const OIDC_ADMIN_ROLE = process.env.OIDC_ADMIN_ROLE || 'ts-icon-admin';
-export const OIDC_EDITOR_ROLE = process.env.OIDC_EDITOR_ROLE || 'ts-icon-editor';
+export const OIDC_EDITOR_ROLE =
+  process.env.OIDC_EDITOR_ROLE || 'ts-icon-editor';
 
 export interface OidcConfig {
   issuerUrl: string;
