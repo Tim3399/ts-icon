@@ -192,6 +192,14 @@ Both long-running services run as a non-root user and use SQLite via a named vol
   ```powershell
   npx prisma migrate deploy
   ```
+  **This fails against the default relative `DATABASE_URL=file:./dev.db`** with `P1013: The provided database string is invalid`. The Prisma CLI parses `DATABASE_URL` itself and requires an absolute path for this command — unlike the app's own runtime (`src/prisma/prisma.service.ts`), which resolves a relative path manually against `prisma/` and works fine with the default as-is. Override `DATABASE_URL` with an absolute path just for this command, e.g.:
+  ```powershell
+  $env:DATABASE_URL = "file:$($PWD.Path -replace '\\','/')/prisma/dev.db"
+  npx prisma migrate deploy
+  ```
+  ```bash
+  DATABASE_URL="file:$(pwd)/prisma/dev.db" npx prisma migrate deploy
+  ```
 - Inside Docker, use the `migrate` service described above instead of running Prisma commands inside the long-running `public`/`local` containers.
 
 ## Environment Variables
