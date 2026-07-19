@@ -16,6 +16,22 @@ services:
       - DATABASE_URL=file:/data/dev.db
     volumes:
       - db-data:/data
+    # Uses Node itself (already in the image) rather than curl/wget, neither
+    # of which node:22-alpine ships by default. /health/live checks nothing
+    # but process responsiveness, matching this being a liveness probe, not
+    # a readiness one.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3000/health/live', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   local:
     build: .
@@ -41,6 +57,20 @@ services:
       - TS_HOST=host.docker.internal
     volumes:
       - db-data:/data
+    # /health/live is @Public(), so this needs no bearer token despite every
+    # other route on this app requiring one.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3001/health/live', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # One-off database migration/schema-setup service. Builds only the
   # "builder" stage of the Dockerfile (the only stage with the Prisma CLI —
