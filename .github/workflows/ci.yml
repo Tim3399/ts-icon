@@ -70,17 +70,14 @@ jobs:
       - name: Unit tests
         run: npm test -- --passWithNoTests
 
-      # test/app.e2e-spec.ts is intentionally not run here: it currently
-      # fails deterministically, not flakily. It expects `GET /` to return
-      # 200 "Hello World!", but that route no longer exists in the app
-      # module under test. More fundamentally, app initialization itself
-      # throws first — the Prisma service's onModuleInit() tries to connect
-      # to a SQLite file that doesn't exist in a fresh checkout, so the test
-      # never even reaches its HTTP assertion. Re-enable this step once the
-      # spec is rewritten against real routes and the test run provisions
-      # its own database (e.g. via a migration step before the test):
-      # - name: E2E tests
-      #   run: npm run test:e2e
+      # Rewritten against real routes (a public health check, and a
+      # protected route confirmed to reject an unauthenticated request).
+      # Neither touches the database, so this runs safely against a fresh
+      # checkout with no pre-existing SQLite file or migration step needed -
+      # better-sqlite3 creates an empty file on connect, which is enough
+      # since nothing here queries a table.
+      - name: E2E tests
+        run: npm run test:e2e
 
   frontend:
     name: Frontend (lint, typecheck, build)
