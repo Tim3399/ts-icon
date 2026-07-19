@@ -1,11 +1,21 @@
 import { Logger } from '@nestjs/common';
-import { TeamSpeak } from 'ts3-nodejs-library';
+import { TeamSpeak, QueryProtocol } from 'ts3-nodejs-library';
 import {
   TS_HOST,
   TS_QUERY_PORT,
   TS_SERVER_PORT,
+  TS_PROTOCOL,
   getTeamSpeakCredentials,
 } from '../../config';
+import type { TsProtocol } from '../../config';
+
+const PROTOCOL_MAP: Record<
+  TsProtocol,
+  (typeof QueryProtocol)[keyof typeof QueryProtocol]
+> = {
+  raw: QueryProtocol.RAW,
+  ssh: QueryProtocol.SSH,
+};
 
 const logger = new Logger('TeamSpeakChannels');
 
@@ -25,6 +35,11 @@ export interface LiveChannel {
  * it, and the one-time channel-ID backfill script does too, so there's a
  * single connect/list/disconnect implementation instead of the pattern being
  * duplicated across call sites.
+ *
+ * The transport (raw ServerQuery vs. SSH-tunneled ServerQuery) is
+ * configurable via TS_PROTOCOL rather than hardcoded: some TeamSpeak
+ * deployments only expose the SSH transport, even though the command set on
+ * the wire is identical either way.
  */
 export async function fetchLiveChannels(): Promise<LiveChannel[]> {
   logger.log('[fetchLiveChannels] Starting connection to TeamSpeak...');
@@ -33,6 +48,7 @@ export async function fetchLiveChannels(): Promise<LiveChannel[]> {
     host: TS_HOST,
     queryport: TS_QUERY_PORT,
     serverport: TS_SERVER_PORT,
+    protocol: PROTOCOL_MAP[TS_PROTOCOL],
     username,
     password,
   });

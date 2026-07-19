@@ -3,6 +3,10 @@ import { fetchLiveChannels } from './teamspeak-channels';
 
 jest.mock('ts3-nodejs-library', () => ({
   TeamSpeak: { connect: jest.fn() },
+  // Mirrors the real library's QueryProtocol enum values (both are plain
+  // strings under the hood) since PROTOCOL_MAP in the module under test
+  // reads these at module-load time.
+  QueryProtocol: { RAW: 'raw', SSH: 'ssh' },
 }));
 
 jest.mock('../../config', () => ({

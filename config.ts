@@ -57,6 +57,25 @@ export const TS_HOST = process.env.TS_HOST || 'localhost';
 export const TS_QUERY_PORT = Number(process.env.TS_QUERY_PORT) || 10011;
 export const TS_SERVER_PORT = Number(process.env.TS_SERVER_PORT) || 9987;
 
+// TeamSpeak's classic ServerQuery interface has always supported two
+// transports for the identical command set: raw/telnet (the long-standing
+// default, still what most TS3-era servers expose) and SSH (the same
+// commands, tunneled). Some servers - notably TeamSpeak 6 - only expose the
+// SSH transport rather than the raw one, so this needs to be configurable
+// per deployment rather than assumed. Defaults to 'raw' since that's what
+// every fallback/default port above already assumes.
+const KNOWN_TS_PROTOCOLS = ['raw', 'ssh'] as const;
+export type TsProtocol = (typeof KNOWN_TS_PROTOCOLS)[number];
+
+function resolveTsProtocol(): TsProtocol {
+  const configured = process.env.TS_PROTOCOL;
+  return (KNOWN_TS_PROTOCOLS as readonly string[]).includes(configured ?? '')
+    ? (configured as TsProtocol)
+    : 'raw';
+}
+
+export const TS_PROTOCOL: TsProtocol = resolveTsProtocol();
+
 // No fallback defaults here on purpose: 'serveradmin'/'password' were
 // well-known TeamSpeak ServerQuery defaults and shipping them as a silent
 // fallback effectively hardcodes a known-bad credential. Unset envs must
