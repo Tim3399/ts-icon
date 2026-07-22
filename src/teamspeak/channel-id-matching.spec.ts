@@ -5,7 +5,7 @@ describe('matchChannelIdsToRows', () => {
   it('matches a row to a live channel whose normalized name equals the row channelName', () => {
     const rows = [{ channelName: 'general' }];
     const liveChannels: LiveChannel[] = [
-      { cid: '1', name: 'General', bannerGfxUrl: null },
+      { cid: '1', name: 'General', bannerGfxUrl: null, pid: null },
     ];
 
     const result = matchChannelIdsToRows(rows, liveChannels);
@@ -19,7 +19,7 @@ describe('matchChannelIdsToRows', () => {
   it('normalizes live channel names the same way the rest of the app does (umlauts, whitespace, punctuation)', () => {
     const rows = [{ channelName: 'rohre' }];
     const liveChannels: LiveChannel[] = [
-      { cid: '42', name: 'Röhre!!!', bannerGfxUrl: null },
+      { cid: '42', name: 'Röhre!!!', bannerGfxUrl: null, pid: null },
     ];
 
     const result = matchChannelIdsToRows(rows, liveChannels);
@@ -31,7 +31,7 @@ describe('matchChannelIdsToRows', () => {
   it('reports a row with no live match at all as unmatched, not an error', () => {
     const rows = [{ channelName: 'deleted-channel' }];
     const liveChannels: LiveChannel[] = [
-      { cid: '1', name: 'Something Else', bannerGfxUrl: null },
+      { cid: '1', name: 'Something Else', bannerGfxUrl: null, pid: null },
     ];
 
     const result = matchChannelIdsToRows(rows, liveChannels);
@@ -47,8 +47,8 @@ describe('matchChannelIdsToRows', () => {
       { channelName: 'music' },
     ];
     const liveChannels: LiveChannel[] = [
-      { cid: '1', name: 'General', bannerGfxUrl: null },
-      { cid: '2', name: 'Music', bannerGfxUrl: null },
+      { cid: '1', name: 'General', bannerGfxUrl: null, pid: null },
+      { cid: '2', name: 'Music', bannerGfxUrl: null, pid: null },
     ];
 
     const result = matchChannelIdsToRows(rows, liveChannels);
@@ -74,7 +74,7 @@ describe('matchChannelIdsToRows', () => {
 
   it('returns nothing at all when there are no rows to match', () => {
     const liveChannels: LiveChannel[] = [
-      { cid: '1', name: 'General', bannerGfxUrl: null },
+      { cid: '1', name: 'General', bannerGfxUrl: null, pid: null },
     ];
 
     const result = matchChannelIdsToRows([], liveChannels);
@@ -91,8 +91,8 @@ describe('matchChannelIdsToRows', () => {
     // live channel is later in the array overwriting the map entry.
     const rows = [{ channelName: 'rohre' }];
     const liveChannels: LiveChannel[] = [
-      { cid: '1', name: 'Röhre', bannerGfxUrl: null },
-      { cid: '2', name: 'Rohre', bannerGfxUrl: null },
+      { cid: '1', name: 'Röhre', bannerGfxUrl: null, pid: null },
+      { cid: '2', name: 'Rohre', bannerGfxUrl: null, pid: null },
     ];
 
     const result = matchChannelIdsToRows(rows, liveChannels);

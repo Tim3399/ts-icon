@@ -31,19 +31,29 @@ export interface LiveChannel {
    * channel's banner is already pointed at our own managed image.
    */
   bannerGfxUrl: string | null;
+  /**
+   * The parent channel's cid, or `null` for a top-level channel. TeamSpeak's
+   * ServerQuery reports a top-level channel's `pid` as `"0"`, normalized to
+   * `null` here so `computeChannelDepth()` doesn't need to know that
+   * convention itself.
+   */
+  pid: string | null;
 }
 
 /**
  * Opens a TeamSpeak connection, runs `fn` against it, and always disconnects
- * afterward -- success or failure. Shared by every operation in this module
- * that needs a live connection (listing channels, editing a channel's
- * banner URL), so there's one place that knows how to connect/attach an
- * error handler/disconnect, instead of that boilerplate being duplicated at
- * every call site. Using `finally` for the disconnect (rather than only
- * calling `quit()` after a successful operation, the previous shape of this
- * code) also means a connection is no longer leaked if `fn` throws.
+ * afterward -- success or failure. Shared by every operation that needs a
+ * live connection (listing channels, editing a channel's banner URL,
+ * creating/deleting channels in `teamspeak-channel-admin.ts`), so there's one
+ * place that knows how to connect/attach an error handler/disconnect,
+ * instead of that boilerplate being duplicated at every call site. Using
+ * `finally` for the disconnect (rather than only calling `quit()` after a
+ * successful operation, the previous shape of this code) also means a
+ * connection is no longer leaked if `fn` throws. Exported so callers that
+ * need to do more than one operation on a single connection (e.g. list
+ * channels then create several more) can still go through this one place.
  */
-async function withTeamSpeakConnection<T>(
+export async function withTeamSpeakConnection<T>(
   fn: (ts3: TeamSpeak) => Promise<T>,
 ): Promise<T> {
   logger.log('[TeamSpeak] Starting connection to TeamSpeak...');
@@ -73,8 +83,14 @@ function toLiveChannel(c: {
   cid: string;
   name: string;
   bannerGfxUrl?: string;
+  pid?: string;
 }): LiveChannel {
-  return { cid: c.cid, name: c.name, bannerGfxUrl: c.bannerGfxUrl || null };
+  return {
+    cid: c.cid,
+    name: c.name,
+    bannerGfxUrl: c.bannerGfxUrl || null,
+    pid: c.pid && c.pid !== '0' ? c.pid : null,
+  };
 }
 
 // Both the admin channel picker (GET /images-local/channels) and the
@@ -155,16 +171,57 @@ export function invalidateLiveChannelsCache(): void {
   inFlightFetch = null;
 }
 
-async function connectAndListChannels(): Promise<LiveChannel[]> {
-  return withTeamSpeakConnection(async (ts3) => {
-    // ts3.channelList() already requests the -banner flag internally, so
-    // every returned channel's .bannerGfxUrl getter is populated without
-    // any extra ServerQuery call.
-    const channels = await ts3.channelList();
-    const result = channels.map(toLiveChannel);
-    logger.log(`[fetchLiveChannels] Found ${result.length} channel(s).`);
-    return result;
-  });
+/**
+ * Lists channels on an already-open connection, without opening or closing
+ * one of its own. Exported so a caller that needs to do more than just list
+ * channels on a single connection (e.g. `teamspeak-channel-admin.ts`'s
+ * channel-wallpaper generation, which lists channels once and then creates
+ * several more on that same connection) doesn't have to duplicate this
+ * mapping logic.
+ */
+export async function listChannelsOnConnection(
+  ts3: TeamSpeak,
+): Promise<LiveChannel[]> {
+  // ts3.channelList() already requests the -banner flag internally, so
+  // every returned channel's .bannerGfxUrl getter is populated without
+  // any extra ServerQuery call.
+  const channels = await ts3.channelList();
+  const result = channels.map(toLiveChannel);
+  logger.log(`[fetchLiveChannels] Found ${result.length} channel(s).`);
+  return result;
+}
+
+function connectAndListChannels(): Promise<LiveChannel[]> {
+  return withTeamSpeakConnection(listChannelsOnConnection);
+}
+
+/**
+ * Walks the `pid` parent chain from `cid` up to the root, counting hops, to
+ * find how deeply nested a channel is in the channel tree. `cid === null`
+ * (no parent chosen, i.e. top-level) returns `-1`, so a direct child of it
+ * -- a genuinely top-level channel -- comes out to depth 0, matching every
+ * other depth-0 assumption in the channel-wallpaper row-plan presets.
+ *
+ * A `cid` that isn't found in `channels` (e.g. a stale/invalid parent) is
+ * treated the same as `-1` (top-level) rather than throwing -- callers that
+ * care about that distinction should check for the channel's existence
+ * themselves first.
+ */
+export function computeChannelDepth(
+  cid: string | null,
+  channels: LiveChannel[],
+): number {
+  if (cid === null) return -1;
+  const byId = new Map(channels.map((c) => [c.cid, c]));
+  let depth = 0;
+  let current = byId.get(cid);
+  if (!current) return -1;
+  while (current.pid !== null) {
+    depth++;
+    current = byId.get(current.pid);
+    if (!current) break;
+  }
+  return depth;
 }
 
 /**

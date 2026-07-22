@@ -6,6 +6,7 @@ import {
   setChannelBannerUrl,
   applyBannerUrlsForAllChannels,
   invalidateLiveChannelsCache,
+  computeChannelDepth,
   type LiveChannel,
 } from './teamspeak-channels';
 
@@ -62,8 +63,9 @@ describe('fetchLiveChannels', () => {
         cid: '1',
         name: 'General',
         bannerGfxUrl: 'https://example.test/images/general',
+        pid: null,
       },
-      { cid: '2', name: 'Music', bannerGfxUrl: null },
+      { cid: '2', name: 'Music', bannerGfxUrl: null, pid: null },
     ]);
     expect(quit).toHaveBeenCalledTimes(1);
   });
@@ -112,7 +114,7 @@ describe('fetchLiveChannels', () => {
 
     expect(mockedConnect).toHaveBeenCalledTimes(1);
     expect(firstResult).toEqual([
-      { cid: '1', name: 'General', bannerGfxUrl: null },
+      { cid: '1', name: 'General', bannerGfxUrl: null, pid: null },
     ]);
     expect(secondResult).toEqual(firstResult);
   });
@@ -191,6 +193,7 @@ describe('isManagedByUs', () => {
       cid: '1',
       name: 'General',
       bannerGfxUrl: `${PUBLIC_BASE_URL}/images/general.png`,
+      pid: null,
     };
     expect(isManagedByUs(channel, PUBLIC_BASE_URL)).toBe(true);
   });
@@ -200,6 +203,7 @@ describe('isManagedByUs', () => {
       cid: '1',
       name: 'General',
       bannerGfxUrl: null,
+      pid: null,
     };
     expect(isManagedByUs(channel, PUBLIC_BASE_URL)).toBe(false);
   });
@@ -209,6 +213,7 @@ describe('isManagedByUs', () => {
       cid: '1',
       name: 'General',
       bannerGfxUrl: 'https://someone-elses-host.example/banner.png',
+      pid: null,
     };
     expect(isManagedByUs(channel, PUBLIC_BASE_URL)).toBe(false);
   });
@@ -224,8 +229,46 @@ describe('isManagedByUs', () => {
       cid: '1',
       name: 'General',
       bannerGfxUrl: `${PUBLIC_BASE_URL}/images/general`,
+      pid: null,
     };
     expect(isManagedByUs(channel, PUBLIC_BASE_URL)).toBe(false);
+  });
+});
+
+describe('computeChannelDepth', () => {
+  const flatChannels: LiveChannel[] = [
+    { cid: '1', name: 'A', bannerGfxUrl: null, pid: null },
+    { cid: '2', name: 'B', bannerGfxUrl: null, pid: null },
+  ];
+
+  const nestedChannels: LiveChannel[] = [
+    { cid: '1', name: 'Root', bannerGfxUrl: null, pid: null },
+    { cid: '2', name: 'Child', bannerGfxUrl: null, pid: '1' },
+    { cid: '3', name: 'Grandchild', bannerGfxUrl: null, pid: '2' },
+  ];
+
+  it('returns -1 for a null cid (no parent chosen, i.e. top-level)', () => {
+    expect(computeChannelDepth(null, flatChannels)).toBe(-1);
+  });
+
+  it('returns 0 for a top-level channel', () => {
+    expect(computeChannelDepth('1', flatChannels)).toBe(0);
+  });
+
+  it('returns 0 for the root of a nested tree', () => {
+    expect(computeChannelDepth('1', nestedChannels)).toBe(0);
+  });
+
+  it('returns 1 for a direct child', () => {
+    expect(computeChannelDepth('2', nestedChannels)).toBe(1);
+  });
+
+  it('returns 2 for a grandchild', () => {
+    expect(computeChannelDepth('3', nestedChannels)).toBe(2);
+  });
+
+  it('returns -1 for a cid that does not exist in the given channel list', () => {
+    expect(computeChannelDepth('unknown', nestedChannels)).toBe(-1);
   });
 });
 

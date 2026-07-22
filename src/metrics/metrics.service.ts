@@ -94,6 +94,14 @@ export class MetricsService {
     registers: [this.registry],
   });
 
+  /** Channel-wallpaper generation runs, labeled by outcome. */
+  readonly channelWallpaperGenerationsTotal = new Counter({
+    name: 'channel_wallpaper_generations_total',
+    help: 'Total channel-wallpaper generation runs, labeled by result (success/partial-failure/failure).',
+    labelNames: ['result'] as const,
+    registers: [this.registry],
+  });
+
   /** The registry's every metric, rendered in the Prometheus text exposition format. */
   async getMetricsText(): Promise<string> {
     return this.registry.metrics();
