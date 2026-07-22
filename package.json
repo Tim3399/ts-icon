@@ -1,6 +1,6 @@
 {
   "name": "ts-icon",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "NestJS backend for managing and serving TeamSpeak channel banner images, paired with a React admin frontend for uploading and cropping banners.",
   "author": "",
   "private": true,
