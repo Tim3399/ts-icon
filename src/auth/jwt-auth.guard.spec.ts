@@ -85,7 +85,8 @@ describe('JwtAuthGuard', () => {
   function signToken(
     overrides: {
       issuer?: string;
-      audience?: string | string[];
+      azp?: string;
+      omitAzp?: boolean;
       subject?: string;
       roles?: string[];
       expiresIn?: string;
@@ -94,7 +95,8 @@ describe('JwtAuthGuard', () => {
   ): Promise<string> {
     const {
       issuer = ISSUER,
-      audience = AUDIENCE,
+      azp = AUDIENCE,
+      omitAzp = false,
       subject = 'user-123',
       roles = ['ts-icon-editor'],
       expiresIn = '5m',
@@ -103,11 +105,11 @@ describe('JwtAuthGuard', () => {
 
     return new SignJWT({
       realm_access: { roles },
+      ...(omitAzp ? {} : { azp }),
     })
       .setProtectedHeader({ alg: 'RS256', kid })
       .setIssuedAt()
       .setIssuer(issuer)
-      .setAudience(audience)
       .setSubject(subject)
       .setExpirationTime(expiresIn)
       .sign(signingKeyOverride ?? signingKey);
@@ -136,14 +138,14 @@ describe('JwtAuthGuard', () => {
     expect(request.user).toEqual({ sub: 'alice', roles: ['ts-icon-editor'] });
   });
 
-  it('accepts a token whose aud claim is an array containing the configured audience', async () => {
+  it('rejects a token with no azp claim at all', async () => {
     const guard = createGuard();
-    const token = await signToken({
-      audience: ['some-other-client', AUDIENCE],
-    });
+    const token = await signToken({ omitAzp: true });
     const { context } = createContext(`Bearer ${token}`);
 
-    await expect(guard.canActivate(context)).resolves.toBe(true);
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('rejects a missing Authorization header', async () => {
@@ -187,9 +189,9 @@ describe('JwtAuthGuard', () => {
     );
   });
 
-  it('rejects a token with the wrong audience', async () => {
+  it('rejects a token whose azp does not match the configured audience', async () => {
     const guard = createGuard();
-    const token = await signToken({ audience: 'some-other-client' });
+    const token = await signToken({ azp: 'some-other-client' });
     const { context } = createContext(`Bearer ${token}`);
 
     await expect(guard.canActivate(context)).rejects.toThrow(

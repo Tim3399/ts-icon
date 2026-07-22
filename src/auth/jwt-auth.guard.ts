@@ -39,24 +39,28 @@ function extractBearerToken(
 /**
  * Verifies the `Authorization: Bearer <token>` header on every request
  * against the configured Keycloak issuer's JWKS, applied globally to the
- * `local` app (see AuthModule). Verification checks, all via `jose`'s
- * `jwtVerify`:
+ * `local` app (see AuthModule). Verification checks:
  *  - signature, against the issuer's live JWKS (fetched/cached by
- *    `createRemoteJWKSet`, see jwks.ts)
- *  - `iss` matches the configured issuer exactly
- *  - `aud` includes the configured audience (jose accepts either a string
- *    or array `aud` claim and checks membership either way)
+ *    `createRemoteJWKSet`, see jwks.ts), via `jose`'s `jwtVerify`
+ *  - `iss` matches the configured issuer exactly, via `jwtVerify`
  *  - `exp`/`nbf`, automatically as part of `jwtVerify` — expired or
  *    not-yet-valid tokens are rejected before this guard sees a payload at
  *    all
- *  - signature algorithm restricted to RS256 only
+ *  - signature algorithm restricted to RS256 only, via `jwtVerify`
+ *  - `azp` (authorized party) matches the configured audience, checked
+ *    manually after `jwtVerify` succeeds — *not* the `aud` claim. Keycloak
+ *    does not reliably include the requesting client's own id in `aud`
+ *    without a dedicated audience mapper (see `agents/keycloak.md`), but it
+ *    always sets `azp` to the client the token was issued to, so that's the
+ *    claim actually being relied on here to confirm this token was meant
+ *    for this API.
  *
  * Any failure (missing header, malformed header, bad signature, wrong
- * issuer/audience, expired/not-yet-valid) results in a generic 401 to the
- * client — the specific reason is logged server-side only, never returned
- * in the response, so a caller probing the endpoint can't distinguish "your
- * token expired" from "your token is for the wrong audience" from "that
- * signature is forged".
+ * issuer/authorized party, expired/not-yet-valid) results in a generic 401
+ * to the client — the specific reason is logged server-side only, never
+ * returned in the response, so a caller probing the endpoint can't
+ * distinguish "your token expired" from "your token is for the wrong
+ * client" from "that signature is forged".
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -91,9 +95,13 @@ export class JwtAuthGuard implements CanActivate {
     try {
       const { payload } = await jwtVerify(token, this.getKey, {
         issuer: this.oidcConfig.issuerUrl,
-        audience: this.oidcConfig.audience,
         algorithms: ALLOWED_ALGORITHMS,
       });
+      if (payload.azp !== this.oidcConfig.audience) {
+        throw new Error(
+          `Token azp (authorized party) does not match the configured audience`,
+        );
+      }
       request.user = toRequestUser(payload);
       return true;
     } catch (err) {
