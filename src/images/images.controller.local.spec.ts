@@ -18,10 +18,31 @@ import {
   SsrfValidationError,
   FetchFailedError,
 } from './safe-url-fetcher';
-import { fetchLiveChannels } from '../teamspeak/teamspeak-channels';
+import {
+  fetchLiveChannels,
+  setChannelBannerUrl,
+  applyBannerUrlsForAllChannels,
+} from '../teamspeak/teamspeak-channels';
 import { processImageForStorage } from './image-processing';
 import type { ImagesService } from './images.service';
 import type { MetricsService } from '../metrics/metrics.service';
+
+const TEST_PUBLIC_BASE_URL = 'https://ts-icon.example.test';
+
+// getPublicBaseUrl() is read once, at construction time, by
+// ImagesLocalController's publicBaseUrl field -- config.ts captures
+// process.env.PUBLIC_BASE_URL into a module-level const at import time, so
+// setting process.env directly in this file would be too late (imports are
+// evaluated before any other top-level statement here). Mocking the
+// function itself sidesteps that entirely.
+jest.mock('../../config', () => {
+  const actual =
+    jest.requireActual<typeof import('../../config')>('../../config');
+  return {
+    ...actual,
+    getPublicBaseUrl: jest.fn(() => TEST_PUBLIC_BASE_URL),
+  };
+});
 
 jest.mock('./safe-url-fetcher', () => {
   const actual =
@@ -34,9 +55,20 @@ jest.mock('./safe-url-fetcher', () => {
   };
 });
 
-jest.mock('../teamspeak/teamspeak-channels', () => ({
-  fetchLiveChannels: jest.fn(),
-}));
+jest.mock('../teamspeak/teamspeak-channels', () => {
+  // expectedBannerUrl/isManagedByUs are pure functions with no I/O -- kept
+  // as their real implementations rather than mocked, same reasoning as
+  // normalizeChannelName elsewhere in this codebase not being mocked.
+  const actual = jest.requireActual<
+    typeof import('../teamspeak/teamspeak-channels')
+  >('../teamspeak/teamspeak-channels');
+  return {
+    ...actual,
+    fetchLiveChannels: jest.fn(),
+    setChannelBannerUrl: jest.fn(),
+    applyBannerUrlsForAllChannels: jest.fn(),
+  };
+});
 
 jest.mock('./image-processing', () => {
   const actual =
@@ -58,6 +90,13 @@ const mockedFetchLiveChannels = fetchLiveChannels as jest.MockedFunction<
 const mockedProcessImage = processImageForStorage as jest.MockedFunction<
   typeof processImageForStorage
 >;
+const mockedSetChannelBannerUrl = setChannelBannerUrl as jest.MockedFunction<
+  typeof setChannelBannerUrl
+>;
+const mockedApplyBannerUrlsForAllChannels =
+  applyBannerUrlsForAllChannels as jest.MockedFunction<
+    typeof applyBannerUrlsForAllChannels
+  >;
 
 // Returns both the stub itself and direct references to its jest.fn()s.
 // Handing back the mock function references directly (rather than reading
@@ -139,7 +178,7 @@ beforeEach(() => {
   // resolution defaults to "a live channel called 'chan' exists and it's
   // brand new" unless a specific test overrides it.
   mockedFetchLiveChannels.mockResolvedValue([
-    { cid: 'cid-chan', name: 'Chan' },
+    { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null },
   ]);
 });
 
@@ -180,7 +219,7 @@ describe('imageFileFilter', () => {
 describe('resolveUploadChannel', () => {
   it('rejects with ChannelNotFoundError when no live channel matches the given name', async () => {
     mockedFetchLiveChannels.mockResolvedValue([
-      { cid: 'cid-1', name: 'Something Else' },
+      { cid: 'cid-1', name: 'Something Else', bannerGfxUrl: null },
     ]);
     const { imagesService } = createImagesServiceStub();
 
@@ -191,7 +230,7 @@ describe('resolveUploadChannel', () => {
 
   it('resolves as an update when an existing row already has this exact channelId', async () => {
     mockedFetchLiveChannels.mockResolvedValue([
-      { cid: 'cid-chan', name: 'Chan' },
+      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null },
     ]);
     const { imagesService, findByChannelId, channelNameInUse } =
       createImagesServiceStub();
@@ -208,7 +247,7 @@ describe('resolveUploadChannel', () => {
 
   it('resolves as a plain new-channel create when the channelId is new and the name is not taken', async () => {
     mockedFetchLiveChannels.mockResolvedValue([
-      { cid: 'cid-chan', name: 'Chan' },
+      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null },
     ]);
     const { imagesService, findByChannelId, channelNameInUse } =
       createImagesServiceStub();
@@ -222,7 +261,7 @@ describe('resolveUploadChannel', () => {
 
   it('rejects with ChannelNameConflictError when the channelId is new but a different row already owns this channelName', async () => {
     mockedFetchLiveChannels.mockResolvedValue([
-      { cid: 'cid-chan', name: 'Chan' },
+      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null },
     ]);
     const { imagesService, findByChannelId, channelNameInUse } =
       createImagesServiceStub();
@@ -394,7 +433,9 @@ describe('ImagesLocalController.listChannels', () => {
   });
 
   it('returns the normalized channel list on success', async () => {
-    mockedFetchLiveChannels.mockResolvedValue([{ cid: '1', name: 'Foo Bar' }]);
+    mockedFetchLiveChannels.mockResolvedValue([
+      { cid: '1', name: 'Foo Bar', bannerGfxUrl: null },
+    ]);
     const controller = createController();
     await expect(controller.listChannels()).resolves.toEqual({
       channels: ['foo-bar'],
@@ -527,5 +568,120 @@ describe('ImagesLocalController.proxyImage metrics', () => {
     expect(ssrfBlockedIncMock).toHaveBeenCalledWith({
       route: 'img-from-url',
     });
+  });
+});
+
+describe('ImagesLocalController.listChannelBannerUrls', () => {
+  it('returns each channel with its bannerGfxUrl and computed managed flag', async () => {
+    mockedFetchLiveChannels.mockResolvedValue([
+      {
+        cid: 'cid-1',
+        name: 'General',
+        bannerGfxUrl: `${TEST_PUBLIC_BASE_URL}/images/general`,
+      },
+      { cid: 'cid-2', name: 'Music', bannerGfxUrl: null },
+    ]);
+    const controller = createController();
+
+    await expect(controller.listChannelBannerUrls()).resolves.toEqual({
+      channels: [
+        {
+          name: 'general',
+          bannerGfxUrl: `${TEST_PUBLIC_BASE_URL}/images/general`,
+          managed: true,
+        },
+        { name: 'music', bannerGfxUrl: null, managed: false },
+      ],
+    });
+  });
+
+  it('returns 503 when TeamSpeak is unreachable', async () => {
+    mockedFetchLiveChannels.mockRejectedValue(new Error('ECONNREFUSED'));
+    const controller = createController();
+
+    await expect(controller.listChannelBannerUrls()).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
+});
+
+describe('ImagesLocalController.setBannerUrl', () => {
+  it('rejects with 400 when no live channel matches the given name', async () => {
+    mockedFetchLiveChannels.mockResolvedValue([]);
+    const controller = createController();
+
+    await expect(controller.setBannerUrl('chan')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(mockedSetChannelBannerUrl).not.toHaveBeenCalled();
+  });
+
+  it('sets the banner URL to the expected value for the resolved channel', async () => {
+    mockedFetchLiveChannels.mockResolvedValue([
+      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null },
+    ]);
+    mockedSetChannelBannerUrl.mockResolvedValue(undefined);
+    const controller = createController();
+
+    const result = await controller.setBannerUrl('chan');
+
+    expect(mockedSetChannelBannerUrl).toHaveBeenCalledWith(
+      'cid-chan',
+      `${TEST_PUBLIC_BASE_URL}/images/chan`,
+    );
+    expect(result).toEqual({
+      message: 'Banner URL set successfully',
+      bannerGfxUrl: `${TEST_PUBLIC_BASE_URL}/images/chan`,
+    });
+  });
+
+  it('returns 503 when TeamSpeak is unreachable during channel resolution', async () => {
+    mockedFetchLiveChannels.mockRejectedValue(new Error('ECONNREFUSED'));
+    const controller = createController();
+
+    await expect(controller.setBannerUrl('chan')).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
+
+  it('returns 503 when setChannelBannerUrl itself fails', async () => {
+    mockedFetchLiveChannels.mockResolvedValue([
+      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null },
+    ]);
+    mockedSetChannelBannerUrl.mockRejectedValue(new Error('rejected'));
+    const controller = createController();
+
+    await expect(controller.setBannerUrl('chan')).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
+});
+
+describe('ImagesLocalController.applyBannerUrls', () => {
+  it('returns the updated/alreadyManaged summary on success', async () => {
+    mockedApplyBannerUrlsForAllChannels.mockResolvedValue({
+      updated: ['music'],
+      alreadyManaged: ['general'],
+    });
+    const controller = createController();
+
+    await expect(controller.applyBannerUrls()).resolves.toEqual({
+      updated: ['music'],
+      alreadyManaged: ['general'],
+    });
+    expect(mockedApplyBannerUrlsForAllChannels).toHaveBeenCalledWith(
+      TEST_PUBLIC_BASE_URL,
+    );
+  });
+
+  it('returns 503 when TeamSpeak is unreachable', async () => {
+    mockedApplyBannerUrlsForAllChannels.mockRejectedValue(
+      new Error('ECONNREFUSED'),
+    );
+    const controller = createController();
+
+    await expect(controller.applyBannerUrls()).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
   });
 });

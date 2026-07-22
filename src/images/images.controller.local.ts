@@ -5,6 +5,7 @@ import {
   Req,
   Res,
   Post,
+  Patch,
   Param,
   UploadedFile,
   UseInterceptors,
@@ -30,9 +31,20 @@ import {
 } from '@nestjs/swagger';
 import { Express, Request, Response } from 'express';
 
-import { OIDC_ADMIN_ROLE, OIDC_EDITOR_ROLE } from '../../config';
+import {
+  OIDC_ADMIN_ROLE,
+  OIDC_EDITOR_ROLE,
+  getPublicBaseUrl,
+} from '../../config';
 import { normalizeChannelName } from '../util/util';
-import { fetchLiveChannels } from '../teamspeak/teamspeak-channels';
+import {
+  fetchLiveChannels,
+  expectedBannerUrl,
+  isManagedByUs,
+  setChannelBannerUrl,
+  applyBannerUrlsForAllChannels,
+  type LiveChannel,
+} from '../teamspeak/teamspeak-channels';
 import {
   fetchImageSafely,
   SsrfValidationError,
@@ -159,9 +171,39 @@ export async function resolveUploadChannel(
   return { channelId: match.cid, channelName: normalizedChannelName };
 }
 
+/**
+ * Resolves an admin-provided (already normalized) channel name to its live
+ * TeamSpeak channel, for the banner-url endpoints below. Simpler than
+ * `resolveUploadChannel()` above -- this never touches the images database
+ * at all, so none of that function's channelId-row/collision logic applies,
+ * just the live-channel lookup itself (reusing the same `ChannelNotFoundError`
+ * for a consistent not-found message/handling across both).
+ */
+async function findLiveChannelByName(
+  normalizedChannelName: string,
+): Promise<LiveChannel> {
+  const liveChannels = await fetchLiveChannels();
+  const match = liveChannels.find(
+    (c) => normalizeChannelName(c.name) === normalizedChannelName,
+  );
+  if (!match) {
+    throw new ChannelNotFoundError(
+      `No live TeamSpeak channel matches "${normalizedChannelName}"`,
+    );
+  }
+  return match;
+}
+
 @ApiTags('images-local')
 @Controller('images-local')
 export class ImagesLocalController {
+  // Computed once at controller construction (i.e. app bootstrap, since
+  // Nest controllers are singleton-scoped by default) rather than re-read
+  // per request -- fails fast at startup exactly like the OIDC config does,
+  // instead of only surfacing the missing-env-var error on whichever
+  // request happens to hit a banner-url endpoint first.
+  private readonly publicBaseUrl = getPublicBaseUrl();
+
   constructor(
     private readonly imagesService: ImagesService,
     private readonly metrics: MetricsService,
@@ -481,6 +523,154 @@ export class ImagesLocalController {
     } catch (err) {
       logger.error('[GET /images-local/channels] Error:', err);
       this.metrics.teamspeakErrorsTotal.inc({ operation: 'list-channels' });
+      throw new ServiceUnavailableException(
+        'TeamSpeak is currently unreachable',
+      );
+    }
+  }
+
+  @Get('channels/banner-urls')
+  @Roles(OIDC_EDITOR_ROLE)
+  @ApiOperation({
+    summary:
+      "Returns each channel's current banner URL and whether it's managed by this server (local only)",
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Per-channel banner-management status',
+    schema: {
+      type: 'object',
+      properties: {
+        channels: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              bannerGfxUrl: { type: 'string', nullable: true },
+              managed: { type: 'boolean' },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'TeamSpeak is currently unreachable',
+  })
+  async listChannelBannerUrls() {
+    logger.log('[GET /images-local/channels/banner-urls] Request received');
+    try {
+      const liveChannels = await fetchLiveChannels();
+      const channels = liveChannels.map((c) => ({
+        name: normalizeChannelName(c.name),
+        bannerGfxUrl: c.bannerGfxUrl,
+        managed: isManagedByUs(c, this.publicBaseUrl),
+      }));
+      return { channels };
+    } catch (err) {
+      logger.error('[GET /images-local/channels/banner-urls] Error:', err);
+      this.metrics.teamspeakErrorsTotal.inc({ operation: 'list-channels' });
+      throw new ServiceUnavailableException(
+        'TeamSpeak is currently unreachable',
+      );
+    }
+  }
+
+  @Patch(':channelName/banner-url')
+  @Roles(OIDC_EDITOR_ROLE)
+  @AuditAction('set-banner-url')
+  @UseInterceptors(AuditLoggingInterceptor)
+  @ApiOperation({
+    summary:
+      "Sets a channel's TeamSpeak banner URL to point at this server's managed image (local only)",
+  })
+  @ApiParam({ name: 'channelName', type: String })
+  @ApiResponse({
+    status: 400,
+    description: 'No live channel matches this name',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'TeamSpeak is currently unreachable',
+  })
+  async setBannerUrl(
+    @Param('channelName', ChannelNameValidationPipe) channelName: string,
+  ) {
+    const normalizedChannel = normalizeChannelName(channelName);
+    logger.log(`[setBannerUrl] Request: channelName=${normalizedChannel}`);
+    if (!normalizedChannel) {
+      logger.warn(`[setBannerUrl] channelName normalized to an empty string`);
+      throw new BadRequestException('channelName is invalid');
+    }
+
+    let channel: LiveChannel;
+    try {
+      channel = await findLiveChannelByName(normalizedChannel);
+    } catch (err) {
+      if (err instanceof ChannelNotFoundError) {
+        logger.warn(`[setBannerUrl] ${err.message}`);
+        throw new BadRequestException(err.message);
+      }
+      logger.error(`[setBannerUrl] TeamSpeak channel resolution failed:`, err);
+      this.metrics.teamspeakErrorsTotal.inc({ operation: 'resolve-channel' });
+      throw new ServiceUnavailableException(
+        'TeamSpeak is currently unreachable',
+      );
+    }
+
+    const url = expectedBannerUrl(channel.name, this.publicBaseUrl);
+    try {
+      await setChannelBannerUrl(channel.cid, url);
+    } catch (err) {
+      logger.error(`[setBannerUrl] Failed to set banner URL:`, err);
+      this.metrics.teamspeakErrorsTotal.inc({ operation: 'set-banner-url' });
+      throw new ServiceUnavailableException(
+        'TeamSpeak is currently unreachable',
+      );
+    }
+
+    logger.log(
+      `[setBannerUrl] Banner URL set for ${normalizedChannel}: ${url}`,
+    );
+    return { message: 'Banner URL set successfully', bannerGfxUrl: url };
+  }
+
+  @Post('channels/apply-banner-urls')
+  @Roles(OIDC_EDITOR_ROLE)
+  @AuditAction('apply-banner-urls')
+  @UseInterceptors(AuditLoggingInterceptor)
+  @ApiOperation({
+    summary:
+      'Sets the banner URL for every channel not already managed by this server (local only)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Summary of what was changed',
+    schema: {
+      type: 'object',
+      properties: {
+        updated: { type: 'array', items: { type: 'string' } },
+        alreadyManaged: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'TeamSpeak is currently unreachable',
+  })
+  async applyBannerUrls() {
+    logger.log('[applyBannerUrls] Request received');
+    try {
+      const result = await applyBannerUrlsForAllChannels(this.publicBaseUrl);
+      logger.log(
+        `[applyBannerUrls] Updated ${result.updated.length}, already managed ${result.alreadyManaged.length}`,
+      );
+      return result;
+    } catch (err) {
+      logger.error('[applyBannerUrls] Error:', err);
+      this.metrics.teamspeakErrorsTotal.inc({ operation: 'apply-banner-urls' });
       throw new ServiceUnavailableException(
         'TeamSpeak is currently unreachable',
       );

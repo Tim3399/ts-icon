@@ -361,3 +361,23 @@ h1, h2, h3 {
   padding: 24px 0;
   text-align: center;
 }
+
+/* Badges */
+
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-managed {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.badge-unmanaged {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+}

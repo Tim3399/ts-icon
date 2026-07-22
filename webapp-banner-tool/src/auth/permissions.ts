@@ -39,3 +39,28 @@ export function useCanUpload(): boolean {
   if (!KEYCLOAK_ENABLED) return true;
   return hasUploadPermission(roles);
 }
+
+/**
+ * Pure role check: does this set of Keycloak realm roles include the admin
+ * role specifically? Unlike `hasUploadPermission`, the editor role does not
+ * satisfy this -- used to gate the banner-URL management page to admins
+ * only, a deliberate UI-level restriction on top of what the backend's own
+ * endpoints require (they're editor-gated, same as uploads) since a bulk
+ * write across every real TeamSpeak channel is more consequential than a
+ * routine banner upload.
+ */
+export function hasAdminPermission(roles: string[]): boolean {
+  return roles.includes(KEYCLOAK_ADMIN_ROLE);
+}
+
+/**
+ * Whether the current user is an admin. Same local-dev bypass as
+ * `useCanUpload()` when Keycloak is disabled, for the same reason (that mode
+ * treats the whole app as fully-trusted local development). Frontend
+ * convenience only, not a security boundary.
+ */
+export function useIsAdmin(): boolean {
+  const { roles } = useAuth();
+  if (!KEYCLOAK_ENABLED) return true;
+  return hasAdminPermission(roles);
+}

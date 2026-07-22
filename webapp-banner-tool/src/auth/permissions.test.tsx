@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { hasUploadPermission } from './permissions';
+import { hasUploadPermission, hasAdminPermission } from './permissions';
 
 describe('hasUploadPermission', () => {
   it('grants permission for the ts-icon-editor role', () => {
@@ -21,6 +21,20 @@ describe('hasUploadPermission', () => {
 
   it('denies permission when the user has no roles at all', () => {
     expect(hasUploadPermission([])).toBe(false);
+  });
+});
+
+describe('hasAdminPermission', () => {
+  it('grants permission for the ts-icon-admin role', () => {
+    expect(hasAdminPermission(['ts-icon-admin'])).toBe(true);
+  });
+
+  it('denies permission for the editor role alone -- unlike hasUploadPermission, editor does not imply admin here', () => {
+    expect(hasAdminPermission(['ts-icon-editor'])).toBe(false);
+  });
+
+  it('denies permission when the user has no roles at all', () => {
+    expect(hasAdminPermission([])).toBe(false);
   });
 });
 
@@ -126,5 +140,58 @@ describe('useCanUpload', () => {
     const { result } = renderHook(() => useCanUpload());
 
     expect(result.current).toBe(false);
+  });
+});
+
+describe('useIsAdmin', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.doUnmock('../config');
+    vi.doUnmock('./AuthProvider');
+  });
+
+  it('treats local dev (Keycloak disabled) as admin, same bypass as useCanUpload', async () => {
+    vi.doMock('../config', () => ({
+      KEYCLOAK_ENABLED: false,
+      KEYCLOAK_ADMIN_ROLE: 'ts-icon-admin',
+      KEYCLOAK_EDITOR_ROLE: 'ts-icon-editor',
+    }));
+    vi.doMock('./AuthProvider', () => ({ useAuth: () => ({ roles: [] }) }));
+
+    const { useIsAdmin } = await import('./permissions');
+    const { result } = renderHook(() => useIsAdmin());
+
+    expect(result.current).toBe(true);
+  });
+
+  it('denies admin status to an editor-only user when Keycloak is enabled', async () => {
+    vi.doMock('../config', () => ({
+      KEYCLOAK_ENABLED: true,
+      KEYCLOAK_ADMIN_ROLE: 'ts-icon-admin',
+      KEYCLOAK_EDITOR_ROLE: 'ts-icon-editor',
+    }));
+    vi.doMock('./AuthProvider', () => ({ useAuth: () => ({ roles: ['ts-icon-editor'] }) }));
+
+    const { useIsAdmin } = await import('./permissions');
+    const { result } = renderHook(() => useIsAdmin());
+
+    expect(result.current).toBe(false);
+  });
+
+  it('grants admin status to a user holding the admin role when Keycloak is enabled', async () => {
+    vi.doMock('../config', () => ({
+      KEYCLOAK_ENABLED: true,
+      KEYCLOAK_ADMIN_ROLE: 'ts-icon-admin',
+      KEYCLOAK_EDITOR_ROLE: 'ts-icon-editor',
+    }));
+    vi.doMock('./AuthProvider', () => ({ useAuth: () => ({ roles: ['ts-icon-admin'] }) }));
+
+    const { useIsAdmin } = await import('./permissions');
+    const { result } = renderHook(() => useIsAdmin());
+
+    expect(result.current).toBe(true);
   });
 });

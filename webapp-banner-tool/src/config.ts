@@ -5,6 +5,8 @@ export const API_URL = `${ADMIN_API_URL}/images-local/`;
 export const VIEW_IMAGE_URL = `${PUBLIC_API_URL}/images/`;
 export const GET_IMAGE_URL = `${ADMIN_API_URL}/images-local/img-from-url`;
 export const GET_CHANNELS_LIST_URL = `${ADMIN_API_URL}/images-local/channels`;
+export const CHANNEL_BANNER_URLS_URL = `${ADMIN_API_URL}/images-local/channels/banner-urls`;
+export const APPLY_BANNER_URLS_URL = `${ADMIN_API_URL}/images-local/channels/apply-banner-urls`;
 
 // Keycloak Configuration
 //
