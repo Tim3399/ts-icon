@@ -1,5 +1,13 @@
 import { TeamSpeak } from 'ts3-nodejs-library';
-import { fetchLiveChannels } from './teamspeak-channels';
+import {
+  fetchLiveChannels,
+  expectedBannerUrl,
+  isManagedByUs,
+  setChannelBannerUrl,
+  applyBannerUrlsForAllChannels,
+  __resetTeamSpeakChannelsCacheForTests,
+  type LiveChannel,
+} from './teamspeak-channels';
 
 jest.mock('ts3-nodejs-library', () => ({
   TeamSpeak: { connect: jest.fn() },
@@ -22,17 +30,25 @@ jest.mock('../../config', () => ({
 // images.controller.local.spec.ts.
 const mockedConnect = jest.spyOn(TeamSpeak, 'connect');
 
+beforeEach(() => {
+  __resetTeamSpeakChannelsCacheForTests();
+});
+
 afterEach(() => {
   jest.clearAllMocks();
 });
 
 describe('fetchLiveChannels', () => {
-  it('returns the cid/name of every live channel, connects, and disconnects', async () => {
+  it('returns the cid/name/bannerGfxUrl of every live channel, connects, and disconnects', async () => {
     const quit = jest.fn().mockResolvedValue(undefined);
     const fakeTeamSpeak = {
       on: jest.fn(),
       channelList: jest.fn().mockResolvedValue([
-        { cid: '1', name: 'General' },
+        {
+          cid: '1',
+          name: 'General',
+          bannerGfxUrl: 'https://example.test/images/general',
+        },
         { cid: '2', name: 'Music' },
       ]),
       quit,
@@ -42,8 +58,12 @@ describe('fetchLiveChannels', () => {
     const result = await fetchLiveChannels();
 
     expect(result).toEqual([
-      { cid: '1', name: 'General' },
-      { cid: '2', name: 'Music' },
+      {
+        cid: '1',
+        name: 'General',
+        bannerGfxUrl: 'https://example.test/images/general',
+      },
+      { cid: '2', name: 'Music', bannerGfxUrl: null },
     ]);
     expect(quit).toHaveBeenCalledTimes(1);
   });
@@ -91,11 +111,28 @@ describe('fetchLiveChannels', () => {
     const [firstResult, secondResult] = await Promise.all([first, second]);
 
     expect(mockedConnect).toHaveBeenCalledTimes(1);
-    expect(firstResult).toEqual([{ cid: '1', name: 'General' }]);
+    expect(firstResult).toEqual([
+      { cid: '1', name: 'General', bannerGfxUrl: null },
+    ]);
     expect(secondResult).toEqual(firstResult);
   });
 
-  it('starts a fresh connection for a call made after the previous one settled', async () => {
+  it('returns the cached result for a second call within the TTL, without reconnecting', async () => {
+    const fakeTeamSpeak = {
+      on: jest.fn(),
+      channelList: jest.fn().mockResolvedValue([{ cid: '1', name: 'General' }]),
+      quit: jest.fn().mockResolvedValue(undefined),
+    };
+    mockedConnect.mockResolvedValue(fakeTeamSpeak as never);
+
+    const first = await fetchLiveChannels();
+    const second = await fetchLiveChannels();
+
+    expect(mockedConnect).toHaveBeenCalledTimes(1);
+    expect(second).toEqual(first);
+  });
+
+  it('starts a fresh connection once the cache TTL has expired', async () => {
     const fakeTeamSpeak = {
       on: jest.fn(),
       channelList: jest.fn().mockResolvedValue([]),
@@ -103,9 +140,170 @@ describe('fetchLiveChannels', () => {
     };
     mockedConnect.mockResolvedValue(fakeTeamSpeak as never);
 
-    await fetchLiveChannels();
-    await fetchLiveChannels();
+    jest.useFakeTimers();
+    try {
+      await fetchLiveChannels();
+      // 30_000ms is CACHE_TTL_MS -- advance strictly past it.
+      jest.advanceTimersByTime(30_001);
+      await fetchLiveChannels();
+    } finally {
+      jest.useRealTimers();
+    }
 
     expect(mockedConnect).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not cache a failed fetch, so the next call retries', async () => {
+    mockedConnect.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await expect(fetchLiveChannels()).rejects.toThrow('ECONNREFUSED');
+
+    const fakeTeamSpeak = {
+      on: jest.fn(),
+      channelList: jest.fn().mockResolvedValue([]),
+      quit: jest.fn().mockResolvedValue(undefined),
+    };
+    mockedConnect.mockResolvedValueOnce(fakeTeamSpeak as never);
+
+    const result = await fetchLiveChannels();
+
+    expect(result).toEqual([]);
+    expect(mockedConnect).toHaveBeenCalledTimes(2);
+  });
+});
+
+const PUBLIC_BASE_URL = 'https://ts-icon.example.test';
+
+describe('expectedBannerUrl', () => {
+  it('composes the public base URL with the normalized channel name under /images/', () => {
+    expect(expectedBannerUrl('Röhre 1', PUBLIC_BASE_URL)).toBe(
+      `${PUBLIC_BASE_URL}/images/rohre-1`,
+    );
+  });
+});
+
+describe('isManagedByUs', () => {
+  it('returns true when the channel banner already matches the expected URL', () => {
+    const channel: LiveChannel = {
+      cid: '1',
+      name: 'General',
+      bannerGfxUrl: `${PUBLIC_BASE_URL}/images/general`,
+    };
+    expect(isManagedByUs(channel, PUBLIC_BASE_URL)).toBe(true);
+  });
+
+  it('returns false when the channel has no banner set', () => {
+    const channel: LiveChannel = {
+      cid: '1',
+      name: 'General',
+      bannerGfxUrl: null,
+    };
+    expect(isManagedByUs(channel, PUBLIC_BASE_URL)).toBe(false);
+  });
+
+  it('returns false when the channel banner points somewhere else', () => {
+    const channel: LiveChannel = {
+      cid: '1',
+      name: 'General',
+      bannerGfxUrl: 'https://someone-elses-host.example/banner.png',
+    };
+    expect(isManagedByUs(channel, PUBLIC_BASE_URL)).toBe(false);
+  });
+});
+
+describe('setChannelBannerUrl', () => {
+  it('connects, calls channelEdit with the given cid/url, and disconnects', async () => {
+    const quit = jest.fn().mockResolvedValue(undefined);
+    const channelEdit = jest.fn().mockResolvedValue([]);
+    const fakeTeamSpeak = { on: jest.fn(), channelEdit, quit };
+    mockedConnect.mockResolvedValue(fakeTeamSpeak as never);
+
+    await setChannelBannerUrl('42', `${PUBLIC_BASE_URL}/images/general`);
+
+    expect(channelEdit).toHaveBeenCalledWith('42', {
+      channelBannerGfxUrl: `${PUBLIC_BASE_URL}/images/general`,
+    });
+    expect(quit).toHaveBeenCalledTimes(1);
+  });
+
+  it('still disconnects if channelEdit itself fails', async () => {
+    const quit = jest.fn().mockResolvedValue(undefined);
+    const channelEdit = jest
+      .fn()
+      .mockRejectedValue(new Error('rejected by server'));
+    const fakeTeamSpeak = { on: jest.fn(), channelEdit, quit };
+    mockedConnect.mockResolvedValue(fakeTeamSpeak as never);
+
+    await expect(
+      setChannelBannerUrl('42', 'https://x.test/images/y'),
+    ).rejects.toThrow('rejected by server');
+    expect(quit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('applyBannerUrlsForAllChannels', () => {
+  it('updates only channels not already managed, leaving the rest alone', async () => {
+    const channelEdit = jest.fn().mockResolvedValue([]);
+    const fakeTeamSpeak = {
+      on: jest.fn(),
+      channelList: jest.fn().mockResolvedValue([
+        {
+          cid: '1',
+          name: 'General',
+          bannerGfxUrl: `${PUBLIC_BASE_URL}/images/general`,
+        },
+        { cid: '2', name: 'Music', bannerGfxUrl: null },
+        {
+          cid: '3',
+          name: 'Röhre',
+          bannerGfxUrl: 'https://elsewhere.test/x.png',
+        },
+      ]),
+      channelEdit,
+      quit: jest.fn().mockResolvedValue(undefined),
+    };
+    mockedConnect.mockResolvedValue(fakeTeamSpeak as never);
+
+    const result = await applyBannerUrlsForAllChannels(PUBLIC_BASE_URL);
+
+    expect(result.alreadyManaged).toEqual(['General']);
+    expect(result.updated).toEqual(['Music', 'Röhre']);
+    expect(channelEdit).toHaveBeenCalledTimes(2);
+    expect(channelEdit).toHaveBeenCalledWith('2', {
+      channelBannerGfxUrl: `${PUBLIC_BASE_URL}/images/music`,
+    });
+    expect(channelEdit).toHaveBeenCalledWith('3', {
+      channelBannerGfxUrl: `${PUBLIC_BASE_URL}/images/rohre`,
+    });
+  });
+
+  it('uses a single connection for the whole batch', async () => {
+    const fakeTeamSpeak = {
+      on: jest.fn(),
+      channelList: jest.fn().mockResolvedValue([
+        { cid: '1', name: 'A', bannerGfxUrl: null },
+        { cid: '2', name: 'B', bannerGfxUrl: null },
+      ]),
+      channelEdit: jest.fn().mockResolvedValue([]),
+      quit: jest.fn().mockResolvedValue(undefined),
+    };
+    mockedConnect.mockResolvedValue(fakeTeamSpeak as never);
+
+    await applyBannerUrlsForAllChannels(PUBLIC_BASE_URL);
+
+    expect(mockedConnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns empty arrays when there are no live channels', async () => {
+    const fakeTeamSpeak = {
+      on: jest.fn(),
+      channelList: jest.fn().mockResolvedValue([]),
+      channelEdit: jest.fn(),
+      quit: jest.fn().mockResolvedValue(undefined),
+    };
+    mockedConnect.mockResolvedValue(fakeTeamSpeak as never);
+
+    const result = await applyBannerUrlsForAllChannels(PUBLIC_BASE_URL);
+
+    expect(result).toEqual({ updated: [], alreadyManaged: [] });
   });
 });
