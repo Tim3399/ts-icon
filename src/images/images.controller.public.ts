@@ -11,7 +11,11 @@ import { ImagesService } from './images.service';
 import { Request, Response } from 'express';
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 
-import { normalizeChannelName } from '../util/util';
+import {
+  normalizeChannelName,
+  isSpacerChannelName,
+  SPACER_BASE_IMAGE_CHANNEL_NAME,
+} from '../util/util';
 import { ChannelNameValidationPipe } from './dto/channel-name-validation.pipe';
 
 const logger = new Logger('ImagesPublicController');
@@ -51,7 +55,23 @@ export class ImagesPublicController {
   ) {
     const normalizedChannel = normalizeChannelName(channelName);
     logger.log(`[getImage] Request: channelName=${normalizedChannel}`);
-    const image = await this.imagesService.getImage(normalizedChannel);
+    let image = await this.imagesService.getImage(normalizedChannel);
+
+    // A spacer channel with no image of its own falls back to the shared
+    // base image (if one has been set) rather than 404ing -- "a spacer is
+    // then always the base image, unless it has its own [image] set"
+    // (human operator's own framing). Deliberately a live, per-request
+    // fallback rather than a one-time bulk-copy into every spacer's own
+    // row: it applies to newly-created spacer channels automatically, with
+    // no separate "re-sync" step ever needed, and a channel keeps its own
+    // override for as long as it has one (checked first, above).
+    if (!image && isSpacerChannelName(normalizedChannel)) {
+      logger.log(
+        `[getImage] No image for spacer channel ${normalizedChannel}, falling back to the base image`,
+      );
+      image = await this.imagesService.getImage(SPACER_BASE_IMAGE_CHANNEL_NAME);
+    }
+
     if (!image) {
       logger.warn(`[getImage] Image not found for ${normalizedChannel}`);
       throw new NotFoundException('Image not found');

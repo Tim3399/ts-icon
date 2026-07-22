@@ -185,3 +185,111 @@ describe('Public images app conditional GET (ETag / If-None-Match)', () => {
       .expect(304);
   });
 });
+
+// A spacer channel with no image of its own falls back to the shared base
+// image; a real channel with its own image is never affected by it. A
+// separate mocked PrismaService again, since these tests need
+// findUnique() to answer *differently* depending on which channelName it's
+// asked about -- something the two mocks above (always-null,
+// always-the-same-row) can't express.
+describe('Public images app spacer-channel base-image fallback', () => {
+  let app: INestApplication;
+
+  const BASE_IMAGE_ROW = {
+    image: new Uint8Array(Buffer.from('base-image-bytes')),
+    mimeType: 'image/png',
+    contentHash: 'base-image-hash',
+  };
+  const OWN_IMAGE_ROW = {
+    image: new Uint8Array(Buffer.from('own-image-bytes')),
+    mimeType: 'image/jpeg',
+    contentHash: 'own-image-hash',
+  };
+
+  // Mirrors util.ts's SPACER_BASE_IMAGE_CHANNEL_NAME without importing it,
+  // so this test would actually notice if that sentinel value ever changed
+  // without the controller's fallback lookup being updated to match.
+  const SPACER_BASE_IMAGE_CHANNEL_NAME = '__spacer_base_image__';
+
+  function createMockPrismaService(rowsByChannelName: Record<string, unknown>) {
+    return {
+      channelImage: {
+        findUnique: jest.fn(
+          ({ where: { channelName } }: { where: { channelName: string } }) =>
+            Promise.resolve(rowsByChannelName[channelName] ?? null),
+        ),
+      },
+    };
+  }
+
+  async function initAppWithRows(rowsByChannelName: Record<string, unknown>) {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [ImagesModulePublic, PrismaModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue(createMockPrismaService(rowsByChannelName))
+      .compile();
+
+    app = moduleFixture.createNestApplication();
+    await app.init();
+  }
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('serves the base image for a spacer-named channel with no image of its own', async () => {
+    await initAppWithRows({
+      [SPACER_BASE_IMAGE_CHANNEL_NAME]: BASE_IMAGE_ROW,
+    });
+
+    const res = await request(app.getHttpServer() as Server)
+      .get('/images/some-spacer-channel')
+      .expect(200);
+
+    expect(res.headers['etag']).toBe(`"${BASE_IMAGE_ROW.contentHash}"`);
+    expect(res.headers['content-type']).toContain('image/png');
+  });
+
+  it("serves a spacer channel's own image instead of the base image, when it has one", async () => {
+    await initAppWithRows({
+      'my-spacer-channel': OWN_IMAGE_ROW,
+      [SPACER_BASE_IMAGE_CHANNEL_NAME]: BASE_IMAGE_ROW,
+    });
+
+    const res = await request(app.getHttpServer() as Server)
+      .get('/images/my-spacer-channel')
+      .expect(200);
+
+    expect(res.headers['etag']).toBe(`"${OWN_IMAGE_ROW.contentHash}"`);
+    expect(res.headers['content-type']).toContain('image/jpeg');
+  });
+
+  it('still 404s for a spacer-named channel when no base image has been set either', async () => {
+    await initAppWithRows({});
+
+    await request(app.getHttpServer() as Server)
+      .get('/images/some-spacer-channel')
+      .expect(404);
+  });
+
+  it('does not fall back to the base image for a non-spacer channel with no image', async () => {
+    await initAppWithRows({
+      [SPACER_BASE_IMAGE_CHANNEL_NAME]: BASE_IMAGE_ROW,
+    });
+
+    await request(app.getHttpServer() as Server)
+      .get('/images/lobby')
+      .expect(404);
+  });
+
+  it('matches "spacer" anywhere in the name, not just as a prefix', async () => {
+    await initAppWithRows({
+      [SPACER_BASE_IMAGE_CHANNEL_NAME]: BASE_IMAGE_ROW,
+    });
+
+    await request(app.getHttpServer() as Server)
+      .get('/images/afk-spacer-1')
+      .expect(200);
+  });
+});

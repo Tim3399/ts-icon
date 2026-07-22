@@ -1,4 +1,4 @@
-import { normalizeChannelName } from './util';
+import { normalizeChannelName, isSpacerChannelName } from './util';
 
 describe('normalizeChannelName', () => {
   it('lowercases a plain ASCII name', () => {
@@ -53,5 +53,30 @@ describe('normalizeChannelName', () => {
   it('normalizes a name made entirely of stripped characters to an empty string', () => {
     expect(normalizeChannelName('!!!')).toBe('');
     expect(normalizeChannelName('日本語')).toBe('');
+  });
+});
+
+describe('isSpacerChannelName', () => {
+  it('matches when the name is exactly "spacer"', () => {
+    expect(isSpacerChannelName('spacer')).toBe(true);
+  });
+
+  it('matches "spacer" anywhere in the name, not just as a prefix', () => {
+    expect(isSpacerChannelName('afk-spacer-1')).toBe(true);
+    expect(isSpacerChannelName('[*spacer0]----------')).toBe(true);
+  });
+
+  it('matches regardless of case', () => {
+    expect(isSpacerChannelName('SPACER')).toBe(true);
+    expect(isSpacerChannelName('[*Spacer1]')).toBe(true);
+  });
+
+  it('does not match a channel name without "spacer" in it', () => {
+    expect(isSpacerChannelName('lobby')).toBe(false);
+    expect(isSpacerChannelName('general-chat')).toBe(false);
+  });
+
+  it('does not match an empty name', () => {
+    expect(isSpacerChannelName('')).toBe(false);
   });
 });

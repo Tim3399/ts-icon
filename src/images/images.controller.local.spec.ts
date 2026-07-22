@@ -4,6 +4,8 @@ import {
   ConflictException,
   ServiceUnavailableException,
   UnsupportedMediaTypeException,
+  UnprocessableEntityException,
+  NotFoundException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import {
@@ -23,7 +25,11 @@ import {
   setChannelBannerUrl,
   applyBannerUrlsForAllChannels,
 } from '../teamspeak/teamspeak-channels';
-import { processImageForStorage } from './image-processing';
+import {
+  processImageForStorage,
+  InvalidImageError,
+  ImageTooLargeError,
+} from './image-processing';
 import type { ImagesService } from './images.service';
 import type { MetricsService } from '../metrics/metrics.service';
 
@@ -683,5 +689,98 @@ describe('ImagesLocalController.applyBannerUrls', () => {
     await expect(controller.applyBannerUrls()).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
+  });
+});
+
+describe('ImagesLocalController.uploadSpacerBaseImage', () => {
+  function createFile(): Express.Multer.File {
+    return {
+      buffer: Buffer.from('img-bytes'),
+      mimetype: 'image/png',
+    } as Express.Multer.File;
+  }
+
+  it('rejects with 400 when no file is uploaded', async () => {
+    const controller = createController();
+
+    await expect(
+      controller.uploadSpacerBaseImage(
+        undefined as unknown as Express.Multer.File,
+        createReq(),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('saves the processed image under the sentinel channel name, without resolving any live channel', async () => {
+    mockedProcessImage.mockResolvedValue({
+      buffer: Buffer.from('processed'),
+      mimeType: 'image/png',
+    });
+    const { imagesService, saveImage } = createImagesServiceStub();
+    const controller = createController(imagesService);
+
+    const result = await controller.uploadSpacerBaseImage(
+      createFile(),
+      createReq('editor-sub-3'),
+    );
+
+    expect(saveImage).toHaveBeenCalledWith(
+      '__spacer_base_image__',
+      Buffer.from('processed'),
+      'image/png',
+      undefined,
+      'editor-sub-3',
+    );
+    expect(result).toEqual({ message: 'Spacer base image set successfully' });
+    // Unlike every other upload endpoint in this file, this one isn't tied
+    // to a real TeamSpeak channel, so it must never touch the live channel
+    // list at all.
+    expect(mockedFetchLiveChannels).not.toHaveBeenCalled();
+  });
+
+  it('maps InvalidImageError to 415', async () => {
+    mockedProcessImage.mockRejectedValue(new InvalidImageError('not an image'));
+    const controller = createController();
+
+    await expect(
+      controller.uploadSpacerBaseImage(createFile(), createReq()),
+    ).rejects.toBeInstanceOf(UnsupportedMediaTypeException);
+  });
+
+  it('maps ImageTooLargeError to 422', async () => {
+    mockedProcessImage.mockRejectedValue(new ImageTooLargeError('too big'));
+    const controller = createController();
+
+    await expect(
+      controller.uploadSpacerBaseImage(createFile(), createReq()),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+});
+
+describe('ImagesLocalController.getSpacerBaseImage', () => {
+  it('rejects with 404 when no base image has been set yet', async () => {
+    const { imagesService } = createImagesServiceStub();
+    const controller = createController(imagesService);
+    const { res } = createRes();
+
+    await expect(controller.getSpacerBaseImage(res)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('streams the stored base image through on success', async () => {
+    const imagesService = {
+      getImage: jest.fn().mockResolvedValue({
+        image: Buffer.from('base-bytes'),
+        mimeType: 'image/png',
+      }),
+    } as unknown as ImagesService;
+    const controller = createController(imagesService);
+    const { res, setHeader, send } = createRes();
+
+    await controller.getSpacerBaseImage(res);
+
+    expect(setHeader).toHaveBeenCalledWith('Content-Type', 'image/png');
+    expect(send).toHaveBeenCalledWith(Buffer.from('base-bytes'));
   });
 });

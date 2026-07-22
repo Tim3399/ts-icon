@@ -12,6 +12,7 @@ import {
   BadRequestException,
   BadGatewayException,
   ConflictException,
+  NotFoundException,
   ServiceUnavailableException,
   UnsupportedMediaTypeException,
   UnprocessableEntityException,
@@ -36,7 +37,10 @@ import {
   OIDC_EDITOR_ROLE,
   getPublicBaseUrl,
 } from '../../config';
-import { normalizeChannelName } from '../util/util';
+import {
+  normalizeChannelName,
+  SPACER_BASE_IMAGE_CHANNEL_NAME,
+} from '../util/util';
 import {
   fetchLiveChannels,
   expectedBannerUrl,
@@ -316,6 +320,101 @@ export class ImagesLocalController {
       // propagate to Nest's default exception handling (500) instead of
       // mislabeling it as a 400.
       logger.error(`[from-url] Unexpected error:`, err);
+      throw err;
+    }
+  }
+
+  // These two spacer-base-image routes must stay registered before
+  // @Post(':channelName')/uploadImage below: both are single-segment path
+  // patterns for the same set of HTTP methods, and NestJS (like Express)
+  // matches routes in declaration order -- a wildcard param route
+  // registered first would swallow `POST /images-local/spacer-base-image`
+  // as if it were a normal per-channel upload (with channelName literally
+  // "spacer-base-image") before this route ever got a chance to run.
+  @Get('spacer-base-image')
+  @Roles(OIDC_EDITOR_ROLE)
+  @ApiOperation({
+    summary:
+      'Returns the shared base image used as a fallback for any spacer channel with no image of its own (local only)',
+  })
+  @ApiResponse({ status: 200, description: 'The image as a binary stream' })
+  @ApiResponse({ status: 404, description: 'No base image has been set yet' })
+  async getSpacerBaseImage(@Res() res: Response) {
+    logger.log('[getSpacerBaseImage] Request received');
+    const image = await this.imagesService.getImage(
+      SPACER_BASE_IMAGE_CHANNEL_NAME,
+    );
+    if (!image) {
+      throw new NotFoundException('No spacer base image has been set yet');
+    }
+    res.setHeader('Content-Type', image.mimeType);
+    return res.send(image.image);
+  }
+
+  @Post('spacer-base-image')
+  @Roles(OIDC_EDITOR_ROLE)
+  @AuditAction('set-spacer-base-image')
+  @ApiOperation({
+    summary:
+      'Sets the shared base image used as a fallback for spacer channels with no image of their own (local only)',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_FILE_SIZE },
+      fileFilter: imageFileFilter,
+    }),
+    AuditLoggingInterceptor,
+  )
+  async uploadSpacerBaseImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request,
+  ) {
+    logger.log(
+      `[uploadSpacerBaseImage] Request: fileSize=${file?.buffer?.length ?? 0}`,
+    );
+    if (!file || !file.buffer) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    try {
+      // Not tied to any live TeamSpeak channel, so this goes straight to
+      // ImagesService.saveImage() -- no resolveUploadChannel()/live-channel
+      // lookup needed, unlike every other upload endpoint in this file.
+      const processed = await processImageForStorage(file.buffer);
+      await this.imagesService.saveImage(
+        SPACER_BASE_IMAGE_CHANNEL_NAME,
+        processed.buffer,
+        processed.mimeType,
+        undefined,
+        req.user?.sub,
+      );
+      logger.log('[uploadSpacerBaseImage] Base image saved successfully');
+      return { message: 'Spacer base image set successfully' };
+    } catch (err) {
+      if (err instanceof InvalidImageError) {
+        logger.warn(
+          '[uploadSpacerBaseImage] Uploaded content is not a valid image',
+        );
+        throw new UnsupportedMediaTypeException(
+          'The uploaded file is not a valid image',
+        );
+      }
+      if (err instanceof ImageTooLargeError) {
+        logger.warn(
+          '[uploadSpacerBaseImage] Uploaded image dimensions too large',
+        );
+        throw new UnprocessableEntityException(
+          'The uploaded image dimensions are too large to process',
+        );
+      }
+      logger.error('[uploadSpacerBaseImage] Unexpected error:', err);
       throw err;
     }
   }
