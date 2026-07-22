@@ -52,7 +52,7 @@ vi.mock('keycloak-js', () => ({
       login: vi.fn(),
       logout: vi.fn(),
       token: 'fake-token',
-      tokenParsed: { preferred_username: 'tester', resource_access: {} },
+      tokenParsed: { preferred_username: 'tester', realm_access: { roles: [] } },
     };
   }),
 }));

@@ -20,3 +20,9 @@ export const KEYCLOAK_ENABLED = IS_LOCALHOST
 export const KEYCLOAK_URL = import.meta.env.VITE_KEYCLOAK_URL || "http://localhost:8080";
 export const KEYCLOAK_REALM = import.meta.env.VITE_KEYCLOAK_REALM || "ts-icon";
 export const KEYCLOAK_CLIENT_ID = import.meta.env.VITE_KEYCLOAK_CLIENT_ID || "webapp-banner-tool";
+
+// Realm role names, matching the backend's OIDC_ADMIN_ROLE/OIDC_EDITOR_ROLE
+// (config.ts) — both default to the ts-icon-* names but can be overridden
+// per-deployment to match whatever roles actually exist in a given realm.
+export const KEYCLOAK_ADMIN_ROLE = import.meta.env.VITE_KEYCLOAK_ADMIN_ROLE || "ts-icon-admin";
+export const KEYCLOAK_EDITOR_ROLE = import.meta.env.VITE_KEYCLOAK_EDITOR_ROLE || "ts-icon-editor";

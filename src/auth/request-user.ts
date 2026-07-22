@@ -10,26 +10,23 @@ export interface RequestUser {
   roles: string[];
 }
 
-interface KeycloakResourceAccessClaim {
-  [clientId: string]: { roles?: unknown } | undefined;
+interface KeycloakRealmAccessClaim {
+  roles?: unknown;
 }
 
 /**
- * Reads Keycloak client roles out of a validated token payload.
+ * Reads Keycloak realm roles out of a validated token payload.
  *
- * Keycloak places *client* roles (as opposed to realm-wide roles) at
- * `resource_access[<clientId>].roles`, one bucket per client the token was
- * issued for. The frontend (`webapp-banner-tool/src/auth/AuthProvider.tsx`)
- * reads its own roles from exactly this same path using its Keycloak client
- * id — the backend uses `OIDC_AUDIENCE` as the client id to look up here so
- * both sides agree on where roles live in the token (the audience *is* the
- * client id in this setup, see agents/keycloak.md's single-client decision).
+ * Keycloak places *realm* roles (as opposed to per-client roles) at
+ * `realm_access.roles` — a single, realm-wide bucket rather than one keyed
+ * by client id. The frontend (`webapp-banner-tool/src/auth/AuthProvider.tsx`)
+ * reads its own roles from this same path.
  */
-export function extractRoles(payload: JWTPayload, clientId: string): string[] {
-  const resourceAccess = payload.resource_access as
-    | KeycloakResourceAccessClaim
+export function extractRoles(payload: JWTPayload): string[] {
+  const realmAccess = payload.realm_access as
+    | KeycloakRealmAccessClaim
     | undefined;
-  const roles = resourceAccess?.[clientId]?.roles;
+  const roles = realmAccess?.roles;
   return Array.isArray(roles)
     ? roles.filter((r): r is string => typeof r === 'string')
     : [];
@@ -42,12 +39,9 @@ export function extractRoles(payload: JWTPayload, clientId: string): string[] {
  * string rather than throwing, since a missing subject doesn't invalidate
  * the signature/issuer/audience checks that already passed.
  */
-export function toRequestUser(
-  payload: JWTPayload,
-  clientId: string,
-): RequestUser {
+export function toRequestUser(payload: JWTPayload): RequestUser {
   return {
     sub: payload.sub ?? '',
-    roles: extractRoles(payload, clientId),
+    roles: extractRoles(payload),
   };
 }

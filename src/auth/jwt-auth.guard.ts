@@ -94,7 +94,7 @@ export class JwtAuthGuard implements CanActivate {
         audience: this.oidcConfig.audience,
         algorithms: ALLOWED_ALGORITHMS,
       });
-      request.user = toRequestUser(payload, this.oidcConfig.audience);
+      request.user = toRequestUser(payload);
       return true;
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);

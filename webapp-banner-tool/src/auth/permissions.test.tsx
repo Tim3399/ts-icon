@@ -40,7 +40,11 @@ describe('useCanUpload', () => {
   });
 
   it('allows uploads when Keycloak is disabled, regardless of roles', async () => {
-    vi.doMock('../config', () => ({ KEYCLOAK_ENABLED: false }));
+    vi.doMock('../config', () => ({
+      KEYCLOAK_ENABLED: false,
+      KEYCLOAK_EDITOR_ROLE: 'ts-icon-editor',
+      KEYCLOAK_ADMIN_ROLE: 'ts-icon-admin',
+    }));
     vi.doMock('./AuthProvider', () => ({ useAuth: () => ({ roles: [] }) }));
 
     const { useCanUpload } = await import('./permissions');
@@ -50,7 +54,11 @@ describe('useCanUpload', () => {
   });
 
   it('denies uploads when Keycloak is enabled and the user lacks editor/admin roles', async () => {
-    vi.doMock('../config', () => ({ KEYCLOAK_ENABLED: true }));
+    vi.doMock('../config', () => ({
+      KEYCLOAK_ENABLED: true,
+      KEYCLOAK_EDITOR_ROLE: 'ts-icon-editor',
+      KEYCLOAK_ADMIN_ROLE: 'ts-icon-admin',
+    }));
     vi.doMock('./AuthProvider', () => ({ useAuth: () => ({ roles: ['some-other-role'] }) }));
 
     const { useCanUpload } = await import('./permissions');
@@ -60,7 +68,11 @@ describe('useCanUpload', () => {
   });
 
   it('allows uploads when Keycloak is enabled and the user has the editor role', async () => {
-    vi.doMock('../config', () => ({ KEYCLOAK_ENABLED: true }));
+    vi.doMock('../config', () => ({
+      KEYCLOAK_ENABLED: true,
+      KEYCLOAK_EDITOR_ROLE: 'ts-icon-editor',
+      KEYCLOAK_ADMIN_ROLE: 'ts-icon-admin',
+    }));
     vi.doMock('./AuthProvider', () => ({ useAuth: () => ({ roles: ['ts-icon-editor'] }) }));
 
     const { useCanUpload } = await import('./permissions');
@@ -70,12 +82,49 @@ describe('useCanUpload', () => {
   });
 
   it('allows uploads when Keycloak is enabled and the user has the admin role', async () => {
-    vi.doMock('../config', () => ({ KEYCLOAK_ENABLED: true }));
+    vi.doMock('../config', () => ({
+      KEYCLOAK_ENABLED: true,
+      KEYCLOAK_EDITOR_ROLE: 'ts-icon-editor',
+      KEYCLOAK_ADMIN_ROLE: 'ts-icon-admin',
+    }));
     vi.doMock('./AuthProvider', () => ({ useAuth: () => ({ roles: ['ts-icon-admin'] }) }));
 
     const { useCanUpload } = await import('./permissions');
     const { result } = renderHook(() => useCanUpload());
 
     expect(result.current).toBe(true);
+  });
+
+  // Proves the role names actually come from config rather than being
+  // hardcoded: a realm using entirely different role names (as this
+  // project's real deployment does) is configured via
+  // VITE_KEYCLOAK_EDITOR_ROLE/VITE_KEYCLOAK_ADMIN_ROLE, and once
+  // overridden, the ts-icon-* default names no longer grant anything.
+  it('respects overridden role names instead of the ts-icon-* defaults', async () => {
+    vi.doMock('../config', () => ({
+      KEYCLOAK_ENABLED: true,
+      KEYCLOAK_EDITOR_ROLE: 'b825_access',
+      KEYCLOAK_ADMIN_ROLE: 'admin_access',
+    }));
+    vi.doMock('./AuthProvider', () => ({ useAuth: () => ({ roles: ['b825_access'] }) }));
+
+    const { useCanUpload } = await import('./permissions');
+    const { result } = renderHook(() => useCanUpload());
+
+    expect(result.current).toBe(true);
+  });
+
+  it('does not grant permission for the ts-icon-* defaults once roles are overridden', async () => {
+    vi.doMock('../config', () => ({
+      KEYCLOAK_ENABLED: true,
+      KEYCLOAK_EDITOR_ROLE: 'b825_access',
+      KEYCLOAK_ADMIN_ROLE: 'admin_access',
+    }));
+    vi.doMock('./AuthProvider', () => ({ useAuth: () => ({ roles: ['ts-icon-editor'] }) }));
+
+    const { useCanUpload } = await import('./permissions');
+    const { result } = renderHook(() => useCanUpload());
+
+    expect(result.current).toBe(false);
   });
 });

@@ -1,13 +1,19 @@
 import { useAuth } from './AuthProvider';
-import { KEYCLOAK_ENABLED } from '../config';
+import {
+  KEYCLOAK_ENABLED,
+  KEYCLOAK_ADMIN_ROLE,
+  KEYCLOAK_EDITOR_ROLE,
+} from '../config';
 
-// Client roles that grant upload permission in the Keycloak realm this
-// project uses. Both are treated equally here: an admin can do anything an
-// editor can.
-const UPLOAD_ROLES = ['ts-icon-editor', 'ts-icon-admin'];
+// Realm roles that grant upload permission in the Keycloak realm this
+// project uses. Configurable (VITE_KEYCLOAK_EDITOR_ROLE/VITE_KEYCLOAK_ADMIN_ROLE,
+// see config.ts) rather than hardcoded, since the actual role names in a
+// given realm may not be the ts-icon-* defaults. Both are treated equally
+// here: an admin can do anything an editor can.
+const UPLOAD_ROLES = [KEYCLOAK_EDITOR_ROLE, KEYCLOAK_ADMIN_ROLE];
 
 /**
- * Pure role check: does this set of Keycloak client roles include one that
+ * Pure role check: does this set of Keycloak realm roles include one that
  * grants upload permission?
  *
  * This does not know about `KEYCLOAK_ENABLED` — callers that need the "local

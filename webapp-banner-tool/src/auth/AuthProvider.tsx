@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import keycloak from './keycloak';
-import { KEYCLOAK_ENABLED, KEYCLOAK_CLIENT_ID } from '../config';
+import { KEYCLOAK_ENABLED } from '../config';
 import { ToastProvider } from '../components/Toast';
 
 interface AuthContextType {
@@ -133,7 +133,7 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const roles: string[] = KEYCLOAK_ENABLED
-    ? keycloak.tokenParsed?.resource_access?.[KEYCLOAK_CLIENT_ID]?.roles ?? []
+    ? keycloak.tokenParsed?.realm_access?.roles ?? []
     : [];
 
   return (

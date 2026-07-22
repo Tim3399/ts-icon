@@ -102,7 +102,7 @@ describe('JwtAuthGuard', () => {
     } = overrides;
 
     return new SignJWT({
-      resource_access: { [AUDIENCE]: { roles } },
+      realm_access: { roles },
     })
       .setProtectedHeader({ alg: 'RS256', kid })
       .setIssuedAt()
