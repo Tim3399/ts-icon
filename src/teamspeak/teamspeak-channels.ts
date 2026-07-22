@@ -174,12 +174,21 @@ async function connectAndListChannels(): Promise<LiveChannel[]> {
  * `normalizeChannelName()` is the single source of truth for turning a raw
  * TeamSpeak channel name into that URL slug, reused here rather than
  * reimplemented.
+ *
+ * Always ends in `.png`: TeamSpeak 6 only renders a channel banner from a
+ * URL with a recognized image file extension -- it doesn't consult the
+ * response's `Content-Type` header at all, unlike a browser. Every stored
+ * image is always re-encoded to canonical PNG by `processImageForStorage()`
+ * regardless of what was uploaded, so this suffix is never a lie. The
+ * public route strips it back off before doing the actual channel lookup
+ * (see `images.controller.public.ts`'s `getImage()`), so this is purely a
+ * URL-shape concern, not a real second file extension living anywhere.
  */
 export function expectedBannerUrl(
   channelName: string,
   publicBaseUrl: string,
 ): string {
-  return `${publicBaseUrl}/images/${normalizeChannelName(channelName)}`;
+  return `${publicBaseUrl}/images/${normalizeChannelName(channelName)}.png`;
 }
 
 /** Whether a channel's current banner URL already matches what we'd set it to. */

@@ -174,9 +174,13 @@ describe('fetchLiveChannels', () => {
 const PUBLIC_BASE_URL = 'https://ts-icon.example.test';
 
 describe('expectedBannerUrl', () => {
-  it('composes the public base URL with the normalized channel name under /images/', () => {
+  it('composes the public base URL with the normalized channel name under /images/, suffixed with .png', () => {
+    // TeamSpeak 6 only renders a banner from a URL with a recognized image
+    // file extension -- it doesn't consult Content-Type like a browser
+    // does. Every stored image is always re-encoded to canonical PNG
+    // regardless of what was uploaded, so this suffix is never a lie.
     expect(expectedBannerUrl('Röhre 1', PUBLIC_BASE_URL)).toBe(
-      `${PUBLIC_BASE_URL}/images/rohre-1`,
+      `${PUBLIC_BASE_URL}/images/rohre-1.png`,
     );
   });
 });
@@ -186,7 +190,7 @@ describe('isManagedByUs', () => {
     const channel: LiveChannel = {
       cid: '1',
       name: 'General',
-      bannerGfxUrl: `${PUBLIC_BASE_URL}/images/general`,
+      bannerGfxUrl: `${PUBLIC_BASE_URL}/images/general.png`,
     };
     expect(isManagedByUs(channel, PUBLIC_BASE_URL)).toBe(true);
   });
@@ -205,6 +209,21 @@ describe('isManagedByUs', () => {
       cid: '1',
       name: 'General',
       bannerGfxUrl: 'https://someone-elses-host.example/banner.png',
+    };
+    expect(isManagedByUs(channel, PUBLIC_BASE_URL)).toBe(false);
+  });
+
+  it('returns false for the old, pre-fix extensionless URL, so applyBannerUrlsForAllChannels rewrites it', () => {
+    // Regression coverage for the TS6-doesn't-render-extensionless-banners
+    // bug: a channel still pointed at the URL shape expectedBannerUrl()
+    // produced before it started appending .png must be treated as *not*
+    // managed, so the existing "apply to every channel" bulk action is what
+    // migrates it to the new, working URL -- no separate one-off migration
+    // script needed.
+    const channel: LiveChannel = {
+      cid: '1',
+      name: 'General',
+      bannerGfxUrl: `${PUBLIC_BASE_URL}/images/general`,
     };
     expect(isManagedByUs(channel, PUBLIC_BASE_URL)).toBe(false);
   });
@@ -291,7 +310,7 @@ describe('applyBannerUrlsForAllChannels', () => {
         {
           cid: '1',
           name: 'General',
-          bannerGfxUrl: `${PUBLIC_BASE_URL}/images/general`,
+          bannerGfxUrl: `${PUBLIC_BASE_URL}/images/general.png`,
         },
         { cid: '2', name: 'Music', bannerGfxUrl: null },
         {
@@ -311,10 +330,10 @@ describe('applyBannerUrlsForAllChannels', () => {
     expect(result.updated).toEqual(['Music', 'Röhre']);
     expect(channelEdit).toHaveBeenCalledTimes(2);
     expect(channelEdit).toHaveBeenCalledWith('2', {
-      channelBannerGfxUrl: `${PUBLIC_BASE_URL}/images/music`,
+      channelBannerGfxUrl: `${PUBLIC_BASE_URL}/images/music.png`,
     });
     expect(channelEdit).toHaveBeenCalledWith('3', {
-      channelBannerGfxUrl: `${PUBLIC_BASE_URL}/images/rohre`,
+      channelBannerGfxUrl: `${PUBLIC_BASE_URL}/images/rohre.png`,
     });
   });
 

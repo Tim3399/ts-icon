@@ -20,6 +20,14 @@ import { ChannelNameValidationPipe } from './dto/channel-name-validation.pipe';
 
 const logger = new Logger('ImagesPublicController');
 
+// expectedBannerUrl() (src/teamspeak/teamspeak-channels.ts) always appends
+// this suffix -- TeamSpeak 6 only renders a banner from a URL with a
+// recognized image file extension, unlike a browser, which goes by
+// Content-Type. Stripped back off here before normalizing, so both the
+// suffixed URL TS6 needs and the old extensionless form (existing tests,
+// any caller that built the URL by hand) resolve to the same channel.
+const PNG_SUFFIX = /\.png$/i;
+
 /**
  * Checks a raw `If-None-Match` request header value against the current
  * ETag. Supports the two shapes the HTTP spec actually allows for this
@@ -53,7 +61,9 @@ export class ImagesPublicController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
-    const normalizedChannel = normalizeChannelName(channelName);
+    const normalizedChannel = normalizeChannelName(
+      channelName.replace(PNG_SUFFIX, ''),
+    );
     logger.log(`[getImage] Request: channelName=${normalizedChannel}`);
     let image = await this.imagesService.getImage(normalizedChannel);
 

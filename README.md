@@ -122,12 +122,14 @@ Below is a concise reference for the backend endpoints. Replace the port with yo
 
 | Method & path | Description | Response |
 |---|---|---|
-| `GET /images/:channelName` | Returns the stored image for the given channel name. | Binary image; `Content-Type` set to the stored MIME type; `Cache-Control: public, max-age=86400` |
+| `GET /images/:channelName` | Returns the stored image for the given channel name. An optional trailing `.png` on `channelName` is accepted and stripped before lookup (see below); the extensionless form keeps working too. | Binary image; `Content-Type` set to the stored MIME type; `Cache-Control: public, max-age=86400` |
 
 Example:
 ```powershell
 curl http://localhost:3000/images/news -o news.png
 ```
+
+**Why the URLs the app sets on TeamSpeak channels end in `.png`:** TeamSpeak 6 only renders a channel banner from a URL with a recognized image file extension — unlike a browser, it does not consult the response's `Content-Type` header at all. Every stored image is always re-encoded to canonical PNG by `processImageForStorage()` regardless of what was uploaded, so `expectedBannerUrl()` (`src/teamspeak/teamspeak-channels.ts`) always appends `.png` when computing the URL a managed channel should have. This endpoint strips that suffix back off before doing the actual channel lookup, so both URL shapes resolve to the same image — existing tooling or manually-built extensionless links keep working. Any channel still pointed at the old, pre-fix extensionless URL is picked up as "not managed" and gets rewritten automatically the next time `POST /images-local/channels/apply-banner-urls` runs (see below).
 
 This endpoint is rate-limited per client IP (see [Rate Limiting](#rate-limiting) below). There is no endpoint on the public server that lists channels or images — that moved to the admin API (see below).
 

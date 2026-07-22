@@ -293,3 +293,86 @@ describe('Public images app spacer-channel base-image fallback', () => {
       .expect(200);
   });
 });
+
+// TeamSpeak 6 only renders a channel banner from a URL with a recognized
+// image file extension (it doesn't consult Content-Type like a browser
+// does), so expectedBannerUrl() (teamspeak-channels.ts) now always appends
+// .png. This route must strip that suffix back off before doing the
+// channel lookup, so both the new suffixed URL and the old extensionless
+// form resolve to the same row.
+describe('Public images app .png suffix handling', () => {
+  let app: INestApplication;
+
+  const IMAGE_ROW = {
+    image: new Uint8Array(Buffer.from('image-bytes')),
+    mimeType: 'image/png',
+    contentHash: 'image-hash',
+  };
+
+  function createMockPrismaService(rowsByChannelName: Record<string, unknown>) {
+    return {
+      channelImage: {
+        findUnique: jest.fn(
+          ({ where: { channelName } }: { where: { channelName: string } }) =>
+            Promise.resolve(rowsByChannelName[channelName] ?? null),
+        ),
+      },
+    };
+  }
+
+  async function initAppWithRows(rowsByChannelName: Record<string, unknown>) {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [ImagesModulePublic, PrismaModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue(createMockPrismaService(rowsByChannelName))
+      .compile();
+
+    app = moduleFixture.createNestApplication();
+    await app.init();
+  }
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('serves the channel image for a .png-suffixed URL', async () => {
+    await initAppWithRows({ general: IMAGE_ROW });
+
+    const res = await request(app.getHttpServer() as Server)
+      .get('/images/general.png')
+      .expect(200);
+
+    expect(res.headers['etag']).toBe(`"${IMAGE_ROW.contentHash}"`);
+  });
+
+  it('still serves the channel image for the old extensionless URL', async () => {
+    await initAppWithRows({ general: IMAGE_ROW });
+
+    const res = await request(app.getHttpServer() as Server)
+      .get('/images/general')
+      .expect(200);
+
+    expect(res.headers['etag']).toBe(`"${IMAGE_ROW.contentHash}"`);
+  });
+
+  it('strips the suffix case-insensitively', async () => {
+    await initAppWithRows({ general: IMAGE_ROW });
+
+    await request(app.getHttpServer() as Server)
+      .get('/images/general.PNG')
+      .expect(200);
+  });
+
+  it('strips only one trailing .png, leaving an embedded .png to be normalized away as usual', async () => {
+    // "general.png.png" has its one trailing ".png" stripped, leaving
+    // "general.png" -- which normalizeChannelName() then reduces to
+    // "generalpng" (dots aren't in its allowed character set), same as any
+    // other punctuation embedded in a raw channel name.
+    await initAppWithRows({ generalpng: IMAGE_ROW });
+
+    await request(app.getHttpServer() as Server)
+      .get('/images/general.png.png')
+      .expect(200);
+  });
+});

@@ -595,7 +595,7 @@ describe('ImagesLocalController.listChannelBannerUrls', () => {
       {
         cid: 'cid-1',
         name: 'General',
-        bannerGfxUrl: `${TEST_PUBLIC_BASE_URL}/images/general`,
+        bannerGfxUrl: `${TEST_PUBLIC_BASE_URL}/images/general.png`,
       },
       { cid: 'cid-2', name: 'Music', bannerGfxUrl: null },
     ]);
@@ -605,7 +605,7 @@ describe('ImagesLocalController.listChannelBannerUrls', () => {
       channels: [
         {
           name: 'general',
-          bannerGfxUrl: `${TEST_PUBLIC_BASE_URL}/images/general`,
+          bannerGfxUrl: `${TEST_PUBLIC_BASE_URL}/images/general.png`,
           managed: true,
         },
         { name: 'music', bannerGfxUrl: null, managed: false },
@@ -645,11 +645,11 @@ describe('ImagesLocalController.setBannerUrl', () => {
 
     expect(mockedSetChannelBannerUrl).toHaveBeenCalledWith(
       'cid-chan',
-      `${TEST_PUBLIC_BASE_URL}/images/chan`,
+      `${TEST_PUBLIC_BASE_URL}/images/chan.png`,
     );
     expect(result).toEqual({
       message: 'Banner URL set successfully',
-      bannerGfxUrl: `${TEST_PUBLIC_BASE_URL}/images/chan`,
+      bannerGfxUrl: `${TEST_PUBLIC_BASE_URL}/images/chan.png`,
     });
   });
 
