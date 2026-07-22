@@ -5,7 +5,7 @@ import {
   isManagedByUs,
   setChannelBannerUrl,
   applyBannerUrlsForAllChannels,
-  __resetTeamSpeakChannelsCacheForTests,
+  invalidateLiveChannelsCache,
   type LiveChannel,
 } from './teamspeak-channels';
 
@@ -31,7 +31,7 @@ jest.mock('../../config', () => ({
 const mockedConnect = jest.spyOn(TeamSpeak, 'connect');
 
 beforeEach(() => {
-  __resetTeamSpeakChannelsCacheForTests();
+  invalidateLiveChannelsCache();
 });
 
 afterEach(() => {
@@ -238,6 +238,48 @@ describe('setChannelBannerUrl', () => {
     ).rejects.toThrow('rejected by server');
     expect(quit).toHaveBeenCalledTimes(1);
   });
+
+  it('invalidates the live-channels cache, so a refresh right after reflects the new banner URL', async () => {
+    // Regression test: setChannelBannerUrl() used to leave fetchLiveChannels()'s
+    // cache untouched, so the normal admin-UI workflow of "set banner URL,
+    // then refresh the channel list" showed the *pre-update* bannerGfxUrl
+    // (and therefore `managed: false`) for up to CACHE_TTL_MS after a
+    // successful update.
+    mockedConnect.mockResolvedValueOnce({
+      on: jest.fn(),
+      channelList: jest
+        .fn()
+        .mockResolvedValue([
+          { cid: '42', name: 'general', bannerGfxUrl: null },
+        ]),
+      quit: jest.fn().mockResolvedValue(undefined),
+    } as never);
+    const cachedBefore = await fetchLiveChannels();
+    expect(cachedBefore[0].bannerGfxUrl).toBeNull();
+
+    mockedConnect.mockResolvedValueOnce({
+      on: jest.fn(),
+      channelEdit: jest.fn().mockResolvedValue([]),
+      quit: jest.fn().mockResolvedValue(undefined),
+    } as never);
+    await setChannelBannerUrl('42', `${PUBLIC_BASE_URL}/images/general`);
+
+    mockedConnect.mockResolvedValueOnce({
+      on: jest.fn(),
+      channelList: jest.fn().mockResolvedValue([
+        {
+          cid: '42',
+          name: 'general',
+          bannerGfxUrl: `${PUBLIC_BASE_URL}/images/general`,
+        },
+      ]),
+      quit: jest.fn().mockResolvedValue(undefined),
+    } as never);
+    const refreshed = await fetchLiveChannels();
+
+    expect(mockedConnect).toHaveBeenCalledTimes(3);
+    expect(refreshed[0].bannerGfxUrl).toBe(`${PUBLIC_BASE_URL}/images/general`);
+  });
 });
 
 describe('applyBannerUrlsForAllChannels', () => {
@@ -305,5 +347,43 @@ describe('applyBannerUrlsForAllChannels', () => {
     const result = await applyBannerUrlsForAllChannels(PUBLIC_BASE_URL);
 
     expect(result).toEqual({ updated: [], alreadyManaged: [] });
+  });
+
+  it('invalidates the live-channels cache, so a refresh right after reflects the newly-applied banner URLs', async () => {
+    mockedConnect.mockResolvedValueOnce({
+      on: jest.fn(),
+      channelList: jest
+        .fn()
+        .mockResolvedValue([{ cid: '1', name: 'general', bannerGfxUrl: null }]),
+      quit: jest.fn().mockResolvedValue(undefined),
+    } as never);
+    const cachedBefore = await fetchLiveChannels();
+    expect(cachedBefore[0].bannerGfxUrl).toBeNull();
+
+    mockedConnect.mockResolvedValueOnce({
+      on: jest.fn(),
+      channelList: jest
+        .fn()
+        .mockResolvedValue([{ cid: '1', name: 'general', bannerGfxUrl: null }]),
+      channelEdit: jest.fn().mockResolvedValue([]),
+      quit: jest.fn().mockResolvedValue(undefined),
+    } as never);
+    await applyBannerUrlsForAllChannels(PUBLIC_BASE_URL);
+
+    mockedConnect.mockResolvedValueOnce({
+      on: jest.fn(),
+      channelList: jest.fn().mockResolvedValue([
+        {
+          cid: '1',
+          name: 'general',
+          bannerGfxUrl: `${PUBLIC_BASE_URL}/images/general`,
+        },
+      ]),
+      quit: jest.fn().mockResolvedValue(undefined),
+    } as never);
+    const refreshed = await fetchLiveChannels();
+
+    expect(mockedConnect).toHaveBeenCalledTimes(3);
+    expect(refreshed[0].bannerGfxUrl).toBe(`${PUBLIC_BASE_URL}/images/general`);
   });
 });

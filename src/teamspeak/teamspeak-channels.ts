@@ -139,11 +139,18 @@ export function fetchLiveChannels(): Promise<LiveChannel[]> {
 }
 
 /**
- * Test-only reset hook. cachedResult/inFlightFetch are module-level state
- * that jest.clearAllMocks() does not touch, so tests need an explicit way
- * to start from a clean slate between cases.
+ * Drops the cached channel list so the next `fetchLiveChannels()` call
+ * reconnects instead of returning a stale result. Called by
+ * `setChannelBannerUrl()`/`applyBannerUrlsForAllChannels()` after they
+ * change a channel's banner URL on the TeamSpeak server -- without this,
+ * a "Set banner URL" action followed immediately by a channel-list refresh
+ * (the normal admin-UI workflow) would show the *pre-update* bannerGfxUrl
+ * for up to CACHE_TTL_MS, making a channel that was just successfully
+ * marked as managed. Also used by tests as an explicit way to start from a
+ * clean slate between cases, since cachedResult/inFlightFetch are
+ * module-level state that jest.clearAllMocks() does not touch.
  */
-export function __resetTeamSpeakChannelsCacheForTests(): void {
+export function invalidateLiveChannelsCache(): void {
   cachedResult = null;
   inFlightFetch = null;
 }
@@ -205,6 +212,7 @@ export async function setChannelBannerUrl(
       channelBannerGfxUrl: string;
     });
   });
+  invalidateLiveChannelsCache();
 }
 
 export interface ApplyBannerUrlsResult {
@@ -224,7 +232,7 @@ export interface ApplyBannerUrlsResult {
 export async function applyBannerUrlsForAllChannels(
   publicBaseUrl: string,
 ): Promise<ApplyBannerUrlsResult> {
-  return withTeamSpeakConnection(async (ts3) => {
+  const result = await withTeamSpeakConnection(async (ts3) => {
     const channels = (await ts3.channelList()).map(toLiveChannel);
     const updated: string[] = [];
     const alreadyManaged: string[] = [];
@@ -248,4 +256,6 @@ export async function applyBannerUrlsForAllChannels(
     );
     return { updated, alreadyManaged };
   });
+  invalidateLiveChannelsCache();
+  return result;
 }

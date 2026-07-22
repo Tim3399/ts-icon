@@ -247,6 +247,13 @@ const BannerUrlManager: React.FC = () => {
                   <span className="badge badge-unmanaged">Not managed</span>
                 )}
               </div>
+              <div
+                className="channel-card-status"
+                style={{ wordBreak: 'break-all' }}
+                title="The channel's current TeamSpeak banner URL"
+              >
+                {channel.bannerGfxUrl ?? 'No banner URL set'}
+              </div>
               <button
                 type="button"
                 className="btn btn-secondary btn-block"
