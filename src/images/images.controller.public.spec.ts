@@ -40,11 +40,14 @@ describe('Public images app rate limiting (e2e)', () => {
     await app.close();
   });
 
-  it('allows requests under the burst limit through to the route handler', async () => {
-    // The burst limiter allows 5 requests/second; each of these hits the
-    // handler (which 404s, since the mocked Prisma lookup always returns
-    // null) rather than being blocked by the throttler.
-    for (let i = 0; i < 5; i++) {
+  it('allows a full 100-channel-tree-sized burst through to the route handler', async () => {
+    // The burst limiter allows 150 requests/2s -- calibrated to comfortably
+    // cover a real TeamSpeak client fetching every channel's banner at once
+    // on connect (this project's documented scale is ~100 channels max),
+    // not just a handful. Each of these hits the handler (which 404s, since
+    // the mocked Prisma lookup always returns null) rather than being
+    // blocked by the throttler.
+    for (let i = 0; i < 100; i++) {
       await request(app.getHttpServer() as Server)
         .get('/images/some-channel')
         .expect(404);
@@ -65,21 +68,21 @@ describe('Public images app rate limiting (e2e)', () => {
       .get('/images/some-channel')
       .expect(404);
 
-    expect(res.headers['x-ratelimit-limit-burst']).toBe('5');
-    expect(res.headers['x-ratelimit-remaining-burst']).toBe('4');
-    expect(res.headers['x-ratelimit-limit-per-minute']).toBe('60');
-    expect(res.headers['x-ratelimit-remaining-per-minute']).toBe('59');
+    expect(res.headers['x-ratelimit-limit-burst']).toBe('150');
+    expect(res.headers['x-ratelimit-remaining-burst']).toBe('149');
+    expect(res.headers['x-ratelimit-limit-per-minute']).toBe('600');
+    expect(res.headers['x-ratelimit-remaining-per-minute']).toBe('599');
     expect(res.headers['x-ratelimit-limit']).toBeUndefined();
   });
 
   it('returns 429 with a name-suffixed Retry-After header once the burst limit is exceeded', async () => {
     const server = app.getHttpServer() as Server;
 
-    // First 5 requests consume the whole burst allowance (5 req/sec); the
-    // 6th, made within the same second, must be blocked by the burst
-    // limiter specifically (the per-minute limiter, 60 req/min, has no
-    // reason to trip yet).
-    for (let i = 0; i < 5; i++) {
+    // First 150 requests consume the whole burst allowance (150 req/2s);
+    // the next one, made within the same window, must be blocked by the
+    // burst limiter specifically (the per-minute limiter, 600 req/min, has
+    // no reason to trip yet).
+    for (let i = 0; i < 150; i++) {
       await request(server).get('/images/some-channel').expect(404);
     }
 

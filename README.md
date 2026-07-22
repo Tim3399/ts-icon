@@ -199,8 +199,10 @@ The public image endpoint (`GET /images/:channelName`) is rate-limited per clien
 
 | Name | Window | Limit |
 |---|---|---|
-| `burst` | 1 second | 5 requests |
-| `per-minute` | 60 seconds | 60 requests |
+| `burst` | 2 seconds | 150 requests |
+| `per-minute` | 60 seconds | 600 requests |
+
+These are deliberately generous, not just "some reasonable-looking number": a real TeamSpeak client fetches the banner for *every* channel visible in the tree as soon as it connects, not just the current one — so a single legitimate connect can burst to roughly the server's total channel count almost at once. The original tighter limits (5 req/sec) were tuned for a generic "prevent scraping" case and started rejecting real banner loads outright on any server with more than 5 channels. Both limits above give headroom well above this project's documented ~100-channel scale, including a few users behind the same shared/NAT IP connecting around the same time, while still bounding sustained abuse far below what an actual scraping pattern would look like.
 
 This only applies to the public app — the admin/local app has no rate limiting of its own (it's already gated by authentication).
 
