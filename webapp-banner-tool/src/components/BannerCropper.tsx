@@ -3,12 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import Cropper from 'cropperjs';
 import { API_URL, GET_IMAGE_URL } from '../config';
 import { useAuth } from '../auth/AuthProvider';
-import { useCanUpload } from '../auth/permissions';
 import { apiFetch, apiFetchBlob, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
 import { useToast } from './Toast';
-
-const NO_UPLOAD_PERMISSION_MESSAGE =
-  "You don't have permission to upload images. Contact an administrator if you believe this is a mistake.";
 
 const TARGET_WIDTH = 500;
 const TARGET_HEIGHT = 44;
@@ -29,7 +25,6 @@ const BannerCropper: React.FC = () => {
   const navigate = useNavigate();
   const { getToken } = useAuth();
   const { showToast } = useToast();
-  const canUpload = useCanUpload();
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -112,10 +107,6 @@ const BannerCropper: React.FC = () => {
   };
 
   const handleUrlLoad = async () => {
-    if (!canUpload) {
-      showToast(NO_UPLOAD_PERMISSION_MESSAGE, 'error');
-      return;
-    }
     if (!imageUrl.trim()) {
       showToast('Please enter an image URL.', 'error');
       return;
@@ -140,10 +131,6 @@ const BannerCropper: React.FC = () => {
   };
 
   const handleUpload = () => {
-    if (!canUpload) {
-      showToast(NO_UPLOAD_PERMISSION_MESSAGE, 'error');
-      return;
-    }
     if (!cropperRef.current) {
       showToast('Please select an image first.', 'error');
       return;
@@ -205,92 +192,90 @@ const BannerCropper: React.FC = () => {
   };
 
   return (
-    <div style={{ maxHeight: '90vh', overflowY: 'auto', paddingRight: 10 }}>
-      <label htmlFor="channel">Channel name:</label>
-      <input
-        type="text"
-        id="channel"
-        list="channel-list"
-        placeholder="lobby"
-        value={channelName}
-        onChange={(e) => setChannelName(e.target.value)}
-        required
-      />
-      <datalist id="channel-list">
-        {channelList.map((name) => (
-          <option key={name} value={name} />
-        ))}
-      </datalist>
-
-      <div id="channel-display">
-        <strong>Found channels:</strong>
-        <ul id="channel-list-display">
-          {channelList.map((name) => (
-            <li key={name}>{name}</li>
-          ))}
-        </ul>
+    <div>
+      <div className="card">
+        <h2 className="card-title">Channel</h2>
+        <div className="field">
+          <label className="label" htmlFor="channel">Channel name</label>
+          <input
+            className="input"
+            type="text"
+            id="channel"
+            list="channel-list"
+            placeholder="lobby"
+            value={channelName}
+            onChange={(e) => setChannelName(e.target.value)}
+            required
+          />
+          <datalist id="channel-list">
+            {channelList.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+        </div>
       </div>
 
-      {!canUpload && (
-        <p role="alert" style={{ color: '#c62828', fontWeight: 'bold' }}>
-          {NO_UPLOAD_PERMISSION_MESSAGE}
-        </p>
-      )}
+      <div className="card">
+        <h2 className="card-title">Image source</h2>
+        <div className="field">
+          <label className="label" htmlFor="file-upload">Upload a file</label>
+          <input
+            className="input"
+            type="file"
+            id="file-upload"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept="image/*"
+          />
+        </div>
+        <div className="field">
+          <label className="label" htmlFor="imageUrl">Or load from a URL</label>
+          <div className="input-row">
+            <input
+              className="input"
+              type="text"
+              id="imageUrl"
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="https://example.com/banner.png"
+              disabled={isLoadingUrl}
+            />
+            <button type="button" className="btn btn-secondary" onClick={handleUrlLoad} disabled={isLoadingUrl}>
+              {isLoadingUrl ? 'Loading...' : 'Load'}
+            </button>
+          </div>
+        </div>
+      </div>
 
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        accept="image/*"
-        disabled={!canUpload}
-      />
+      <div className="card">
+        <div className="preview-toolbar">
+          <h2 className="card-title" style={{ margin: 0 }}>Preview &amp; crop</h2>
+          <button type="button" className="btn btn-ghost" onClick={toggleZoom}>
+            {isZoomed ? 'Shrink view' : 'Enlarge view'}
+          </button>
+        </div>
 
-      <label htmlFor="imageUrl">Image URL:</label>
-      <input
-        type="text"
-        id="imageUrl"
-        value={imageUrl}
-        onChange={(e) => setImageUrl(e.target.value)}
-        placeholder="https://example.com/banner.png"
-        disabled={isLoadingUrl || !canUpload}
-      />
-      <button onClick={handleUrlLoad} disabled={isLoadingUrl || !canUpload}>
-        {isLoadingUrl ? 'Loading...' : 'Load image from URL'}
-      </button>
-
-      <button onClick={() => navigate('/channels')}>Manage channel images</button>
-
-      <button type="button" onClick={toggleZoom} style={{ marginBottom: 8 }}>
-        {isZoomed ? 'Shrink view' : 'Enlarge view'}
-      </button>
-
-      <div
-        style={{
-          width: isZoomed ? 800 : 400,
-          height: isZoomed ? 400 : 200,
-          overflow: 'hidden',
-          border: '1px solid #ccc',
-          marginBottom: 16,
-        }}
-      >
-        <img
-          ref={previewRef}
-          alt="Preview"
-          id="preview"
+        <div
+          className="preview-box"
           style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'contain',
-            display: 'block',
+            width: isZoomed ? 800 : 400,
+            height: isZoomed ? 400 : 200,
           }}
-        />
+        >
+          <img ref={previewRef} alt="Preview" id="preview" />
+        </div>
+
+        <canvas ref={canvasRef} id="canvas-preview" width={TARGET_WIDTH} height={TARGET_HEIGHT} style={{ display: 'none' }} />
       </div>
 
-      <canvas ref={canvasRef} id="canvas-preview" width={TARGET_WIDTH} height={TARGET_HEIGHT} style={{ display: 'none' }} />
-
-      <button onClick={handleUpload} disabled={isUploading || !canUpload}>
-        {isUploading ? 'Uploading...' : 'Crop & send image'}
-      </button>
+      <div className="actions-row">
+        <button type="button" className="btn btn-primary" onClick={handleUpload} disabled={isUploading}>
+          {isUploading ? 'Uploading...' : 'Crop & send image'}
+        </button>
+        <button type="button" className="btn btn-secondary" onClick={() => navigate('/channels')}>
+          Manage channel images
+        </button>
+      </div>
     </div>
   );
 };

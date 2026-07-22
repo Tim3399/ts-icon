@@ -22,9 +22,9 @@ export const useToast = () => useContext(ToastContext);
 const DEFAULT_DURATION_MS = 4000;
 
 const VARIANT_STYLES: Record<ToastVariant, React.CSSProperties> = {
-  success: { background: '#2e7d32', color: '#fff' },
-  error: { background: '#c62828', color: '#fff' },
-  info: { background: '#333', color: '#fff' },
+  success: { background: '#15803d', color: '#fff' },
+  error: { background: '#dc2626', color: '#fff' },
+  info: { background: '#1f2430', color: '#fff' },
 };
 
 const ToastContainer: React.FC<{ toasts: Toast[]; onDismiss: (id: number) => void }> = ({ toasts, onDismiss }) => {
@@ -50,9 +50,9 @@ const ToastContainer: React.FC<{ toasts: Toast[]; onDismiss: (id: number) => voi
           onClick={() => onDismiss(toast.id)}
           style={{
             ...VARIANT_STYLES[toast.variant],
-            padding: '10px 14px',
-            borderRadius: 4,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+            padding: '12px 16px',
+            borderRadius: 8,
+            boxShadow: '0 4px 12px rgba(16, 24, 40, 0.18)',
             cursor: 'pointer',
             fontSize: 14,
             lineHeight: 1.4,

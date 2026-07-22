@@ -2,12 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { API_URL, GET_CHANNELS_LIST_URL, VIEW_IMAGE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
-import { useCanUpload } from '../auth/permissions';
 import { apiFetch, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
 import { useToast } from './Toast';
-
-const NO_UPLOAD_PERMISSION_MESSAGE =
-  "You don't have permission to upload images. Contact an administrator if you believe this is a mistake.";
 
 type Channel = {
   name: string;
@@ -21,7 +17,6 @@ const ChannelGallery: React.FC = () => {
   const navigate = useNavigate();
   const { getToken } = useAuth();
   const { showToast } = useToast();
-  const canUpload = useCanUpload();
 
   useEffect(() => {
     let cancelled = false;
@@ -47,10 +42,6 @@ const ChannelGallery: React.FC = () => {
   }, [getToken, showToast]);
 
   const handleImageChange = async (channelName: string, file: File) => {
-    if (!canUpload) {
-      showToast(NO_UPLOAD_PERMISSION_MESSAGE, 'error');
-      return;
-    }
     setUploadingChannel(channelName);
     const formData = new FormData();
     formData.append('file', file, 'banner.png');
@@ -63,6 +54,7 @@ const ChannelGallery: React.FC = () => {
         timeoutMs: UPLOAD_TIMEOUT_MS,
       });
       showToast('Image updated!', 'success');
+      setMissingImages(prev => ({ ...prev, [channelName]: false }));
     } catch (err) {
       showToast(describeApiError(err,'Image could not be updated'), 'error');
     } finally {
@@ -74,63 +66,50 @@ const ChannelGallery: React.FC = () => {
     setMissingImages(prev => ({ ...prev, [channelName]: true }));
   };
 
-    const allChannels = [{ name: 'spacer' }, ...channels];
-
   return (
     <div>
-      <button onClick={() => navigate('/')}>Back</button>
-      <h2>Manage channel images</h2>
-      {!canUpload && (
-        <p role="alert" style={{ color: '#c62828', fontWeight: 'bold' }}>
-          {NO_UPLOAD_PERMISSION_MESSAGE}
-        </p>
+      <div className="gallery-header">
+        <button type="button" className="btn btn-ghost" onClick={() => navigate('/')}>← Back</button>
+        <h2>Manage channel images</h2>
+      </div>
+
+      {channelsLoading && <p className="loading-state">Loading channels…</p>}
+      {!channelsLoading && channels.length === 0 && (
+        <p className="empty-state">No channels found.</p>
       )}
-      {channelsLoading && <p>Loading...</p>}
-      {!channelsLoading && allChannels.map((channel, idx) => (
-        <div key={channel.name || idx} style={{ marginBottom: 24 }}>
-          <div>
-            {!missingImages[channel.name] ? (
-              <img
-                src={`${VIEW_IMAGE_URL}${encodeURIComponent(channel.name)}`}
-                alt={channel.name}
-                style={{
-                  width: 200,
-                  height: 44,
-                  objectFit: 'contain',
-                  border: '1px solid #ccc',
-                  display: 'block'
-                }}
-                onError={() => handleImageError(channel.name)}
-              />
-            ) : (
-              <div style={{
-                width: 200,
-                height: 44,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '1px solid #ccc',
-                background: '#f5f5f5',
-                color: '#888'
-              }}>
-                No image available
+
+      {!channelsLoading && channels.length > 0 && (
+        <div className="channel-grid">
+          {channels.map((channel) => (
+            <div className="channel-card" key={channel.name}>
+              <div className="channel-card-image">
+                {!missingImages[channel.name] ? (
+                  <img
+                    src={`${VIEW_IMAGE_URL}${encodeURIComponent(channel.name)}`}
+                    alt={channel.name}
+                    onError={() => handleImageError(channel.name)}
+                  />
+                ) : (
+                  <span className="placeholder">No image available</span>
+                )}
               </div>
-            )}
-          </div>
-          <div style={{ margin: '4px 0', fontWeight: 'bold', textAlign: 'center' }}>
-            {channel.name}
-          </div>
-          <input
-            type="file"
-            accept="image/*"
-            disabled={uploadingChannel === channel.name || !canUpload}
-            onChange={e => {
-              if (e.target.files?.[0]) handleImageChange(channel.name, e.target.files[0]);
-            }}
-          />
-          {uploadingChannel === channel.name && <span style={{ marginLeft: 8 }}>Uploading...</span>}
+              <div className="channel-card-name">{channel.name}</div>
+              <input
+                className="input"
+                type="file"
+                accept="image/*"
+                disabled={uploadingChannel === channel.name}
+                onChange={e => {
+                  if (e.target.files?.[0]) handleImageChange(channel.name, e.target.files[0]);
+                }}
+              />
+              {uploadingChannel === channel.name && (
+                <div className="channel-card-status">Uploading…</div>
+              )}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 };
