@@ -17,6 +17,9 @@ vi.mock('./components/ChannelGallery', () => ({
 vi.mock('./components/BannerUrlManager', () => ({
   default: () => <div>banner-url-manager-page</div>,
 }));
+vi.mock('./components/ChannelWallpaperGenerator', () => ({
+  default: () => <div>channel-wallpaper-generator-page</div>,
+}));
 
 const { useAuthMock, useCanUploadMock, useIsAdminMock } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
@@ -132,6 +135,63 @@ describe('App routing', () => {
 
     expect(screen.queryByText('banner-url-manager-page')).not.toBeInTheDocument();
     expect(screen.getByText('Access denied')).toBeInTheDocument();
+  });
+
+  it('renders the channel wallpaper generator at /wallpaper for an admin', () => {
+    useAuthMock.mockReturnValue({ username: 'admin-alice', logout: vi.fn() });
+    useCanUploadMock.mockReturnValue(true);
+    useIsAdminMock.mockReturnValue(true);
+
+    render(
+      <MemoryRouter initialEntries={['/wallpaper']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('channel-wallpaper-generator-page')).toBeInTheDocument();
+  });
+
+  it('redirects /wallpaper to /access-denied for a non-admin, even one who can upload', () => {
+    useAuthMock.mockReturnValue({ username: 'editor-bob', logout: vi.fn() });
+    useCanUploadMock.mockReturnValue(true);
+    useIsAdminMock.mockReturnValue(false);
+
+    render(
+      <MemoryRouter initialEntries={['/wallpaper']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByText('channel-wallpaper-generator-page')).not.toBeInTheDocument();
+    expect(screen.getByText('Access denied')).toBeInTheDocument();
+  });
+
+  it('only shows the Channel Wallpaper nav link to admins', () => {
+    useAuthMock.mockReturnValue({ username: 'editor-bob', logout: vi.fn() });
+    useCanUploadMock.mockReturnValue(true);
+    useIsAdminMock.mockReturnValue(false);
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByText('Channel Wallpaper')).not.toBeInTheDocument();
+  });
+
+  it('shows the Channel Wallpaper nav link to admins', () => {
+    useAuthMock.mockReturnValue({ username: 'admin-alice', logout: vi.fn() });
+    useCanUploadMock.mockReturnValue(true);
+    useIsAdminMock.mockReturnValue(true);
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Channel Wallpaper')).toBeInTheDocument();
   });
 
   it('only shows the Banner URLs nav link to admins', () => {

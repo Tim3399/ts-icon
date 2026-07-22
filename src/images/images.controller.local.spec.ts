@@ -196,7 +196,7 @@ beforeEach(() => {
   // resolution defaults to "a live channel called 'chan' exists and it's
   // brand new" unless a specific test overrides it.
   mockedFetchLiveChannels.mockResolvedValue([
-    { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null },
+    { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null, pid: null },
   ]);
 });
 
@@ -237,7 +237,7 @@ describe('imageFileFilter', () => {
 describe('resolveUploadChannel', () => {
   it('rejects with ChannelNotFoundError when no live channel matches the given name', async () => {
     mockedFetchLiveChannels.mockResolvedValue([
-      { cid: 'cid-1', name: 'Something Else', bannerGfxUrl: null },
+      { cid: 'cid-1', name: 'Something Else', bannerGfxUrl: null, pid: null },
     ]);
     const { imagesService } = createImagesServiceStub();
 
@@ -248,7 +248,7 @@ describe('resolveUploadChannel', () => {
 
   it('resolves as an update when an existing row already has this exact channelId', async () => {
     mockedFetchLiveChannels.mockResolvedValue([
-      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null },
+      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null, pid: null },
     ]);
     const { imagesService, findByChannelId, channelNameInUse } =
       createImagesServiceStub();
@@ -265,7 +265,7 @@ describe('resolveUploadChannel', () => {
 
   it('resolves as a plain new-channel create when the channelId is new and the name is not taken', async () => {
     mockedFetchLiveChannels.mockResolvedValue([
-      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null },
+      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null, pid: null },
     ]);
     const { imagesService, findByChannelId, channelNameInUse } =
       createImagesServiceStub();
@@ -279,7 +279,7 @@ describe('resolveUploadChannel', () => {
 
   it('rejects with ChannelNameConflictError when the channelId is new but a different row already owns this channelName', async () => {
     mockedFetchLiveChannels.mockResolvedValue([
-      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null },
+      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null, pid: null },
     ]);
     const { imagesService, findByChannelId, channelNameInUse } =
       createImagesServiceStub();
@@ -452,7 +452,7 @@ describe('ImagesLocalController.listChannels', () => {
 
   it('returns the normalized channel list on success', async () => {
     mockedFetchLiveChannels.mockResolvedValue([
-      { cid: '1', name: 'Foo Bar', bannerGfxUrl: null },
+      { cid: '1', name: 'Foo Bar', bannerGfxUrl: null, pid: null },
     ]);
     const controller = createController();
     await expect(controller.listChannels()).resolves.toEqual({
@@ -596,19 +596,30 @@ describe('ImagesLocalController.listChannelBannerUrls', () => {
         cid: 'cid-1',
         name: 'General',
         bannerGfxUrl: `${TEST_PUBLIC_BASE_URL}/images/general.png`,
+        pid: null,
       },
-      { cid: 'cid-2', name: 'Music', bannerGfxUrl: null },
+      { cid: 'cid-2', name: 'Music', bannerGfxUrl: null, pid: 'cid-1' },
     ]);
     const controller = createController();
 
     await expect(controller.listChannelBannerUrls()).resolves.toEqual({
       channels: [
         {
+          cid: 'cid-1',
           name: 'general',
           bannerGfxUrl: `${TEST_PUBLIC_BASE_URL}/images/general.png`,
           managed: true,
+          pid: null,
+          depth: 0,
         },
-        { name: 'music', bannerGfxUrl: null, managed: false },
+        {
+          cid: 'cid-2',
+          name: 'music',
+          bannerGfxUrl: null,
+          managed: false,
+          pid: 'cid-1',
+          depth: 1,
+        },
       ],
     });
   });
@@ -636,7 +647,7 @@ describe('ImagesLocalController.setBannerUrl', () => {
 
   it('sets the banner URL to the expected value for the resolved channel', async () => {
     mockedFetchLiveChannels.mockResolvedValue([
-      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null },
+      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null, pid: null },
     ]);
     mockedSetChannelBannerUrl.mockResolvedValue(undefined);
     const controller = createController();
@@ -664,7 +675,7 @@ describe('ImagesLocalController.setBannerUrl', () => {
 
   it('returns 503 when setChannelBannerUrl itself fails', async () => {
     mockedFetchLiveChannels.mockResolvedValue([
-      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null },
+      { cid: 'cid-chan', name: 'Chan', bannerGfxUrl: null, pid: null },
     ]);
     mockedSetChannelBannerUrl.mockRejectedValue(new Error('rejected'));
     const controller = createController();

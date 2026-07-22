@@ -8,6 +8,9 @@ export const GET_CHANNELS_LIST_URL = `${ADMIN_API_URL}/images-local/channels`;
 export const CHANNEL_BANNER_URLS_URL = `${ADMIN_API_URL}/images-local/channels/banner-urls`;
 export const APPLY_BANNER_URLS_URL = `${ADMIN_API_URL}/images-local/channels/apply-banner-urls`;
 export const SPACER_BASE_IMAGE_URL = `${ADMIN_API_URL}/images-local/spacer-base-image`;
+export const CHANNEL_WALLPAPER_URL = `${ADMIN_API_URL}/images-local/channel-wallpaper`;
+export const CHANNEL_WALLPAPER_PREVIEW_URL = `${ADMIN_API_URL}/images-local/channel-wallpaper/preview`;
+export const CHANNEL_WALLPAPER_UNDO_URL = `${ADMIN_API_URL}/images-local/channel-wallpaper/undo`;
 
 // Keycloak Configuration
 //

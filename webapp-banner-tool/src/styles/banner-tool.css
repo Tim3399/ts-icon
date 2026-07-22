@@ -472,3 +472,79 @@ h1, h2, h3 {
   background: var(--color-bg);
   color: var(--color-text-muted);
 }
+
+/* Channel tree preview (ChannelTreePreview) */
+
+.channel-tree {
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+}
+
+.channel-tree-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.channel-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 14px;
+}
+
+.channel-tree-row-selectable {
+  cursor: pointer;
+}
+
+.channel-tree-row-selectable:hover {
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.channel-tree-row-selected {
+  background: rgba(37, 99, 235, 0.12);
+  font-weight: 600;
+}
+
+.channel-tree-thumb {
+  width: 40px;
+  height: 4px;
+  object-fit: cover;
+  border-radius: 2px;
+  flex-shrink: 0;
+  background: var(--color-border);
+}
+
+.channel-tree-thumb-placeholder {
+  background: var(--color-border);
+}
+
+.channel-tree-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Channel wallpaper generator preview strip */
+
+.wallpaper-preview-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.wallpaper-preview-row {
+  width: 500px;
+  max-width: 100%;
+  height: 44px;
+  image-rendering: pixelated;
+  border: 1px solid var(--color-border);
+}

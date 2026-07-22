@@ -48,6 +48,7 @@ import {
   isManagedByUs,
   setChannelBannerUrl,
   applyBannerUrlsForAllChannels,
+  computeChannelDepth,
   type LiveChannel,
 } from '../teamspeak/teamspeak-channels';
 import {
@@ -678,9 +679,12 @@ export class ImagesLocalController {
           items: {
             type: 'object',
             properties: {
+              cid: { type: 'string' },
               name: { type: 'string' },
               bannerGfxUrl: { type: 'string', nullable: true },
               managed: { type: 'boolean' },
+              pid: { type: 'string', nullable: true },
+              depth: { type: 'number' },
             },
           },
         },
@@ -696,9 +700,12 @@ export class ImagesLocalController {
     try {
       const liveChannels = await fetchLiveChannels();
       const channels = liveChannels.map((c) => ({
+        cid: c.cid,
         name: normalizeChannelName(c.name),
         bannerGfxUrl: c.bannerGfxUrl,
         managed: isManagedByUs(c, this.publicBaseUrl),
+        pid: c.pid,
+        depth: computeChannelDepth(c.cid, liveChannels),
       }));
       return { channels };
     } catch (err) {
