@@ -6,10 +6,11 @@ import AccessDenied from './components/AccessDenied';
 import RequireUpload from './components/RequireUpload';
 import RequireAdmin from './components/RequireAdmin';
 import { useAuth } from './auth/AuthProvider';
-import { useIsAdmin } from './auth/permissions';
+import { useCanUpload, useIsAdmin } from './auth/permissions';
 
 export default function App() {
   const { username, logout } = useAuth();
+  const canUpload = useCanUpload();
   const isAdmin = useIsAdmin();
 
   return (
@@ -20,6 +21,9 @@ export default function App() {
           <strong>TS-Icon</strong>
         </div>
         <div className="user-info">
+          {canUpload && (
+            <Link to="/channels" className="btn btn-ghost">Manage channel images</Link>
+          )}
           {isAdmin && (
             <Link to="/banner-urls" className="btn btn-ghost">Banner URLs</Link>
           )}

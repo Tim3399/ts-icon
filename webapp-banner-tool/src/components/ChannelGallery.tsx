@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { apiFetch, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
 import { useToast } from './Toast';
+import SpacerBaseImageManager from './SpacerBaseImageManager';
 
 type Channel = {
   name: string;
@@ -14,6 +15,7 @@ const ChannelGallery: React.FC = () => {
   const [missingImages, setMissingImages] = useState<Record<string, boolean>>({});
   const [channelsLoading, setChannelsLoading] = useState(true);
   const [uploadingChannel, setUploadingChannel] = useState<string | null>(null);
+  const [deletingChannel, setDeletingChannel] = useState<string | null>(null);
   const [dragOverChannel, setDragOverChannel] = useState<string | null>(null);
   const navigate = useNavigate();
   const { getToken } = useAuth();
@@ -67,6 +69,26 @@ const ChannelGallery: React.FC = () => {
     setMissingImages(prev => ({ ...prev, [channelName]: true }));
   };
 
+  const handleDeleteImage = async (channelName: string) => {
+    const confirmed = window.confirm(`Delete the image for "${channelName}"?`);
+    if (!confirmed) return;
+
+    setDeletingChannel(channelName);
+    try {
+      // apiFetch throws on non-2xx responses, so reaching here means success.
+      await apiFetch(`${API_URL}${encodeURIComponent(channelName)}`, {
+        method: 'DELETE',
+        getToken,
+      });
+      showToast('Image deleted.', 'success');
+      setMissingImages(prev => ({ ...prev, [channelName]: true }));
+    } catch (err) {
+      showToast(describeApiError(err, 'Image could not be deleted'), 'error');
+    } finally {
+      setDeletingChannel(null);
+    }
+  };
+
   // Lets a channel's banner be replaced by dragging an image file straight
   // onto its card, as an alternative to the file input below it. Both
   // paths end up at the same handleImageChange -- drag-and-drop is just
@@ -98,6 +120,8 @@ const ChannelGallery: React.FC = () => {
         <button type="button" className="btn btn-ghost" onClick={() => navigate('/')}>← Back</button>
         <h2>Manage channel images</h2>
       </div>
+
+      <SpacerBaseImageManager />
 
       {channelsLoading && <p className="loading-state">Loading channels…</p>}
       {!channelsLoading && channels.length === 0 && (
@@ -141,6 +165,14 @@ const ChannelGallery: React.FC = () => {
                   }}
                 />
               </label>
+              <button
+                type="button"
+                className="btn btn-danger btn-block"
+                disabled={missingImages[channel.name] || deletingChannel === channel.name}
+                onClick={() => handleDeleteImage(channel.name)}
+              >
+                {deletingChannel === channel.name ? 'Deleting…' : 'Delete image'}
+              </button>
             </div>
           ))}
         </div>

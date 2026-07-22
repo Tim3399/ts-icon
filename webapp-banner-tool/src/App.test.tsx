@@ -161,4 +161,32 @@ describe('App routing', () => {
 
     expect(screen.getByText('Banner URLs')).toBeInTheDocument();
   });
+
+  it('shows the Manage channel images nav link to anyone who can upload', () => {
+    useAuthMock.mockReturnValue({ username: 'editor-bob', logout: vi.fn() });
+    useCanUploadMock.mockReturnValue(true);
+    useIsAdminMock.mockReturnValue(false);
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Manage channel images')).toBeInTheDocument();
+  });
+
+  it('hides the Manage channel images nav link from someone who cannot upload', () => {
+    useAuthMock.mockReturnValue({ username: 'bob', logout: vi.fn() });
+    useCanUploadMock.mockReturnValue(false);
+    useIsAdminMock.mockReturnValue(false);
+
+    render(
+      <MemoryRouter initialEntries={['/access-denied']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByText('Manage channel images')).not.toBeInTheDocument();
+  });
 });

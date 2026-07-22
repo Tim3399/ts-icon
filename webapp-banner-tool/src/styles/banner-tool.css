@@ -227,6 +227,16 @@ h1, h2, h3 {
   color: var(--color-text);
 }
 
+.btn-danger {
+  background: var(--color-surface);
+  color: var(--color-danger);
+  border-color: var(--color-danger-border);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--color-danger-bg);
+}
+
 .btn-block {
   width: 100%;
 }

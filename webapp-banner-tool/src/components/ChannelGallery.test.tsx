@@ -3,9 +3,14 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import ChannelGallery from './ChannelGallery';
 
-const { apiFetchMock, apiFetchJsonMock, showToastMock, getTokenMock } = vi.hoisted(() => ({
+const { apiFetchMock, apiFetchJsonMock, apiFetchBlobMock, showToastMock, getTokenMock } = vi.hoisted(() => ({
   apiFetchMock: vi.fn(),
   apiFetchJsonMock: vi.fn(),
+  // ChannelGallery renders SpacerBaseImageManager, which fetches the spacer
+  // base image via apiFetchBlob on mount -- mocked here (rejecting, like a
+  // real "not set yet" 404 would) so these tests don't attempt a real
+  // network fetch just from rendering the gallery.
+  apiFetchBlobMock: vi.fn().mockRejectedValue(new Error('not set in this test')),
   showToastMock: vi.fn(),
   // Must be a single stable reference across renders, matching the real
   // AuthProvider's useCallback(..., [])-wrapped getToken -- a fresh
@@ -30,6 +35,7 @@ vi.mock('../api/client', async () => {
     ...actual,
     apiFetch: apiFetchMock,
     apiFetchJson: apiFetchJsonMock,
+    apiFetchBlob: apiFetchBlobMock,
   };
 });
 
@@ -121,5 +127,51 @@ describe('ChannelGallery drag-and-drop', () => {
     fireEvent.drop(card!, { dataTransfer: { files: [] } });
 
     expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('ChannelGallery delete image', () => {
+  beforeEach(() => {
+    apiFetchJsonMock.mockResolvedValue({ channels: ['general'] });
+    apiFetchMock.mockResolvedValue(new Response(null, { status: 200 }));
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it('deletes the image after the user confirms', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderGallery();
+    const button = await screen.findByRole('button', { name: 'Delete image' });
+
+    fireEvent.click(button);
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
+    const [url, options] = apiFetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('general');
+    expect(options.method).toBe('DELETE');
+  });
+
+  it('does not delete when the confirmation is declined', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderGallery();
+    const button = await screen.findByRole('button', { name: 'Delete image' });
+
+    fireEvent.click(button);
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('shows an error toast when deletion fails', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    apiFetchMock.mockRejectedValue(new Error('boom'));
+    renderGallery();
+    const button = await screen.findByRole('button', { name: 'Delete image' });
+
+    fireEvent.click(button);
+
+    await waitFor(() => expect(showToastMock).toHaveBeenCalled());
   });
 });

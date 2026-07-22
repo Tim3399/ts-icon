@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Cropper from 'cropperjs';
 import { API_URL, GET_IMAGE_URL } from '../config';
 import { useAuth } from '../auth/AuthProvider';
@@ -23,7 +22,6 @@ const BannerCropper: React.FC = () => {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const toggleZoom = () => setIsZoomed(z => !z);
-  const navigate = useNavigate();
   const { getToken } = useAuth();
   const { showToast } = useToast();
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
@@ -294,9 +292,6 @@ const BannerCropper: React.FC = () => {
       <div className="actions-row">
         <button type="button" className="btn btn-primary" onClick={handleUpload} disabled={isUploading}>
           {isUploading ? 'Uploading...' : 'Crop & send image'}
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={() => navigate('/channels')}>
-          Manage channel images
         </button>
       </div>
     </div>
