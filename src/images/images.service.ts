@@ -149,6 +149,21 @@ export class ImagesService {
     });
   }
 
+  /**
+   * Deletes the stored image for a channel, if one exists. Returns whether a
+   * row was actually deleted (rather than throwing when there wasn't one) so
+   * the controller can decide how to respond -- `deleteMany` matches on the
+   * `channelName` primary key and simply reports a 0 count instead of
+   * throwing like `delete` would, which is a better fit here since "nothing
+   * to delete" is an entirely expected, non-exceptional case for this call.
+   */
+  async deleteImage(channelName: string): Promise<boolean> {
+    const result = await this.prisma.channelImage.deleteMany({
+      where: { channelName },
+    });
+    return result.count > 0;
+  }
+
   async listOptions(): Promise<
     Array<{ channelName: string; mimeType: string }>
   > {

@@ -6,6 +6,7 @@ import {
   Res,
   Post,
   Patch,
+  Delete,
   Param,
   UploadedFile,
   UseInterceptors,
@@ -543,6 +544,38 @@ export class ImagesLocalController {
     }
   }
 
+  @Delete(':channelName')
+  @Roles(OIDC_EDITOR_ROLE)
+  @AuditAction('delete')
+  @UseInterceptors(AuditLoggingInterceptor)
+  @ApiOperation({
+    summary: 'Deletes the stored image for a channel (local only)',
+  })
+  @ApiParam({ name: 'channelName', type: String })
+  @ApiResponse({ status: 200, description: 'Image deleted' })
+  @ApiResponse({ status: 404, description: 'No image exists for this channel' })
+  async deleteImage(
+    @Param('channelName', ChannelNameValidationPipe) channelName: string,
+  ) {
+    const normalizedChannel = normalizeChannelName(channelName);
+    logger.log(`[deleteImage] Request: channelName=${normalizedChannel}`);
+    if (!normalizedChannel) {
+      logger.warn(`[deleteImage] channelName normalized to an empty string`);
+      throw new BadRequestException('channelName is invalid');
+    }
+
+    const deleted = await this.imagesService.deleteImage(normalizedChannel);
+    if (!deleted) {
+      logger.warn(`[deleteImage] No image exists for ${normalizedChannel}`);
+      throw new NotFoundException(
+        `No image exists for channel "${normalizedChannel}"`,
+      );
+    }
+
+    logger.log(`[deleteImage] Deleted image for ${normalizedChannel}`);
+    return { message: 'Image deleted successfully' };
+  }
+
   @Get('options')
   @Roles(OIDC_ADMIN_ROLE)
   @ApiOperation({
@@ -629,10 +662,10 @@ export class ImagesLocalController {
   }
 
   @Get('channels/banner-urls')
-  @Roles(OIDC_EDITOR_ROLE)
+  @Roles(OIDC_ADMIN_ROLE)
   @ApiOperation({
     summary:
-      "Returns each channel's current banner URL and whether it's managed by this server (local only)",
+      "Returns each channel's current banner URL and whether it's managed by this server (admin only)",
   })
   @ApiResponse({
     status: 200,
@@ -678,12 +711,12 @@ export class ImagesLocalController {
   }
 
   @Patch(':channelName/banner-url')
-  @Roles(OIDC_EDITOR_ROLE)
+  @Roles(OIDC_ADMIN_ROLE)
   @AuditAction('set-banner-url')
   @UseInterceptors(AuditLoggingInterceptor)
   @ApiOperation({
     summary:
-      "Sets a channel's TeamSpeak banner URL to point at this server's managed image (local only)",
+      "Sets a channel's TeamSpeak banner URL to point at this server's managed image (admin only)",
   })
   @ApiParam({ name: 'channelName', type: String })
   @ApiResponse({
@@ -737,12 +770,12 @@ export class ImagesLocalController {
   }
 
   @Post('channels/apply-banner-urls')
-  @Roles(OIDC_EDITOR_ROLE)
+  @Roles(OIDC_ADMIN_ROLE)
   @AuditAction('apply-banner-urls')
   @UseInterceptors(AuditLoggingInterceptor)
   @ApiOperation({
     summary:
-      'Sets the banner URL for every channel not already managed by this server (local only)',
+      'Sets the banner URL for every channel not already managed by this server (admin only)',
   })
   @ApiResponse({
     status: 200,

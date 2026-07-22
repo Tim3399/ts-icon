@@ -318,4 +318,19 @@ describe('ImagesService (integration: real SQLite + real Prisma migrations)', ()
     });
     expect(rowAfterRead?.contentHash).toBe('');
   });
+
+  it('deletes an existing image and reports it was deleted', async () => {
+    await service.saveImage(
+      'delete-me',
+      Buffer.from('bytes-to-delete'),
+      'image/png',
+    );
+
+    await expect(service.deleteImage('delete-me')).resolves.toBe(true);
+    await expect(service.getImage('delete-me')).resolves.toBeNull();
+  });
+
+  it('reports false when deleting a channel with no stored image', async () => {
+    await expect(service.deleteImage('never-existed')).resolves.toBe(false);
+  });
 });

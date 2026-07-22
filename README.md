@@ -69,7 +69,7 @@ The repository contains a small React + Vite frontend located at `webapp-banner-
 - Located in `webapp-banner-tool/`
 - Built with React and Vite
 - Main entry: `webapp-banner-tool/src/App.tsx`
-- Includes an **admin-only** page (`/banner-urls`) for pointing TeamSpeak channels' own banner setting at this server's managed image — gated to the `ts-icon-admin` role specifically (not editor), a stricter UI-level restriction than the backend endpoints it calls actually require. Requires `PUBLIC_BASE_URL` to be set on the backend.
+- Includes an **admin-only** page (`/banner-urls`) for pointing TeamSpeak channels' own banner setting at this server's managed image — gated to the `ts-icon-admin` role specifically (not editor), both in the UI and by the backend endpoints it calls. Requires `PUBLIC_BASE_URL` to be set on the backend.
 - Start locally:
   ```powershell
   cd webapp-banner-tool
@@ -140,9 +140,10 @@ This endpoint is rate-limited per client IP (see [Rate Limiting](#rate-limiting)
 | `GET /images-local/img-from-url?url=...` | Proxy an external image URL and return it (used by the frontend's "load image from URL" preview) | `ts-icon-editor` | SSRF-hardened (see below) |
 | `GET /images-local/channels` | Returns a list of channels fetched live via TeamSpeak ServerQuery | `ts-icon-editor` | Returns `{ "channels": [] , "error": "..." }` if TeamSpeak is unreachable, rather than failing the request |
 | `GET /images-local/options` | Lists every stored channel image (channel name + MIME type) across the whole database | `ts-icon-admin` | Administrative listing endpoint — deliberately gated to admin, not editor |
-| `GET /images-local/channels/banner-urls` | Returns each live channel's current TeamSpeak banner URL and whether it's already set to this server's managed image | `ts-icon-editor` | Used by the frontend's banner-URL manager page (admin-only in the UI, though the endpoint itself is editor-gated like the others) |
-| `PATCH /images-local/:channelName/banner-url` | Sets a channel's TeamSpeak banner URL to point at this server's managed image for that channel | `ts-icon-editor` | Requires `PUBLIC_BASE_URL` to be configured (see [Environment Variables](#environment-variables)) |
-| `POST /images-local/channels/apply-banner-urls` | Sets the banner URL on every channel not already pointed at this server, in one TeamSpeak connection | `ts-icon-editor` | Returns `{ "updated": [...], "alreadyManaged": [...] }`; skips channels already correctly set |
+| `GET /images-local/channels/banner-urls` | Returns each live channel's current TeamSpeak banner URL and whether it's already set to this server's managed image | `ts-icon-admin` | Used by the frontend's banner-URL manager page (admin-only, both in the UI and at this endpoint) |
+| `PATCH /images-local/:channelName/banner-url` | Sets a channel's TeamSpeak banner URL to point at this server's managed image for that channel | `ts-icon-admin` | Requires `PUBLIC_BASE_URL` to be configured (see [Environment Variables](#environment-variables)) |
+| `POST /images-local/channels/apply-banner-urls` | Sets the banner URL on every channel not already pointed at this server, in one TeamSpeak connection | `ts-icon-admin` | Returns `{ "updated": [...], "alreadyManaged": [...] }`; skips channels already correctly set |
+| `DELETE /images-local/:channelName` | Deletes the stored image for a channel | `ts-icon-editor` | Returns 404 if no image exists for the channel |
 
 Example (upload):
 ```powershell

@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import {
   BadGatewayException,
   BadRequestException,
@@ -32,6 +33,8 @@ import {
 } from './image-processing';
 import type { ImagesService } from './images.service';
 import type { MetricsService } from '../metrics/metrics.service';
+import { ROLES_KEY } from '../auth/roles.decorator';
+import { OIDC_ADMIN_ROLE, OIDC_EDITOR_ROLE } from '../../config';
 
 const TEST_PUBLIC_BASE_URL = 'https://ts-icon.example.test';
 
@@ -114,18 +117,27 @@ function createImagesServiceStub(): {
   findByChannelId: jest.Mock;
   channelNameInUse: jest.Mock;
   saveImage: jest.Mock;
+  deleteImage: jest.Mock;
 } {
   const findByChannelId = jest.fn().mockResolvedValue(null);
   const channelNameInUse = jest.fn().mockResolvedValue(false);
   const saveImage = jest.fn();
+  const deleteImage = jest.fn().mockResolvedValue(true);
   const imagesService = {
     saveImage,
+    deleteImage,
     getImage: jest.fn(),
     listOptions: jest.fn(),
     findByChannelId,
     channelNameInUse,
   } as unknown as ImagesService;
-  return { imagesService, findByChannelId, channelNameInUse, saveImage };
+  return {
+    imagesService,
+    findByChannelId,
+    channelNameInUse,
+    saveImage,
+    deleteImage,
+  };
 }
 
 // Only the counters actually exercised by these tests get real jest.fn()s;
@@ -692,6 +704,38 @@ describe('ImagesLocalController.applyBannerUrls', () => {
   });
 });
 
+describe('ImagesLocalController.deleteImage', () => {
+  it('deletes the stored image and returns a success message', async () => {
+    const { imagesService, deleteImage } = createImagesServiceStub();
+    const controller = createController(imagesService);
+
+    await expect(controller.deleteImage('chan')).resolves.toEqual({
+      message: 'Image deleted successfully',
+    });
+    expect(deleteImage).toHaveBeenCalledWith('chan');
+  });
+
+  it('rejects with 404 when no image exists for the channel', async () => {
+    const { imagesService, deleteImage } = createImagesServiceStub();
+    deleteImage.mockResolvedValue(false);
+    const controller = createController(imagesService);
+
+    await expect(controller.deleteImage('chan')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('rejects with 400 when channelName normalizes to an empty string', async () => {
+    const { imagesService, deleteImage } = createImagesServiceStub();
+    const controller = createController(imagesService);
+
+    await expect(controller.deleteImage('!!!')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(deleteImage).not.toHaveBeenCalled();
+  });
+});
+
 describe('ImagesLocalController.uploadSpacerBaseImage', () => {
   function createFile(): Express.Multer.File {
     return {
@@ -782,5 +826,32 @@ describe('ImagesLocalController.getSpacerBaseImage', () => {
 
     expect(setHeader).toHaveBeenCalledWith('Content-Type', 'image/png');
     expect(send).toHaveBeenCalledWith(Buffer.from('base-bytes'));
+  });
+});
+
+// Regression guard, not endpoint behavior: the banner-url endpoints are a
+// bulk write across every real TeamSpeak channel, more consequential than a
+// routine upload, so they're gated to OIDC_ADMIN_ROLE specifically -- unlike
+// every other write endpoint in this controller, which only requires
+// OIDC_EDITOR_ROLE. Reading the @Roles() metadata directly (same technique
+// as decorators.spec.ts) catches an accidental downgrade back to the editor
+// role without needing a full HTTP-level RolesGuard test.
+describe('ImagesLocalController role requirements', () => {
+  function rolesOf(methodName: keyof ImagesLocalController): unknown {
+    return Reflect.getMetadata(
+      ROLES_KEY,
+      ImagesLocalController.prototype[methodName],
+    );
+  }
+
+  it('requires the admin role for every banner-url endpoint', () => {
+    expect(rolesOf('listChannelBannerUrls')).toEqual([OIDC_ADMIN_ROLE]);
+    expect(rolesOf('setBannerUrl')).toEqual([OIDC_ADMIN_ROLE]);
+    expect(rolesOf('applyBannerUrls')).toEqual([OIDC_ADMIN_ROLE]);
+  });
+
+  it('still only requires the editor role for uploads and deletes', () => {
+    expect(rolesOf('uploadImage')).toEqual([OIDC_EDITOR_ROLE]);
+    expect(rolesOf('deleteImage')).toEqual([OIDC_EDITOR_ROLE]);
   });
 });
