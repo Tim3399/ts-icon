@@ -8,9 +8,15 @@ export default function App() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '8px 16px', background: '#f0f0f0', borderBottom: '1px solid #ccc' }}>
-        <span style={{ marginRight: 12 }}>Angemeldet als: <strong>{username}</strong></span>
-        <button onClick={logout} style={{ padding: '4px 12px' }}>Logout</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 16px', background: '#f0f0f0', borderBottom: '1px solid #ccc' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <img src="/icon.svg" alt="" width={24} height={24} />
+          <strong>TS-Icon</strong>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <span style={{ marginRight: 12 }}>Angemeldet als: <strong>{username}</strong></span>
+          <button onClick={logout} style={{ padding: '4px 12px' }}>Logout</button>
+        </div>
       </div>
       <Routes>
         <Route path="/" element={<BannerCropper />} />
