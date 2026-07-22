@@ -177,6 +177,8 @@ jobs:
             VITE_KEYCLOAK_REALM=ci-placeholder
             VITE_KEYCLOAK_CLIENT_ID=ci-placeholder
             VITE_KEYCLOAK_ENABLED=false
+            VITE_KEYCLOAK_ADMIN_ROLE=ci-placeholder-admin
+            VITE_KEYCLOAK_EDITOR_ROLE=ci-placeholder-editor
           cache-from: type=gha,scope=docker-frontend
           cache-to: type=gha,mode=max,scope=docker-frontend
 
@@ -313,5 +315,7 @@ jobs:
             VITE_KEYCLOAK_REALM=${{ vars.VITE_KEYCLOAK_REALM }}
             VITE_KEYCLOAK_CLIENT_ID=${{ vars.VITE_KEYCLOAK_CLIENT_ID }}
             VITE_KEYCLOAK_ENABLED=${{ vars.VITE_KEYCLOAK_ENABLED }}
+            VITE_KEYCLOAK_ADMIN_ROLE=${{ vars.VITE_KEYCLOAK_ADMIN_ROLE }}
+            VITE_KEYCLOAK_EDITOR_ROLE=${{ vars.VITE_KEYCLOAK_EDITOR_ROLE }}
           cache-from: type=gha,scope=docker-frontend
           cache-to: type=gha,mode=max,scope=docker-frontend

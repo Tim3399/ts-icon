@@ -220,7 +220,7 @@ Backend configuration is read from a root `.env` file — see `.env.example` for
 - `OIDC_ISSUER_URL`/`OIDC_AUDIENCE` are required — there is no default issuer or audience to validate JWTs against.
 - `CORS_ORIGINS` is a comma-separated allowlist for the admin API; if unset, no cross-origin browser access is enabled at all (no wildcard fallback).
 
-Frontend configuration is read from a `.env` file in `webapp-banner-tool/` — see `webapp-banner-tool/.env.example` for the full list (`VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`, `VITE_KEYCLOAK_ENABLED`, `VITE_PUBLIC_API_URL`, `VITE_ADMIN_API_URL`).
+Frontend configuration is read from a `.env` file in `webapp-banner-tool/` — see `webapp-banner-tool/.env.example` for the full list (`VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`, `VITE_KEYCLOAK_ENABLED`, `VITE_KEYCLOAK_ADMIN_ROLE`, `VITE_KEYCLOAK_EDITOR_ROLE`, `VITE_PUBLIC_API_URL`, `VITE_ADMIN_API_URL`).
 
 Never commit either `.env` file.
 
@@ -264,7 +264,7 @@ The Node version is pinned in `.nvmrc` (currently `22`). Use a Node version mana
 On a push to `main`, once the three jobs above have all passed, two more run:
 
 - **`version-tag`:** compares the root `package.json` version against existing git tags. If `vX.Y.Z` doesn't already exist as a tag, it's created and pushed. Root `package.json` is the single source of truth for the version — `webapp-banner-tool/package.json` is expected to always match it, and this job fails loudly if they've drifted apart instead of guessing which one is right.
-- **`publish-images`:** builds and pushes both Docker images to GHCR — `ghcr.io/<owner>/ts-icon-backend` and `ghcr.io/<owner>/ts-icon-frontend`. Every push to `main` updates the `latest`/`main`/`sha-<short-sha>` tags; a `vX.Y.Z` tag is added only on the push where `version-tag` actually created that tag. The frontend image's `VITE_*` values (baked into the JS bundle at build time — see `webapp-banner-tool/Dockerfile`) come from this repo's Actions **Variables** (not Secrets, since they end up visible in the shipped JS bundle anyway); until `VITE_PUBLIC_API_URL`/`VITE_ADMIN_API_URL`/`VITE_KEYCLOAK_URL`/`VITE_KEYCLOAK_REALM`/`VITE_KEYCLOAK_CLIENT_ID`/`VITE_KEYCLOAK_ENABLED` are set there, the published frontend image is built against empty config and isn't yet meaningful to deploy as-is.
+- **`publish-images`:** builds and pushes both Docker images to GHCR — `ghcr.io/<owner>/ts-icon-backend` and `ghcr.io/<owner>/ts-icon-frontend`. Every push to `main` updates the `latest`/`main`/`sha-<short-sha>` tags; a `vX.Y.Z` tag is added only on the push where `version-tag` actually created that tag. The frontend image's `VITE_*` values (baked into the JS bundle at build time — see `webapp-banner-tool/Dockerfile`) come from this repo's Actions **Variables** (not Secrets, since they end up visible in the shipped JS bundle anyway); until `VITE_PUBLIC_API_URL`/`VITE_ADMIN_API_URL`/`VITE_KEYCLOAK_URL`/`VITE_KEYCLOAK_REALM`/`VITE_KEYCLOAK_CLIENT_ID`/`VITE_KEYCLOAK_ENABLED`/`VITE_KEYCLOAK_ADMIN_ROLE`/`VITE_KEYCLOAK_EDITOR_ROLE` are set there, the published frontend image is built against empty config and isn't yet meaningful to deploy as-is.
 
 Neither job deploys anywhere — that still needs host/SSH secrets that aren't configured yet.
 
