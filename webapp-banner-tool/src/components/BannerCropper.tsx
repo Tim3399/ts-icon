@@ -213,6 +213,26 @@ const BannerCropper: React.FC = () => {
             ))}
           </datalist>
         </div>
+
+        {channelList.length > 0 && (
+          <div className="field">
+            <span className="label">
+              Channels you can manage ({channelList.length}) — click one to select it
+            </span>
+            <div className="channel-chip-list">
+              {channelList.map((name) => (
+                <button
+                  type="button"
+                  key={name}
+                  className={`channel-chip${name === channelName ? ' channel-chip-selected' : ''}`}
+                  onClick={() => setChannelName(name)}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card">

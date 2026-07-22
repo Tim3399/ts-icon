@@ -14,6 +14,7 @@ const ChannelGallery: React.FC = () => {
   const [missingImages, setMissingImages] = useState<Record<string, boolean>>({});
   const [channelsLoading, setChannelsLoading] = useState(true);
   const [uploadingChannel, setUploadingChannel] = useState<string | null>(null);
+  const [dragOverChannel, setDragOverChannel] = useState<string | null>(null);
   const navigate = useNavigate();
   const { getToken } = useAuth();
   const { showToast } = useToast();
@@ -66,6 +67,31 @@ const ChannelGallery: React.FC = () => {
     setMissingImages(prev => ({ ...prev, [channelName]: true }));
   };
 
+  // Lets a channel's banner be replaced by dragging an image file straight
+  // onto its card, as an alternative to the file input below it. Both
+  // paths end up at the same handleImageChange -- drag-and-drop is just
+  // another way to supply the File object.
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>, channelName: string) => {
+    e.preventDefault();
+    if (dragOverChannel !== channelName) setDragOverChannel(channelName);
+  };
+
+  // dragleave fires when moving over any child element within the card too
+  // (the image, the file input), not just when actually leaving the card --
+  // ignoring those keeps the highlight from flickering while dragging over
+  // a card's contents.
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>, channelName: string) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setDragOverChannel(prev => (prev === channelName ? null : prev));
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, channelName: string) => {
+    e.preventDefault();
+    setDragOverChannel(null);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleImageChange(channelName, file);
+  };
+
   return (
     <div>
       <div className="gallery-header">
@@ -81,7 +107,13 @@ const ChannelGallery: React.FC = () => {
       {!channelsLoading && channels.length > 0 && (
         <div className="channel-grid">
           {channels.map((channel) => (
-            <div className="channel-card" key={channel.name}>
+            <div
+              className={`channel-card${dragOverChannel === channel.name ? ' channel-card-drag-over' : ''}`}
+              key={channel.name}
+              onDragOver={(e) => handleDragOver(e, channel.name)}
+              onDragLeave={(e) => handleDragLeave(e, channel.name)}
+              onDrop={(e) => handleDrop(e, channel.name)}
+            >
               <div className="channel-card-image">
                 {!missingImages[channel.name] ? (
                   <img
@@ -103,8 +135,10 @@ const ChannelGallery: React.FC = () => {
                   if (e.target.files?.[0]) handleImageChange(channel.name, e.target.files[0]);
                 }}
               />
-              {uploadingChannel === channel.name && (
+              {uploadingChannel === channel.name ? (
                 <div className="channel-card-status">Uploading…</div>
+              ) : (
+                <div className="channel-card-status">or drop an image here</div>
               )}
             </div>
           ))}
