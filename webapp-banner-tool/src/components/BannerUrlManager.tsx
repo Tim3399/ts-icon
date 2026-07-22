@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { API_URL, CHANNEL_BANNER_URLS_URL, APPLY_BANNER_URLS_URL } from '../config';
+import { API_URL, CHANNEL_BANNER_URLS_URL, APPLY_BANNER_URLS_URL, SPACER_BASE_IMAGE_URL } from '../config';
 import { useAuth } from '../auth/AuthProvider';
 import { useCanUpload } from '../auth/permissions';
-import { apiFetch, apiFetchJson, describeApiError } from '../api/client';
+import { apiFetch, apiFetchBlob, apiFetchJson, ApiError, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
 import { useToast } from './Toast';
 
 interface ChannelBannerStatus {
@@ -21,6 +21,79 @@ const BannerUrlManager: React.FC = () => {
   const { getToken } = useAuth();
   const { showToast } = useToast();
   const canUpload = useCanUpload();
+
+  // "Spacer" channels (any channel name containing "spacer") show this image
+  // whenever they don't have one of their own set. Fetched through
+  // apiFetchBlob rather than a plain <img src>, since /images-local is
+  // JWT-gated and a plain <img> tag can't attach an Authorization header.
+  const [spacerBaseImageUrl, setSpacerBaseImageUrl] = useState<string | null>(null);
+  const [spacerImageLoading, setSpacerImageLoading] = useState(true);
+  const [spacerImageUploading, setSpacerImageUploading] = useState(false);
+  const [spacerDragOver, setSpacerDragOver] = useState(false);
+  const spacerObjectUrlRef = useRef<string | null>(null);
+
+  const loadSpacerBaseImage = useCallback(async () => {
+    setSpacerImageLoading(true);
+    try {
+      const blob = await apiFetchBlob(SPACER_BASE_IMAGE_URL, { getToken });
+      const objectUrl = URL.createObjectURL(blob);
+      if (spacerObjectUrlRef.current) URL.revokeObjectURL(spacerObjectUrlRef.current);
+      spacerObjectUrlRef.current = objectUrl;
+      setSpacerBaseImageUrl(objectUrl);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setSpacerBaseImageUrl(null);
+      } else {
+        showToast(describeApiError(err, 'Spacer base image could not be loaded'), 'error');
+      }
+    } finally {
+      setSpacerImageLoading(false);
+    }
+  }, [getToken, showToast]);
+
+  useEffect(() => {
+    loadSpacerBaseImage();
+    return () => {
+      if (spacerObjectUrlRef.current) URL.revokeObjectURL(spacerObjectUrlRef.current);
+    };
+  }, [loadSpacerBaseImage]);
+
+  const handleSpacerBaseImageChange = async (file: File) => {
+    setSpacerImageUploading(true);
+    const formData = new FormData();
+    formData.append('file', file, 'spacer-base.png');
+    try {
+      await apiFetch(SPACER_BASE_IMAGE_URL, {
+        method: 'POST',
+        body: formData,
+        getToken,
+        timeoutMs: UPLOAD_TIMEOUT_MS,
+      });
+      showToast('Spacer base image updated!', 'success');
+      await loadSpacerBaseImage();
+    } catch (err) {
+      showToast(describeApiError(err, 'Spacer base image could not be updated'), 'error');
+    } finally {
+      setSpacerImageUploading(false);
+    }
+  };
+
+  const handleSpacerDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    if (!spacerDragOver) setSpacerDragOver(true);
+  };
+
+  const handleSpacerDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setSpacerDragOver(false);
+  };
+
+  const handleSpacerDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setSpacerDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleSpacerBaseImageChange(file);
+  };
 
   const loadChannels = useCallback(() => {
     setLoading(true);
@@ -117,6 +190,44 @@ const BannerUrlManager: React.FC = () => {
         >
           {applyingAll ? 'Applying…' : 'Set for all channels'}
         </button>
+      </div>
+
+      <div className="card">
+        <h2 className="card-title">Spacer base image</h2>
+        <p style={{ marginTop: 0 }}>
+          Shown for any channel whose name contains "spacer", unless that channel has its own image set.
+        </p>
+        <div className="field">
+          <div className="channel-card-image" style={{ maxWidth: 220 }}>
+            {spacerImageLoading ? (
+              <span className="placeholder">Loading…</span>
+            ) : spacerBaseImageUrl ? (
+              <img src={spacerBaseImageUrl} alt="Spacer base" />
+            ) : (
+              <span className="placeholder">No spacer base image set</span>
+            )}
+          </div>
+        </div>
+        <div className="field">
+          <label
+            className={`dropzone${spacerDragOver ? ' dropzone-drag-over' : ''}`}
+            htmlFor="spacer-base-image-upload"
+            onDragOver={handleSpacerDragOver}
+            onDragLeave={handleSpacerDragLeave}
+            onDrop={handleSpacerDrop}
+          >
+            {spacerImageUploading ? 'Uploading…' : 'Drag & drop an image here, or click to browse'}
+            <input
+              type="file"
+              id="spacer-base-image-upload"
+              accept="image/*"
+              disabled={spacerImageUploading || !canUpload}
+              onChange={(e) => {
+                if (e.target.files?.[0]) handleSpacerBaseImageChange(e.target.files[0]);
+              }}
+            />
+          </label>
+        </div>
       </div>
 
       {loading && <p className="loading-state">Loading channels…</p>}
