@@ -259,7 +259,14 @@ The Node version is pinned in `.nvmrc` (currently `22`). Use a Node version mana
 
 - **Backend job:** install, generate Prisma client, lint, typecheck, build, unit tests.
 - **Frontend job:** install, lint, typecheck, build, unit tests.
-- **Docker build job:** validates that both the `builder` and `runner` Dockerfile stages actually build (no image is pushed anywhere).
+- **Docker build job:** validates that the backend's `builder`/`runner` stages and the frontend image all actually build (nothing is pushed anywhere in this job).
+
+On a push to `main`, once the three jobs above have all passed, two more run:
+
+- **`version-tag`:** compares the root `package.json` version against existing git tags. If `vX.Y.Z` doesn't already exist as a tag, it's created and pushed. Root `package.json` is the single source of truth for the version — `webapp-banner-tool/package.json` is expected to always match it, and this job fails loudly if they've drifted apart instead of guessing which one is right.
+- **`publish-images`:** builds and pushes both Docker images to GHCR — `ghcr.io/<owner>/ts-icon-backend` and `ghcr.io/<owner>/ts-icon-frontend`. Every push to `main` updates the `latest`/`main`/`sha-<short-sha>` tags; a `vX.Y.Z` tag is added only on the push where `version-tag` actually created that tag. The frontend image's `VITE_*` values (baked into the JS bundle at build time — see `webapp-banner-tool/Dockerfile`) come from this repo's Actions **Variables** (not Secrets, since they end up visible in the shipped JS bundle anyway); until `VITE_PUBLIC_API_URL`/`VITE_ADMIN_API_URL`/`VITE_KEYCLOAK_URL`/`VITE_KEYCLOAK_REALM`/`VITE_KEYCLOAK_CLIENT_ID`/`VITE_KEYCLOAK_ENABLED` are set there, the published frontend image is built against empty config and isn't yet meaningful to deploy as-is.
+
+Neither job deploys anywhere — that still needs host/SSH secrets that aren't configured yet.
 
 ## License
 MIT — see `LICENSE`.

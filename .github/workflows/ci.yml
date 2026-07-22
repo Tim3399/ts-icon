@@ -1,9 +1,11 @@
 name: CI
 
-# CI: install, lint, typecheck, build, test for both apps, plus a
-# build-only Docker image validation job. Deliberately does not include
-# pushing an image anywhere or deployment — those need registry/host
-# secrets that aren't configured yet.
+# CI: install, lint, typecheck, build, test for both apps, plus a Docker
+# image build validation job (runs for every push/PR on any branch). On a
+# push to main specifically, once all of the above have passed, two more
+# jobs run: tagging the commit if package.json's version changed, and
+# building+pushing both Docker images to GHCR. Actual deployment still
+# needs host/SSH secrets that aren't configured yet.
 on: [push, pull_request]
 
 # Cancel superseded runs on the same branch/PR so we don't burn minutes on
@@ -156,3 +158,160 @@ jobs:
           push: false
           cache-from: type=gha,scope=docker-builder
           cache-to: type=gha,mode=max,scope=docker-builder
+
+      # The frontend image had no CI coverage at all until now -- a broken
+      # frontend Dockerfile/nginx.conf would only surface once someone tried
+      # to actually build it for deployment. Build args are dummy values:
+      # this step only proves the image builds and Vite's build step
+      # succeeds, not that the baked-in config is correct for any real
+      # deployment target.
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./webapp-banner-tool
+          push: false
+          build-args: |
+            VITE_PUBLIC_API_URL=http://localhost:3000
+            VITE_ADMIN_API_URL=http://localhost:3001
+            VITE_KEYCLOAK_URL=http://localhost:8080
+            VITE_KEYCLOAK_REALM=ci-placeholder
+            VITE_KEYCLOAK_CLIENT_ID=ci-placeholder
+            VITE_KEYCLOAK_ENABLED=false
+          cache-from: type=gha,scope=docker-frontend
+          cache-to: type=gha,mode=max,scope=docker-frontend
+
+  # Everything below only runs for real pushes to main (never for PRs or
+  # other branches), and only after backend/frontend/docker-build have all
+  # passed -- a version bump or an image push should never happen off the
+  # back of code that doesn't actually build or pass its tests.
+
+  version-tag:
+    name: Tag commit on version bump
+    runs-on: ubuntu-latest
+    needs: [backend, frontend, docker-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      new_tag: ${{ steps.check.outputs.new_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need full history and tags to check whether a tag for the
+          # current version already exists, not just the latest commit.
+          fetch-depth: 0
+
+      - name: Check version and tag if new
+        id: check
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          FRONTEND_VERSION=$(node -p "require('./webapp-banner-tool/package.json').version")
+
+          # Root package.json is the single source of truth for the
+          # project's version; the frontend's own package.json is expected
+          # to always match it. If they've drifted apart, fail loudly here
+          # rather than silently tagging (or not tagging) based on a
+          # guess about which one is "right".
+          if [ "$VERSION" != "$FRONTEND_VERSION" ]; then
+            echo "::error::Root package.json ($VERSION) and webapp-banner-tool/package.json ($FRONTEND_VERSION) versions have drifted apart."
+            exit 1
+          fi
+
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "Tag v$VERSION already exists -- version unchanged since the last tagged commit, nothing to do."
+            echo "new_tag=false" >> "$GITHUB_OUTPUT"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "v$VERSION"
+            git push origin "v$VERSION"
+            echo "new_tag=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  publish-images:
+    name: Build and push Docker images to GHCR
+    runs-on: ubuntu-latest
+    needs: [backend, frontend, docker-build, version-tag]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `type=raw,value=v...,enable=...` only actually gets applied when
+      # version-tag found a brand new version -- otherwise every push to
+      # main would re-tag the previous version's images with their own
+      # version tag, which should be immutable once published.
+      - name: Backend image metadata
+        id: backend-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/ts-icon-backend
+          tags: |
+            type=raw,value=latest
+            type=raw,value=main
+            type=sha,prefix=sha-,format=short
+            type=raw,value=v${{ needs.version-tag.outputs.version }},enable=${{ needs.version-tag.outputs.new_tag == 'true' }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.backend-meta.outputs.tags }}
+          labels: ${{ steps.backend-meta.outputs.labels }}
+          cache-from: type=gha,scope=docker-runner
+          cache-to: type=gha,mode=max,scope=docker-runner
+
+      - name: Frontend image metadata
+        id: frontend-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/ts-icon-frontend
+          tags: |
+            type=raw,value=latest
+            type=raw,value=main
+            type=sha,prefix=sha-,format=short
+            type=raw,value=v${{ needs.version-tag.outputs.version }},enable=${{ needs.version-tag.outputs.new_tag == 'true' }}
+
+      # Real VITE_* values belong in this repo's Actions "Variables" (not
+      # Secrets -- anything here ends up baked into the JS bundle and is
+      # visible to any browser that loads the app, so there's no
+      # confidentiality to protect). Until those are set, this pushes a
+      # frontend image built against empty/undefined config, matching no
+      # real deployment target -- deliberately not defaulted to
+      # localhost-shaped placeholders the way the build-validation step
+      # above is, since that could be mistaken for a real config in a
+      # pushed, deployable image.
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./webapp-banner-tool
+          push: true
+          tags: ${{ steps.frontend-meta.outputs.tags }}
+          labels: ${{ steps.frontend-meta.outputs.labels }}
+          build-args: |
+            VITE_PUBLIC_API_URL=${{ vars.VITE_PUBLIC_API_URL }}
+            VITE_ADMIN_API_URL=${{ vars.VITE_ADMIN_API_URL }}
+            VITE_KEYCLOAK_URL=${{ vars.VITE_KEYCLOAK_URL }}
+            VITE_KEYCLOAK_REALM=${{ vars.VITE_KEYCLOAK_REALM }}
+            VITE_KEYCLOAK_CLIENT_ID=${{ vars.VITE_KEYCLOAK_CLIENT_ID }}
+            VITE_KEYCLOAK_ENABLED=${{ vars.VITE_KEYCLOAK_ENABLED }}
+          cache-from: type=gha,scope=docker-frontend
+          cache-to: type=gha,mode=max,scope=docker-frontend
