@@ -126,20 +126,21 @@ const ChannelGallery: React.FC = () => {
                 )}
               </div>
               <div className="channel-card-name">{channel.name}</div>
-              <input
-                className="input"
-                type="file"
-                accept="image/*"
-                disabled={uploadingChannel === channel.name}
-                onChange={e => {
-                  if (e.target.files?.[0]) handleImageChange(channel.name, e.target.files[0]);
-                }}
-              />
-              {uploadingChannel === channel.name ? (
-                <div className="channel-card-status">Uploading…</div>
-              ) : (
-                <div className="channel-card-status">or drop an image here</div>
-              )}
+              <label
+                className={`dropzone dropzone-compact${dragOverChannel === channel.name ? ' dropzone-drag-over' : ''}`}
+                htmlFor={`file-upload-${channel.name}`}
+              >
+                {uploadingChannel === channel.name ? 'Uploading…' : 'Drag & drop or click to upload'}
+                <input
+                  type="file"
+                  id={`file-upload-${channel.name}`}
+                  accept="image/*"
+                  disabled={uploadingChannel === channel.name}
+                  onChange={e => {
+                    if (e.target.files?.[0]) handleImageChange(channel.name, e.target.files[0]);
+                  }}
+                />
+              </label>
             </div>
           ))}
         </div>

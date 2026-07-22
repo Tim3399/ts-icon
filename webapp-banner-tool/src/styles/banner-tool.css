@@ -145,36 +145,37 @@ h1, h2, h3 {
   flex: 1;
 }
 
-.channel-chip-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  max-height: 140px;
+.autocomplete {
+  position: relative;
+}
+
+.autocomplete-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 220px;
   overflow-y: auto;
-  padding: 2px;
-}
-
-.channel-chip {
-  font: inherit;
-  font-size: 13px;
-  padding: 4px 10px;
-  border-radius: 999px;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  background: var(--color-bg);
-  color: var(--color-text);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.autocomplete-item {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
   cursor: pointer;
-  transition: border-color 0.1s ease, background-color 0.1s ease;
 }
 
-.channel-chip:hover {
-  border-color: var(--color-primary);
-}
-
-.channel-chip-selected {
-  border-color: var(--color-primary);
-  background: rgba(37, 99, 235, 0.1);
-  color: var(--color-primary);
-  font-weight: 600;
+.autocomplete-item:hover,
+.autocomplete-item-highlighted {
+  background: var(--color-bg);
 }
 
 /* Buttons */
@@ -308,7 +309,12 @@ h1, h2, h3 {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-bg);
-  transition: width 0.2s ease, height 0.2s ease;
+  /* Deliberately no width/height transition: BannerCropper re-initializes
+     Cropper.js right after toggling the enlarge/shrink size (see its
+     isZoomed effect), and Cropper.js measures the container synchronously
+     at that point -- an animated resize meant the measurement happened
+     mid-transition, sizing/positioning the crop tool against the wrong
+     (transitional) dimensions instead of the final ones. */
 }
 
 .preview-box img {
@@ -353,6 +359,42 @@ h1, h2, h3 {
   border-color: var(--color-primary);
   border-style: dashed;
   background: rgba(37, 99, 235, 0.06);
+}
+
+/* Dropzones -- a dashed border shown at all times (not just while
+   actively dragging) so drag-and-drop is discoverable on its own, not
+   only obvious to someone already mid-drag. */
+
+.dropzone {
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  padding: 18px 12px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.1s ease, background-color 0.1s ease, color 0.1s ease;
+}
+
+.dropzone:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.dropzone-drag-over {
+  border-color: var(--color-primary);
+  background: rgba(37, 99, 235, 0.06);
+  color: var(--color-primary);
+}
+
+.dropzone input[type='file'] {
+  display: none;
+}
+
+.dropzone-compact {
+  padding: 10px 8px;
+  font-size: 12px;
 }
 
 .channel-card-image {

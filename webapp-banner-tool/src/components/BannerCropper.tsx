@@ -5,6 +5,7 @@ import { API_URL, GET_IMAGE_URL } from '../config';
 import { useAuth } from '../auth/AuthProvider';
 import { apiFetch, apiFetchBlob, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
 import { useToast } from './Toast';
+import ChannelAutocomplete from './ChannelAutocomplete';
 
 const TARGET_WIDTH = 500;
 const TARGET_HEIGHT = 44;
@@ -13,13 +14,13 @@ const TARGET_RATIO = TARGET_WIDTH / TARGET_HEIGHT;
 const BannerCropper: React.FC = () => {
   const previewRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [channelName, setChannelName] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [channelList, setChannelList] = useState<string[]>([]);
   const cropperRef = useRef<Cropper | null>(null);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const toggleZoom = () => setIsZoomed(z => !z);
   const navigate = useNavigate();
@@ -92,10 +93,10 @@ const BannerCropper: React.FC = () => {
     cropperRef.current = new Cropper(image, options);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  // Shared by both the click-to-browse file input and drag-and-drop --
+  // either path ends up with a File object, this is what turns it into a
+  // loaded preview ready for cropping.
+  const loadFileIntoPreview = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
       if (previewRef.current) {
@@ -104,6 +105,29 @@ const BannerCropper: React.FC = () => {
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    loadFileIntoPreview(file);
+  };
+
+  const handleDropzoneDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    if (!isDragOver) setIsDragOver(true);
+  };
+
+  const handleDropzoneDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setIsDragOver(false);
+  };
+
+  const handleDropzoneDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) loadFileIntoPreview(file);
   };
 
   const handleUrlLoad = async () => {
@@ -197,56 +221,35 @@ const BannerCropper: React.FC = () => {
         <h2 className="card-title">Channel</h2>
         <div className="field">
           <label className="label" htmlFor="channel">Channel name</label>
-          <input
-            className="input"
-            type="text"
+          <ChannelAutocomplete
             id="channel"
-            list="channel-list"
-            placeholder="lobby"
             value={channelName}
-            onChange={(e) => setChannelName(e.target.value)}
-            required
+            onChange={setChannelName}
+            channels={channelList}
+            placeholder="lobby"
           />
-          <datalist id="channel-list">
-            {channelList.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
         </div>
-
-        {channelList.length > 0 && (
-          <div className="field">
-            <span className="label">
-              Channels you can manage ({channelList.length}) — click one to select it
-            </span>
-            <div className="channel-chip-list">
-              {channelList.map((name) => (
-                <button
-                  type="button"
-                  key={name}
-                  className={`channel-chip${name === channelName ? ' channel-chip-selected' : ''}`}
-                  onClick={() => setChannelName(name)}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="card">
         <h2 className="card-title">Image source</h2>
         <div className="field">
-          <label className="label" htmlFor="file-upload">Upload a file</label>
-          <input
-            className="input"
-            type="file"
-            id="file-upload"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept="image/*"
-          />
+          <span className="label">Upload an image</span>
+          <label
+            className={`dropzone${isDragOver ? ' dropzone-drag-over' : ''}`}
+            htmlFor="file-upload"
+            onDragOver={handleDropzoneDragOver}
+            onDragLeave={handleDropzoneDragLeave}
+            onDrop={handleDropzoneDrop}
+          >
+            Drag &amp; drop an image here, or click to browse
+            <input
+              type="file"
+              id="file-upload"
+              onChange={handleFileChange}
+              accept="image/*"
+            />
+          </label>
         </div>
         <div className="field">
           <label className="label" htmlFor="imageUrl">Or load from a URL</label>
