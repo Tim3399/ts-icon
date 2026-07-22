@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Query,
+  Req,
   Res,
   Post,
   Param,
@@ -27,7 +28,7 @@ import {
   ApiBody,
   ApiResponse,
 } from '@nestjs/swagger';
-import { Express, Response } from 'express';
+import { Express, Request, Response } from 'express';
 
 import { OIDC_ADMIN_ROLE, OIDC_EDITOR_ROLE } from '../../config';
 import { normalizeChannelName } from '../util/util';
@@ -174,7 +175,7 @@ export class ImagesLocalController {
     summary: 'Upload an image from a URL for the channel (local only)',
   })
   @ApiBody({ type: ImageFromUrlDto })
-  async uploadImageFromUrl(@Body() body: ImageFromUrlDto) {
+  async uploadImageFromUrl(@Body() body: ImageFromUrlDto, @Req() req: Request) {
     const { channelName, url } = body;
     const normalizedChannel = normalizeChannelName(channelName);
     logger.log(
@@ -231,6 +232,7 @@ export class ImagesLocalController {
         processed.buffer,
         processed.mimeType,
         resolved.channelId,
+        req.user?.sub,
       );
       logger.log(
         `[from-url] Image saved successfully for ${normalizedChannel}`,
@@ -305,6 +307,7 @@ export class ImagesLocalController {
   async uploadImage(
     @Param('channelName', ChannelNameValidationPipe) channelName: string,
     @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request,
   ) {
     const normalizedChannel = normalizeChannelName(channelName);
     logger.log(
@@ -367,6 +370,7 @@ export class ImagesLocalController {
         processed.buffer,
         processed.mimeType,
         resolved.channelId,
+        req.user?.sub,
       );
       logger.log(
         `[uploadImage] Image saved successfully for ${normalizedChannel}`,

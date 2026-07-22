@@ -1,11 +1,24 @@
 model ChannelImage {
-  channelName String  @id
+  channelName       String   @id
   // Stable TeamSpeak channel ID. Nullable because existing rows predate this
   // column and haven't been backfilled yet (see scripts/backfill-channel-ids.ts).
   // Unique so a given TeamSpeak channel can only ever be tied to one row.
-  channelId   String? @unique
-  image       Bytes
-  mimeType    String
+  channelId         String?  @unique
+  image             Bytes
+  mimeType          String
+  // Byte length of `image`. Stored alongside it so a size-only read (e.g. an
+  // admin listing) never has to load the blob itself.
+  size              Int
+  // Lowercase hex SHA-256 digest of `image`'s exact bytes. Used as the
+  // GET /images/:channelName ETag so clients/proxies can validate a cached
+  // copy with If-None-Match instead of re-downloading an unchanged banner.
+  contentHash       String
+  // Keycloak `sub` claim of whoever last wrote this row. Nullable: rows
+  // written before this column existed have none, and not every write path
+  // threads a subject through (yet).
+  lastEditorSubject String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 datasource db {

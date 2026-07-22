@@ -2,18 +2,39 @@ import {
   Controller,
   Get,
   Param,
+  Req,
   Res,
   NotFoundException,
   Logger,
 } from '@nestjs/common';
 import { ImagesService } from './images.service';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 
 import { normalizeChannelName } from '../util/util';
 import { ChannelNameValidationPipe } from './dto/channel-name-validation.pipe';
 
 const logger = new Logger('ImagesPublicController');
+
+/**
+ * Checks a raw `If-None-Match` request header value against the current
+ * ETag. Supports the two shapes the HTTP spec actually allows for this
+ * header: a bare `*` (matches any current representation) and a
+ * comma-separated list of quoted entity tags — a client re-requesting a
+ * single resource almost always sends back exactly the one ETag it was
+ * given, but the list form is valid too and cheap to support correctly.
+ */
+export function ifNoneMatchSatisfied(
+  ifNoneMatch: string | undefined,
+  etag: string,
+): boolean {
+  if (!ifNoneMatch) return false;
+  if (ifNoneMatch.trim() === '*') return true;
+  return ifNoneMatch
+    .split(',')
+    .map((value) => value.trim())
+    .includes(etag);
+}
 
 @ApiTags('images')
 @Controller('images')
@@ -25,6 +46,7 @@ export class ImagesPublicController {
   @ApiParam({ name: 'channelName', type: String })
   async getImage(
     @Param('channelName', ChannelNameValidationPipe) channelName: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const normalizedChannel = normalizeChannelName(channelName);
@@ -34,9 +56,22 @@ export class ImagesPublicController {
       logger.warn(`[getImage] Image not found for ${normalizedChannel}`);
       throw new NotFoundException('Image not found');
     }
-    res.setHeader('Content-Type', image.mimeType);
-    // Set Cache-Control header for 1 day (86400 seconds)
+
+    const etag = `"${image.contentHash}"`;
+    // Set for both the 304 and 200 outcomes below -- a 304 response must
+    // still carry the validator it's confirming, plus the same cache policy
+    // as the 200 it stands in for.
     res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('ETag', etag);
+
+    if (ifNoneMatchSatisfied(req.get('If-None-Match'), etag)) {
+      logger.log(
+        `[getImage] Not modified (If-None-Match matched) for ${normalizedChannel}`,
+      );
+      return res.status(304).end();
+    }
+
+    res.setHeader('Content-Type', image.mimeType);
     logger.log(`[getImage] Image served successfully for ${normalizedChannel}`);
     return res.send(image.image);
   }

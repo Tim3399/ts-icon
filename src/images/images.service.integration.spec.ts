@@ -206,4 +206,116 @@ describe('ImagesService (integration: real SQLite + real Prisma migrations)', ()
     await service.saveImage('now-saved', Buffer.from('x'), 'image/png');
     expect(await service.channelNameInUse('now-saved')).toBe(true);
   });
+
+  it('persists size, content hash, createdAt, updatedAt, and lastEditorSubject on save', async () => {
+    const buffer = Buffer.from('metadata-test-bytes');
+    const before = Date.now();
+
+    await service.saveImage(
+      'metadata-channel',
+      buffer,
+      'image/png',
+      undefined,
+      'editor-sub-123',
+    );
+
+    const row = await prisma.channelImage.findUnique({
+      where: { channelName: 'metadata-channel' },
+    });
+    expect(row).not.toBeNull();
+    expect(row?.size).toBe(buffer.length);
+    expect(row?.contentHash).toBe(
+      crypto.createHash('sha256').update(buffer).digest('hex'),
+    );
+    expect(row?.lastEditorSubject).toBe('editor-sub-123');
+    // SQLite's DATETIME columns only have second-level precision, so allow
+    // a little slack rather than asserting an exact millisecond match.
+    expect(row!.createdAt.getTime()).toBeGreaterThanOrEqual(before - 2000);
+    expect(row!.updatedAt.getTime()).toBeGreaterThanOrEqual(before - 2000);
+
+    // The service's own getImage() surfaces the same hash it just persisted.
+    const fetched = await service.getImage('metadata-channel');
+    expect(fetched?.contentHash).toBe(row?.contentHash);
+  });
+
+  it('updates updatedAt on a re-save while createdAt stays the same', async () => {
+    await service.saveImage(
+      'resave-metadata-channel',
+      Buffer.from('v1'),
+      'image/png',
+    );
+    const first = await prisma.channelImage.findUnique({
+      where: { channelName: 'resave-metadata-channel' },
+    });
+
+    // SQLite DATETIME has only second-level resolution, so without a real
+    // gap a fast re-save could land in the same second and look unchanged.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+
+    await service.saveImage(
+      'resave-metadata-channel',
+      Buffer.from('v2-is-longer'),
+      'image/png',
+    );
+    const second = await prisma.channelImage.findUnique({
+      where: { channelName: 'resave-metadata-channel' },
+    });
+
+    expect(second?.createdAt.getTime()).toBe(first?.createdAt.getTime());
+    expect(second!.updatedAt.getTime()).toBeGreaterThan(
+      first!.updatedAt.getTime(),
+    );
+    // The content hash/size are recomputed from the new bytes too, not left
+    // stale from the first save.
+    expect(second?.size).toBe(Buffer.from('v2-is-longer').length);
+    expect(second?.contentHash).not.toBe(first?.contentHash);
+  }, 10000);
+
+  it('leaves an existing lastEditorSubject untouched when a later save omits it', async () => {
+    await service.saveImage(
+      'editor-preserved-channel',
+      Buffer.from('v1'),
+      'image/png',
+      undefined,
+      'editor-sub-original',
+    );
+    await service.saveImage(
+      'editor-preserved-channel',
+      Buffer.from('v2'),
+      'image/png',
+    );
+
+    const row = await prisma.channelImage.findUnique({
+      where: { channelName: 'editor-preserved-channel' },
+    });
+    expect(row?.lastEditorSubject).toBe('editor-sub-original');
+  });
+
+  it('computes a content hash on the fly for a legacy row with the empty placeholder hash, without persisting it', async () => {
+    // Simulates a row backfilled by the migration itself (size known,
+    // content hash left as '' since SQLite has no builtin SHA-256).
+    const buffer = Buffer.from('legacy-pre-migration-bytes');
+    await prisma.channelImage.create({
+      data: {
+        channelName: 'legacy-hash-channel',
+        image: new Uint8Array(buffer),
+        mimeType: 'image/png',
+        size: buffer.length,
+        contentHash: '',
+      },
+    });
+
+    const expectedHash = crypto
+      .createHash('sha256')
+      .update(buffer)
+      .digest('hex');
+    const fetched = await service.getImage('legacy-hash-channel');
+    expect(fetched?.contentHash).toBe(expectedHash);
+
+    // The DB row itself is left alone — only an actual save corrects it.
+    const rowAfterRead = await prisma.channelImage.findUnique({
+      where: { channelName: 'legacy-hash-channel' },
+    });
+    expect(rowAfterRead?.contentHash).toBe('');
+  });
 });

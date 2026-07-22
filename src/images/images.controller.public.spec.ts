@@ -98,3 +98,87 @@ describe('Public images app rate limiting (e2e)', () => {
     expect(blocked.headers['retry-after']).toBeUndefined();
   });
 });
+
+// Exercises the ETag/If-None-Match/304 behavior added on top of the existing
+// Cache-Control header. A separate `describe`/mocked PrismaService from the
+// rate-limiting block above, since these tests need the mock to actually
+// return a row (rather than always 404) — matches this file's existing style
+// of mocking PrismaService directly rather than the ImagesService above it.
+describe('Public images app conditional GET (ETag / If-None-Match)', () => {
+  let app: INestApplication;
+
+  const IMAGE_BYTES = Buffer.from('fake-etag-test-image-bytes');
+  const CONTENT_HASH = 'abc123fakehash';
+
+  const mockPrismaService = {
+    channelImage: {
+      findUnique: jest.fn().mockResolvedValue({
+        image: new Uint8Array(IMAGE_BYTES),
+        mimeType: 'image/png',
+        contentHash: CONTENT_HASH,
+      }),
+    },
+  };
+
+  beforeEach(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [ImagesModulePublic, PrismaModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue(mockPrismaService)
+      .compile();
+
+    app = moduleFixture.createNestApplication();
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('returns 200 with an ETag and the existing Cache-Control header when no If-None-Match is sent', async () => {
+    const res = await request(app.getHttpServer() as Server)
+      .get('/images/some-channel')
+      .expect(200);
+
+    expect(res.headers['etag']).toBe(`"${CONTENT_HASH}"`);
+    expect(res.headers['cache-control']).toBe('public, max-age=86400');
+    expect(res.headers['content-type']).toContain('image/png');
+  });
+
+  it('returns 200 (not 304) when If-None-Match does not match the current content hash', async () => {
+    const res = await request(app.getHttpServer() as Server)
+      .get('/images/some-channel')
+      .set('If-None-Match', '"some-other-hash"')
+      .expect(200);
+
+    expect(res.headers['etag']).toBe(`"${CONTENT_HASH}"`);
+  });
+
+  it('returns 304 with no body when If-None-Match matches the current content hash', async () => {
+    const res = await request(app.getHttpServer() as Server)
+      .get('/images/some-channel')
+      .set('If-None-Match', `"${CONTENT_HASH}"`)
+      .expect(304);
+
+    expect(res.headers['etag']).toBe(`"${CONTENT_HASH}"`);
+    expect(res.headers['cache-control']).toBe('public, max-age=86400');
+    // A 304 must carry no body.
+    expect(res.headers['content-length'] ?? '0').toBe('0');
+    expect(res.text).toBe('');
+  });
+
+  it('returns 304 when If-None-Match is a comma-separated list containing the current content hash', async () => {
+    await request(app.getHttpServer() as Server)
+      .get('/images/some-channel')
+      .set('If-None-Match', `"unrelated-hash", "${CONTENT_HASH}"`)
+      .expect(304);
+  });
+
+  it('returns 304 for a wildcard If-None-Match', async () => {
+    await request(app.getHttpServer() as Server)
+      .get('/images/some-channel')
+      .set('If-None-Match', '*')
+      .expect(304);
+  });
+});

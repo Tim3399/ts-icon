@@ -5,7 +5,7 @@ import {
   ServiceUnavailableException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import {
   ImagesLocalController,
   imageFileFilter,
@@ -68,17 +68,19 @@ function createImagesServiceStub(): {
   imagesService: ImagesService;
   findByChannelId: jest.Mock;
   channelNameInUse: jest.Mock;
+  saveImage: jest.Mock;
 } {
   const findByChannelId = jest.fn().mockResolvedValue(null);
   const channelNameInUse = jest.fn().mockResolvedValue(false);
+  const saveImage = jest.fn();
   const imagesService = {
-    saveImage: jest.fn(),
+    saveImage,
     getImage: jest.fn(),
     listOptions: jest.fn(),
     findByChannelId,
     channelNameInUse,
   } as unknown as ImagesService;
-  return { imagesService, findByChannelId, channelNameInUse };
+  return { imagesService, findByChannelId, channelNameInUse, saveImage };
 }
 
 // Only the counters actually exercised by these tests get real jest.fn()s;
@@ -121,6 +123,14 @@ function createRes(): { res: Response; setHeader: jest.Mock; send: jest.Mock } {
   // @typescript-eslint/unbound-method, which flags any bare reference to a
   // method the `Response` type declares, mock or not.
   return { res: { setHeader, send } as unknown as Response, setHeader, send };
+}
+
+// A minimal stand-in for the `Request` object `@Req()` injects in the real
+// app. `sub` defaults to a fixed test subject since most tests here care
+// about something other than who's making the request; pass `undefined`
+// explicitly for the "no authenticated subject" case.
+function createReq(sub: string | undefined = 'test-subject'): Request {
+  return { user: sub ? { sub, roles: [] } : undefined } as unknown as Request;
 }
 
 beforeEach(() => {
@@ -230,30 +240,39 @@ describe('ImagesLocalController.uploadImageFromUrl', () => {
     mockedFetch.mockRejectedValue(new SsrfValidationError('not allowed'));
     const controller = createController();
     await expect(
-      controller.uploadImageFromUrl({
-        channelName: 'chan',
-        url: 'https://example.com/a.png',
-      }),
+      controller.uploadImageFromUrl(
+        {
+          channelName: 'chan',
+          url: 'https://example.com/a.png',
+        },
+        createReq(),
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('maps FetchFailedError to 502, not 400', async () => {
     mockedFetch.mockRejectedValue(new FetchFailedError('could not fetch'));
     const controller = createController();
-    const call = controller.uploadImageFromUrl({
-      channelName: 'chan',
-      url: 'https://example.com/a.png',
-    });
+    const call = controller.uploadImageFromUrl(
+      {
+        channelName: 'chan',
+        url: 'https://example.com/a.png',
+      },
+      createReq(),
+    );
     await expect(call).rejects.toBeInstanceOf(BadGatewayException);
   });
 
   it('rethrows unexpected errors rather than mislabeling them as 400', async () => {
     mockedFetch.mockRejectedValue(new Error('boom'));
     const controller = createController();
-    const call = controller.uploadImageFromUrl({
-      channelName: 'chan',
-      url: 'https://example.com/a.png',
-    });
+    const call = controller.uploadImageFromUrl(
+      {
+        channelName: 'chan',
+        url: 'https://example.com/a.png',
+      },
+      createReq(),
+    );
     await expect(call).rejects.toThrow('boom');
     await expect(call).rejects.not.toBeInstanceOf(BadRequestException);
   });
@@ -261,10 +280,13 @@ describe('ImagesLocalController.uploadImageFromUrl', () => {
   it('rejects a channelName that normalizes to an empty string', async () => {
     const controller = createController();
     await expect(
-      controller.uploadImageFromUrl({
-        channelName: '!!!',
-        url: 'https://example.com/a.png',
-      }),
+      controller.uploadImageFromUrl(
+        {
+          channelName: '!!!',
+          url: 'https://example.com/a.png',
+        },
+        createReq(),
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(mockedFetch).not.toHaveBeenCalled();
   });
@@ -273,10 +295,13 @@ describe('ImagesLocalController.uploadImageFromUrl', () => {
     mockedFetchLiveChannels.mockResolvedValue([]);
     const controller = createController();
     await expect(
-      controller.uploadImageFromUrl({
-        channelName: 'chan',
-        url: 'https://example.com/a.png',
-      }),
+      controller.uploadImageFromUrl(
+        {
+          channelName: 'chan',
+          url: 'https://example.com/a.png',
+        },
+        createReq(),
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(mockedFetch).not.toHaveBeenCalled();
   });
@@ -289,12 +314,41 @@ describe('ImagesLocalController.uploadImageFromUrl', () => {
     const controller = createController(imagesService);
 
     await expect(
-      controller.uploadImageFromUrl({
-        channelName: 'chan',
-        url: 'https://example.com/a.png',
-      }),
+      controller.uploadImageFromUrl(
+        {
+          channelName: 'chan',
+          url: 'https://example.com/a.png',
+        },
+        createReq(),
+      ),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
+  it('passes the authenticated subject through to saveImage as the last-editor-subject', async () => {
+    mockedProcessImage.mockResolvedValue({
+      buffer: Buffer.from('processed'),
+      mimeType: 'image/png',
+    });
+    mockedFetch.mockResolvedValue({
+      buffer: Buffer.from('fetched'),
+      contentType: 'image/png',
+    });
+    const { imagesService, saveImage } = createImagesServiceStub();
+    const controller = createController(imagesService);
+
+    await controller.uploadImageFromUrl(
+      { channelName: 'chan', url: 'https://example.com/a.png' },
+      createReq('editor-sub-1'),
+    );
+
+    expect(saveImage).toHaveBeenCalledWith(
+      'chan',
+      Buffer.from('processed'),
+      'image/png',
+      'cid-chan',
+      'editor-sub-1',
+    );
   });
 });
 
@@ -360,7 +414,7 @@ describe('ImagesLocalController.uploadImage', () => {
     mockedFetchLiveChannels.mockResolvedValue([]);
     const controller = createController();
     await expect(
-      controller.uploadImage('chan', createFile()),
+      controller.uploadImage('chan', createFile(), createReq()),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -372,7 +426,7 @@ describe('ImagesLocalController.uploadImage', () => {
     const controller = createController(imagesService);
 
     await expect(
-      controller.uploadImage('chan', createFile()),
+      controller.uploadImage('chan', createFile(), createReq()),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
@@ -385,7 +439,7 @@ describe('ImagesLocalController.uploadImage', () => {
     const { metrics, imageUploadsIncMock } = createMetricsStub();
     const controller = createController(imagesService, metrics);
 
-    await controller.uploadImage('chan', createFile());
+    await controller.uploadImage('chan', createFile(), createReq());
 
     expect(imageUploadsIncMock).toHaveBeenCalledWith({
       method: 'upload',
@@ -403,7 +457,7 @@ describe('ImagesLocalController.uploadImage', () => {
     const controller = createController(undefined, metrics);
 
     await expect(
-      controller.uploadImage('chan', createFile()),
+      controller.uploadImage('chan', createFile(), createReq()),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
 
     expect(imageUploadsIncMock).toHaveBeenCalledWith({
@@ -414,6 +468,29 @@ describe('ImagesLocalController.uploadImage', () => {
       operation: 'resolve-channel',
     });
   });
+
+  it('passes the authenticated subject through to saveImage as the last-editor-subject', async () => {
+    mockedProcessImage.mockResolvedValue({
+      buffer: Buffer.from('processed'),
+      mimeType: 'image/png',
+    });
+    const { imagesService, saveImage } = createImagesServiceStub();
+    const controller = createController(imagesService);
+
+    await controller.uploadImage(
+      'chan',
+      createFile(),
+      createReq('editor-sub-2'),
+    );
+
+    expect(saveImage).toHaveBeenCalledWith(
+      'chan',
+      Buffer.from('processed'),
+      'image/png',
+      'cid-chan',
+      'editor-sub-2',
+    );
+  });
 });
 
 describe('ImagesLocalController.uploadImageFromUrl metrics', () => {
@@ -423,10 +500,13 @@ describe('ImagesLocalController.uploadImageFromUrl metrics', () => {
     const controller = createController(undefined, metrics);
 
     await expect(
-      controller.uploadImageFromUrl({
-        channelName: 'chan',
-        url: 'https://example.com/a.png',
-      }),
+      controller.uploadImageFromUrl(
+        {
+          channelName: 'chan',
+          url: 'https://example.com/a.png',
+        },
+        createReq(),
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(ssrfBlockedIncMock).toHaveBeenCalledWith({ route: 'from-url' });
