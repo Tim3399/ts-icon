@@ -30,8 +30,8 @@ vi.mock('../api/client', async () => {
 // jsdom does not implement createObjectURL/revokeObjectURL -- SpacerBaseImageManager
 // uses both to turn the fetched blob into a displayable <img src>.
 beforeEach(() => {
-  global.URL.createObjectURL = vi.fn(() => 'blob:mock-object-url');
-  global.URL.revokeObjectURL = vi.fn();
+  globalThis.URL.createObjectURL = vi.fn(() => 'blob:mock-object-url');
+  globalThis.URL.revokeObjectURL = vi.fn();
 });
 
 afterEach(() => {
