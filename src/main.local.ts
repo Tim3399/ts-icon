@@ -17,6 +17,7 @@ import {
   validateDatabaseConfig,
   getTeamSpeakCredentials,
   getOidcConfig,
+  isAuthDisabled,
 } from '../config';
 import type { OidcConfig } from '../config';
 import { version } from '../package.json';
@@ -90,7 +91,15 @@ async function bootstrap() {
   // Fail fast on missing/unsafe config before the app even starts listening.
   validateDatabaseConfig();
   getTeamSpeakCredentials();
-  const oidcConfig = getOidcConfig();
+  const authDisabled = isAuthDisabled();
+  if (authDisabled) {
+    logger.warn(
+      'AUTH_DISABLED=true — this instance has NO authentication. Every /images-local ' +
+        'endpoint is open to any loopback/private-network caller (see NoAuthGuard). ' +
+        'Never set this on a network-reachable host.',
+    );
+  }
+  const oidcConfig = authDisabled ? undefined : getOidcConfig();
 
   // Custom logger passed via NestFactory.create's `logger` option (not
   // app.useLogger(...) afterwards) so it's already in place for Nest's own
@@ -134,22 +143,31 @@ async function bootstrap() {
   // this app never sees requests to it. It stays gated to non-production
   // (unauthenticated API docs should not ship to prod at all) — and, on top
   // of that gate rather than instead of it, every request under /swagger now
-  // also has to present a valid Bearer token, verified below.
+  // also has to present a valid Bearer token, verified below -- except in
+  // AUTH_DISABLED mode, where there's no OidcConfig to verify against and
+  // the rest of the app has no auth either, so gating just Swagger on its
+  // own wouldn't mean anything.
   if (process.env.NODE_ENV !== 'production') {
-    const swaggerAuth = createSwaggerAuthMiddleware(oidcConfig);
-    // Registered as unscoped middleware rather than `app.use('/swagger',
-    // ...)`: @nestjs/swagger also serves the raw document at `/swagger-json`
-    // and `/swagger-yaml`, paths that do not sit under a `/swagger/` prefix,
-    // so an Express path-prefix mount would miss them. Matching on
-    // `req.path` here covers the UI, its static assets, and both document
-    // endpoints with a single check.
-    app.use((req: Request, res: Response, next: NextFunction) => {
-      if (!req.path.startsWith('/swagger')) {
-        next();
-        return;
-      }
-      void swaggerAuth(req, res, next);
-    });
+    if (oidcConfig) {
+      const swaggerAuth = createSwaggerAuthMiddleware(oidcConfig);
+      // Registered as unscoped middleware rather than `app.use('/swagger',
+      // ...)`: @nestjs/swagger also serves the raw document at `/swagger-json`
+      // and `/swagger-yaml`, paths that do not sit under a `/swagger/` prefix,
+      // so an Express path-prefix mount would miss them. Matching on
+      // `req.path` here covers the UI, its static assets, and both document
+      // endpoints with a single check.
+      app.use((req: Request, res: Response, next: NextFunction) => {
+        if (!req.path.startsWith('/swagger')) {
+          next();
+          return;
+        }
+        void swaggerAuth(req, res, next);
+      });
+    } else {
+      logger.warn(
+        'AUTH_DISABLED=true — Swagger UI has no authentication in this mode.',
+      );
+    }
 
     const config = new DocumentBuilder()
       .setTitle('TS Channel Icon API (Local)')

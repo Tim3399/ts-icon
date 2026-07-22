@@ -9,10 +9,49 @@ A system for managing per-channel banner images ("icons") for TeamSpeak. It has 
 - Public, read-only image API with per-IP rate limiting and no authentication required
 - Admin API protected end-to-end by Keycloak (OIDC): every endpoint requires a valid Bearer token, with two roles (`ts-icon-editor`, `ts-icon-admin`) controlling what an authenticated user can do
 - React + Vite frontend for cropping and uploading channel banners, with Keycloak login (Authorization Code + PKCE)
+- Admin-only banner-URL manager page: points a TeamSpeak channel's own banner setting at this server's managed image, one channel at a time or in bulk for every channel not already set
 - SSRF-hardened URL-import endpoints (import a banner from a URL, or preview one, without the server becoming an open proxy to internal network resources)
 - Prisma ORM with SQLite
 - Docker Compose setup, including a dedicated one-off database migration step
 - CI (GitHub Actions): lint/typecheck/build/test for both apps, plus a Docker image build-validation job
+
+## Quickstart
+
+Two ways to run this, each with two auth modes. Pick one path below.
+
+### Docker Compose (recommended for trying the whole system)
+
+```powershell
+git clone <this-repo-url>
+cd ts-icon
+cp .env.example .env   # then edit .env — see below
+docker compose run --rm migrate
+docker compose up --build
+```
+
+- **With real Keycloak (OAuth2)**: fill in `OIDC_ISSUER_URL`/`OIDC_AUDIENCE` (and `TS_USERNAME`/`TS_USERPASSWORD`) in `.env` before starting — see [Keycloak Setup](#keycloak-setup). This is the only supported mode under Docker Compose.
+- **Without OAuth2**: **not possible under Docker Compose.** The image always runs with `NODE_ENV=production` baked in (see `Dockerfile`), and `AUTH_DISABLED=true` refuses to start under `NODE_ENV=production` by design — see below.
+
+### Local npm (for development, or a true no-Keycloak localhost overlay)
+
+Backend:
+```powershell
+npm install
+npm run start:public   # in one terminal
+npm run start:local    # in another
+```
+Frontend:
+```powershell
+cd webapp-banner-tool
+npm install
+npm run dev
+```
+
+- **With real Keycloak (OAuth2)**: set `OIDC_ISSUER_URL`/`OIDC_AUDIENCE` in the root `.env` and `VITE_KEYCLOAK_URL`/`VITE_KEYCLOAK_REALM`/`VITE_KEYCLOAK_CLIENT_ID` in `webapp-banner-tool/.env` — see [Keycloak Setup](#keycloak-setup). This is the default; it's what happens if you don't set the flags below.
+- **Without OAuth2 — localhost overlay**: set **both** `AUTH_DISABLED=true` in the root `.env` and `VITE_KEYCLOAK_ENABLED=false` in `webapp-banner-tool/.env`. Neither flag alone is enough (see [Web Frontend](#web-frontend)). This is a genuine escape hatch — the admin API really does accept unauthenticated requests in this mode — so it comes with real restrictions, not just a warning label:
+  - It **refuses to start** if `NODE_ENV=production` is set.
+  - Even when enabled, every request must still come from a loopback or private-network address (see `src/auth/no-auth.guard.ts`) — a caller from anywhere else still gets rejected.
+  - It is meant for one thing only: running this entirely on your own machine, with nothing reachable from any other machine. **Never** set this on a host anything else can reach.
 
 ## Architecture
 The backend is one NestJS codebase with two independent entry points/apps, each meant to run as its own process (and, in Docker, its own container):
@@ -30,6 +69,7 @@ The repository contains a small React + Vite frontend located at `webapp-banner-
 - Located in `webapp-banner-tool/`
 - Built with React and Vite
 - Main entry: `webapp-banner-tool/src/App.tsx`
+- Includes an **admin-only** page (`/banner-urls`) for pointing TeamSpeak channels' own banner setting at this server's managed image — gated to the `ts-icon-admin` role specifically (not editor), a stricter UI-level restriction than the backend endpoints it calls actually require. Requires `PUBLIC_BASE_URL` to be set on the backend.
 - Start locally:
   ```powershell
   cd webapp-banner-tool
@@ -56,6 +96,8 @@ Configuration is read from environment variables (see `webapp-banner-tool/.env.e
 | anything else | any value | Keycloak login always required |
 
 This is a client-side developer convenience only, not a security boundary (it's trivially bypassed by anyone editing the served JS) — real enforcement is the backend's JWT guard, described below.
+
+**`VITE_KEYCLOAK_ENABLED=false` on its own only skips the frontend's login screen** — the admin backend still requires a valid Keycloak-issued token on every request regardless of any frontend setting, so every API call would still 401. To actually run without Keycloak end to end, the backend's own `AUTH_DISABLED=true` (see [Quickstart](#quickstart) and [Environment Variables](#environment-variables)) has to be set too — the two flags are meant to be used together, not independently.
 
 ## Backend
 - Located in `src/`
@@ -98,6 +140,9 @@ This endpoint is rate-limited per client IP (see [Rate Limiting](#rate-limiting)
 | `GET /images-local/img-from-url?url=...` | Proxy an external image URL and return it (used by the frontend's "load image from URL" preview) | `ts-icon-editor` | SSRF-hardened (see below) |
 | `GET /images-local/channels` | Returns a list of channels fetched live via TeamSpeak ServerQuery | `ts-icon-editor` | Returns `{ "channels": [] , "error": "..." }` if TeamSpeak is unreachable, rather than failing the request |
 | `GET /images-local/options` | Lists every stored channel image (channel name + MIME type) across the whole database | `ts-icon-admin` | Administrative listing endpoint — deliberately gated to admin, not editor |
+| `GET /images-local/channels/banner-urls` | Returns each live channel's current TeamSpeak banner URL and whether it's already set to this server's managed image | `ts-icon-editor` | Used by the frontend's banner-URL manager page (admin-only in the UI, though the endpoint itself is editor-gated like the others) |
+| `PATCH /images-local/:channelName/banner-url` | Sets a channel's TeamSpeak banner URL to point at this server's managed image for that channel | `ts-icon-editor` | Requires `PUBLIC_BASE_URL` to be configured (see [Environment Variables](#environment-variables)) |
+| `POST /images-local/channels/apply-banner-urls` | Sets the banner URL on every channel not already pointed at this server, in one TeamSpeak connection | `ts-icon-editor` | Returns `{ "updated": [...], "alreadyManaged": [...] }`; skips channels already correctly set |
 
 Example (upload):
 ```powershell
@@ -110,15 +155,15 @@ On success, the upload and URL-import endpoints return `{ "message": "Image save
 - Do not expose the local/admin server to the public internet without also keeping it behind a trusted network boundary — see [Docker Setup](#docker-setup) for the default `127.0.0.1`-only port binding.
 
 ## Authentication & Authorization
-The admin (`local`) API validates a Keycloak-issued JWT on **every** endpoint — there is no unauthenticated route and no way to disable this at runtime. The public API has no authentication at all (by design; it only serves already-public banner images) and relies on rate limiting instead.
+The admin (`local`) API validates a Keycloak-issued JWT on **every** endpoint — there is no unauthenticated route, except for the explicit `AUTH_DISABLED=true` localhost-overlay escape hatch described in [Quickstart](#quickstart) (loopback/private-network callers only, refuses to start in production). The public API has no authentication at all (by design; it only serves already-public banner images) and relies on rate limiting instead.
 
-- **401 Unauthorized** — no `Authorization: Bearer <token>` header, or the token fails verification (missing/invalid signature, wrong issuer, wrong audience, expired, not-yet-valid, or signed with an algorithm other than `RS256`). The response never reveals which specific check failed.
+- **401 Unauthorized** — no `Authorization: Bearer <token>` header, or the token fails verification (missing/invalid signature, wrong issuer, wrong authorized party/`azp`, expired, not-yet-valid, or signed with an algorithm other than `RS256`). The response never reveals which specific check failed.
 - **403 Forbidden** — the token is valid, but the caller's roles don't include one required for the endpoint.
 
 Verification is done locally against the configured Keycloak realm's JWKS endpoint (`{issuer}/protocol/openid-connect/certs`) — the backend does not call back to Keycloak for token introspection, so it works even if Keycloak is briefly unreachable after the signing keys have been cached.
 
 ### Roles
-Two Keycloak client roles are used:
+Two Keycloak realm roles are used:
 
 | Role | Grants access to |
 |---|---|
@@ -130,7 +175,9 @@ In other words, `ts-icon-admin` is a strict superset — a caller with the admin
 Role names can be overridden via `OIDC_ADMIN_ROLE`/`OIDC_EDITOR_ROLE` (see `.env.example`), but default to `ts-icon-admin`/`ts-icon-editor`.
 
 ### Keycloak Setup
-This project uses **one public Keycloak client** — no client secret, Authorization Code flow with PKCE (S256) — that serves double duty: it's both the frontend's OIDC client and the backend's expected JWT audience. A separate confidential backend client is not needed, because the backend only validates JWTs locally via the realm's JWKS; it never performs token introspection or a client-credentials flow, so it has no reason to be a registered client itself — it only needs to know which `aud` value to accept.
+This project uses **one public Keycloak client** — no client secret, Authorization Code flow with PKCE (S256) — that serves double duty: it's both the frontend's OIDC client and the client the backend expects tokens to be authorized for. A separate confidential backend client is not needed, because the backend only validates JWTs locally via the realm's JWKS; it never performs token introspection or a client-credentials flow, so it has no reason to be a registered client itself — it only needs to know which client id to expect.
+
+The backend checks this via the token's **`azp`** (authorized party) claim, not `aud`: Keycloak doesn't reliably include the requesting client's own id in `aud` without configuring a dedicated audience mapper, but it always sets `azp` to the client a token was issued to — so `azp` is what `OIDC_AUDIENCE` is actually compared against (see `src/auth/jwt-auth.guard.ts`).
 
 To configure your own Keycloak instance:
 
@@ -141,7 +188,7 @@ To configure your own Keycloak instance:
    - **Standard flow (Authorization Code):** on
    - **Direct access grants:** off
    - **Valid redirect URIs / web origins:** your frontend's actual origin(s) (no wildcards in production)
-3. Create two client roles on that client: `ts-icon-editor` and `ts-icon-admin`, and assign them to the appropriate users/groups.
+3. Create two **realm roles** (not scoped to the client): `ts-icon-editor` and `ts-icon-admin`, and assign them to the appropriate users/groups.
 4. Point the backend at your realm via `OIDC_ISSUER_URL=https://<your-keycloak-url>/realms/<your-realm>` and `OIDC_AUDIENCE=<your-client-id>` (see `.env.example`).
 5. Point the frontend at the same realm/client via `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID` (see `webapp-banner-tool/.env.example`).
 
@@ -216,9 +263,13 @@ Both long-running services run as a non-root user and use SQLite via a named vol
 Backend configuration is read from a root `.env` file — see `.env.example` for the full, current list and safe example values. Notable behaviors:
 
 - `TS_USERNAME`/`TS_USERPASSWORD` (TeamSpeak ServerQuery credentials) have **no default fallback** — the admin app fails fast at startup if either is unset, rather than silently using a known default credential.
+- `TS_PROTOCOL` selects the ServerQuery transport: `raw` (classic, default) or `ssh` (needed for servers, e.g. TeamSpeak 6, that only expose SSH ServerQuery). Falls back to `raw` if unset or unrecognized.
 - `DATABASE_URL` defaults to `file:./dev.db` for local development, but is required (fails fast) when `NODE_ENV=production`.
-- `OIDC_ISSUER_URL`/`OIDC_AUDIENCE` are required — there is no default issuer or audience to validate JWTs against.
+- `LOG_LEVEL` sets the minimum severity printed (`verbose`/`debug`/`log`/`warn`/`error`/`fatal`); falls back to `debug` outside production, `log` in production, if unset or unrecognized.
+- `OIDC_ISSUER_URL`/`OIDC_AUDIENCE` are required — there is no default issuer or audience to validate JWTs against — **unless** `AUTH_DISABLED=true` (below).
 - `CORS_ORIGINS` is a comma-separated allowlist for the admin API; if unset, no cross-origin browser access is enabled at all (no wildcard fallback).
+- `AUTH_DISABLED=true` disables backend authentication on the `local` app entirely — see [Quickstart](#quickstart) for the full picture (pairing with the frontend, the loopback-only restriction, and why this never works under Docker Compose).
+- `PUBLIC_BASE_URL` (e.g. `https://ts-icon.example.com`) is the base URL the *public* app is actually reachable at — required for the banner-URL management endpoints (`GET/PATCH/POST /images-local/channels/.../banner-url`), which compute a TeamSpeak channel's expected banner URL from it. No default; the `local` app fails to start if it's unset.
 
 Frontend configuration is read from a `.env` file in `webapp-banner-tool/` — see `webapp-banner-tool/.env.example` for the full list (`VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`, `VITE_KEYCLOAK_ENABLED`, `VITE_KEYCLOAK_ADMIN_ROLE`, `VITE_KEYCLOAK_EDITOR_ROLE`, `VITE_PUBLIC_API_URL`, `VITE_ADMIN_API_URL`).
 
@@ -239,6 +290,7 @@ Backend (root `package.json`):
 | `npm test` / `npm run test:watch` / `npm run test:cov` | Unit tests (Jest) |
 | `npm run test:e2e` | End-to-end tests |
 | `npm run format` | Prettier |
+| `npm run backfill:channel-ids` | One-time script matching existing rows to live TeamSpeak channel IDs (see the Database section's Prisma schema notes) |
 
 Frontend (`webapp-banner-tool/package.json`):
 

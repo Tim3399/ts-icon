@@ -13,7 +13,7 @@ import type { OidcConfig } from '../../config';
 import { MetricsService } from '../metrics/metrics.service';
 
 /**
- * Enforces `@Roles(...)` on a route, reading the Keycloak client roles
+ * Enforces `@Roles(...)` on a route, reading the Keycloak realm roles
  * JwtAuthGuard already attached to `req.user.roles`. Must run after
  * JwtAuthGuard (see AuthModule's provider order — Nest runs multiple
  * `APP_GUARD`s in registration order) so `req.user` is populated by the

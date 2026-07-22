@@ -116,6 +116,52 @@ export const OIDC_ADMIN_ROLE = process.env.OIDC_ADMIN_ROLE || 'ts-icon-admin';
 export const OIDC_EDITOR_ROLE =
   process.env.OIDC_EDITOR_ROLE || 'ts-icon-editor';
 
+// AUTH_DISABLED lets the `local` app run with no authentication at all -- a
+// deliberate escape hatch for running the whole stack as a pure localhost
+// overlay without a Keycloak instance at hand (see src/auth/no-auth.guard.ts
+// and AuthModule). Unlike OIDC_ISSUER_URL/OIDC_AUDIENCE above, which guard
+// against *misconfigured* auth, this guards against auth being turned *off*
+// anywhere it could matter -- so it fails fast at startup exactly like
+// getOidcConfig()/validateDatabaseConfig()/getTeamSpeakCredentials() above if
+// NODE_ENV is production, rather than allowing a silent no-auth prod
+// deployment. Reads process.env directly on every call (not a module-level
+// const) so it can be safely re-checked from multiple places (AuthModule's
+// provider wiring, main.local.ts's bootstrap) the same way getOidcConfig()
+// already is.
+export function isAuthDisabled(): boolean {
+  const disabled = process.env.AUTH_DISABLED === 'true';
+  if (disabled && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'AUTH_DISABLED=true is not allowed when NODE_ENV=production — refusing to start with authentication disabled in production.',
+    );
+  }
+  return disabled;
+}
+
+// The base URL the *public* app is actually reachable at (e.g.
+// https://ts-icon.bananenban.de), used to compute the banner URL a
+// TeamSpeak channel should be set to point at (see
+// src/teamspeak/teamspeak-channels.ts's expectedBannerUrl()). Analogous to
+// the frontend's VITE_PUBLIC_API_URL, but a runtime backend value rather
+// than a Vite build-time one. Only the `local` app's banner-url endpoints
+// need this, so — like OIDC_ISSUER_URL/OIDC_AUDIENCE above — it's a lazily
+// re-checked function rather than a top-level constant: config.ts is
+// imported by both apps, and a top-level throw here would crash the
+// `public` app too, which has no use for this value at all.
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
+
+export function getPublicBaseUrl(): string {
+  if (!PUBLIC_BASE_URL) {
+    throw new Error(
+      'PUBLIC_BASE_URL must be set via environment variables — there is no default base URL for computing managed banner URLs.',
+    );
+  }
+  // Strips any trailing slash so callers can always safely compose
+  // `${getPublicBaseUrl()}/images/...` without risking a double slash from
+  // an operator-supplied value that happened to include one.
+  return PUBLIC_BASE_URL.replace(/\/+$/, '');
+}
+
 export interface OidcConfig {
   issuerUrl: string;
   audience: string;
