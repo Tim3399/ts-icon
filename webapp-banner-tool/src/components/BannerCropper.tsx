@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { apiFetch, apiFetchBlob, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
 import { useToast } from './Toast';
 import ChannelAutocomplete from './ChannelAutocomplete';
+import { usePreviewOverlay } from '../preview/PreviewOverlayContext';
 
 const TARGET_WIDTH = 500;
 const TARGET_HEIGHT = 44;
@@ -24,6 +25,7 @@ const BannerCropper: React.FC = () => {
   const toggleZoom = () => setIsZoomed(z => !z);
   const { getToken } = useAuth();
   const { showToast } = useToast();
+  const { bumpRefresh } = usePreviewOverlay();
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -205,6 +207,7 @@ const BannerCropper: React.FC = () => {
           timeoutMs: UPLOAD_TIMEOUT_MS,
         });
         showToast('Image uploaded successfully!', 'success');
+        bumpRefresh();
       } catch (err) {
         showToast(describeApiError(err, 'Upload error'), 'error');
       } finally {

@@ -17,6 +17,20 @@ vi.mock('./Toast', () => ({
   useToast: () => ({ showToast: showToastMock }),
 }));
 
+const { setOverlayMock, bumpRefreshMock } = vi.hoisted(() => ({
+  setOverlayMock: vi.fn(),
+  bumpRefreshMock: vi.fn(),
+}));
+
+vi.mock('../preview/PreviewOverlayContext', () => ({
+  usePreviewOverlay: () => ({
+    overlay: null,
+    setOverlay: setOverlayMock,
+    refreshKey: 0,
+    bumpRefresh: bumpRefreshMock,
+  }),
+}));
+
 vi.mock('../api/client', async () => {
   const actual = await vi.importActual<typeof import('../api/client')>('../api/client');
   return { ...actual, apiFetchJson: apiFetchJsonMock };

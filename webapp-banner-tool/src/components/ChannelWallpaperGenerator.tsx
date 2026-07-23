@@ -9,6 +9,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
 import { useToast } from './Toast';
 import ChannelTreePreview from './ChannelTreePreview';
+import { usePreviewOverlay } from '../preview/PreviewOverlayContext';
 
 type SpacerMode = 'flat' | 'nested-spacer';
 
@@ -88,8 +89,19 @@ const ChannelWallpaperGenerator: React.FC = () => {
   const navigate = useNavigate();
   const { getToken } = useAuth();
   const { showToast } = useToast();
+  const { setOverlay, bumpRefresh } = usePreviewOverlay();
 
   const hasSource = Boolean(file) || sourceImageUrl.trim().length > 0;
+
+  // Mirrors the sliced-but-unsubmitted rows into the persistent right-hand
+  // live tree panel (App.tsx), spliced in right where they'd actually land
+  // under the chosen parent -- not just the disconnected stack below.
+  // Cleared on unmount so navigating away doesn't leave stale pending rows
+  // showing in the panel.
+  useEffect(() => {
+    setOverlay(previewRows.length > 0 ? { parentCid, rows: previewRows } : null);
+    return () => setOverlay(null);
+  }, [previewRows, parentCid, setOverlay]);
 
   // Debounced live preview: re-runs the real slicing endpoint (not a
   // reimplemented client-side approximation) shortly after any input that
@@ -168,6 +180,12 @@ const ChannelWallpaperGenerator: React.FC = () => {
       });
       setResult(data);
       setTreeRefreshKey((k) => k + 1);
+      // The just-created rows are real now, not pending -- clear the
+      // overlay so the persistent panel's own re-fetch (bumpRefresh) shows
+      // them once, from the live tree, instead of doubled up with the
+      // still-active "pending" overlay rows built from the same previewRows.
+      setOverlay(null);
+      bumpRefresh();
       if (data.failedAt) {
         showToast(
           `Created ${data.rowCount} channel(s), then stopped: ${data.failedAt.error}`,
@@ -205,6 +223,7 @@ const ChannelWallpaperGenerator: React.FC = () => {
       );
       setResult(null);
       setTreeRefreshKey((k) => k + 1);
+      bumpRefresh();
     } catch (err) {
       showToast(describeApiError(err, 'Undo failed'), 'error');
     } finally {

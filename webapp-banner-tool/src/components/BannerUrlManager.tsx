@@ -6,6 +6,7 @@ import { useCanUpload } from '../auth/permissions';
 import { apiFetch, apiFetchJson, describeApiError } from '../api/client';
 import { useToast } from './Toast';
 import SpacerBaseImageManager from './SpacerBaseImageManager';
+import { usePreviewOverlay } from '../preview/PreviewOverlayContext';
 
 interface ChannelBannerStatus {
   name: string;
@@ -22,6 +23,7 @@ const BannerUrlManager: React.FC = () => {
   const { getToken } = useAuth();
   const { showToast } = useToast();
   const canUpload = useCanUpload();
+  const { bumpRefresh } = usePreviewOverlay();
 
   const loadChannels = useCallback(() => {
     setLoading(true);
@@ -60,6 +62,7 @@ const BannerUrlManager: React.FC = () => {
       });
       showToast(`Banner URL set for ${channelName}.`, 'success');
       await loadChannels();
+      bumpRefresh();
     } catch (err) {
       showToast(describeApiError(err, 'Banner URL could not be set'), 'error');
     } finally {
@@ -91,6 +94,7 @@ const BannerUrlManager: React.FC = () => {
         'success',
       );
       await loadChannels();
+      bumpRefresh();
     } catch (err) {
       showToast(describeApiError(err, 'Banner URLs could not be applied'), 'error');
     } finally {

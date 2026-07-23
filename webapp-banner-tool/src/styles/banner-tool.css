@@ -66,12 +66,63 @@ h1, h2, h3 {
   color: var(--color-text-muted);
 }
 
-.app-main {
+.app-body {
   flex: 1;
   width: 100%;
+  display: flex;
+  align-items: flex-start;
+}
+
+.app-main {
+  flex: 1 1 50%;
+  min-width: 0;
   max-width: 720px;
   margin: 0 auto;
   padding: 24px 16px 48px;
+}
+
+/* Persistent live channel-tree panel (App.tsx) -- always mounted regardless
+   of route so it never loses its poll/scroll state on navigation. */
+
+.app-preview-panel {
+  flex: 1 1 50%;
+  min-width: 320px;
+  max-width: 560px;
+  padding: 24px 16px 48px;
+  border-left: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+
+.app-preview-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 14px;
+}
+
+.channel-tree-panel {
+  max-height: none;
+}
+
+@media (max-width: 900px) {
+  .app-body {
+    flex-direction: column;
+  }
+
+  .app-preview-panel {
+    max-width: none;
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--color-border);
+    position: static;
+    max-height: none;
+  }
 }
 
 /* Cards */
@@ -521,6 +572,22 @@ h1, h2, h3 {
 
 .channel-tree-thumb-placeholder {
   background: var(--color-border);
+}
+
+/* Rows spliced in from a page's not-yet-submitted PreviewOverlay (see
+   PreviewOverlayContext) -- visually distinct from the real, already-saved
+   tree so it's never mistaken for a channel that actually exists yet. */
+
+.channel-tree-row-pending {
+  border: 1px dashed var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: rgba(37, 99, 235, 0.06);
+  opacity: 0.85;
+}
+
+.badge-pending {
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--color-primary);
 }
 
 .channel-tree-name {

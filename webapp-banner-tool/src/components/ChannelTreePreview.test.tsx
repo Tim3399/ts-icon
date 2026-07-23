@@ -95,4 +95,61 @@ describe('ChannelTreePreview', () => {
 
     await waitFor(() => expect(showToastMock).toHaveBeenCalled());
   });
+
+  it('splices overlay rows right after the chosen parent, marked pending', async () => {
+    apiFetchJsonMock.mockResolvedValue({ channels: CHANNELS });
+    render(
+      <ChannelTreePreview
+        overlay={{
+          parentCid: '1',
+          rows: [{ depth: 0, isSpacer: false, imageDataUrl: 'data:image/png;base64,abc' }],
+        }}
+      />,
+    );
+
+    await screen.findByText('General');
+    const rows = screen.getAllByRole('listitem');
+    // Order: General (real), pending (spliced right after its parent), Music (real).
+    expect(rows.map((r) => r.textContent)).toEqual([
+      expect.stringContaining('General'),
+      expect.stringContaining('New channel (pending)'),
+      expect.stringContaining('Music'),
+    ]);
+    expect(rows[1].className).toContain('channel-tree-row-pending');
+    expect(rows[1].querySelector('.badge-pending')).not.toBeNull();
+  });
+
+  it('inserts overlay rows at the very start for a null (top-level) parent', async () => {
+    apiFetchJsonMock.mockResolvedValue({ channels: CHANNELS });
+    render(
+      <ChannelTreePreview
+        overlay={{
+          parentCid: null,
+          rows: [{ depth: 0, isSpacer: true, imageDataUrl: 'data:image/png;base64,abc' }],
+        }}
+      />,
+    );
+
+    await screen.findByText('General');
+    const rows = screen.getAllByRole('listitem');
+    expect(rows[0].textContent).toContain('Spacer (pending)');
+  });
+
+  it('does not treat a pending row as clickable even when selectable', async () => {
+    apiFetchJsonMock.mockResolvedValue({ channels: CHANNELS });
+    const onSelectParent = vi.fn();
+    render(
+      <ChannelTreePreview
+        selectable
+        onSelectParent={onSelectParent}
+        overlay={{
+          parentCid: '1',
+          rows: [{ depth: 0, isSpacer: false, imageDataUrl: 'data:image/png;base64,abc' }],
+        }}
+      />,
+    );
+
+    fireEvent.click(await screen.findByText('New channel (pending)'));
+    expect(onSelectParent).not.toHaveBeenCalled();
+  });
 });

@@ -20,6 +20,10 @@ vi.mock('./Toast', () => ({
   useToast: () => ({ showToast: showToastMock }),
 }));
 
+vi.mock('../preview/PreviewOverlayContext', () => ({
+  usePreviewOverlay: () => ({ overlay: null, setOverlay: vi.fn(), refreshKey: 0, bumpRefresh: vi.fn() }),
+}));
+
 vi.mock('../api/client', async () => {
   const actual = await vi.importActual<typeof import('../api/client')>('../api/client');
   return {

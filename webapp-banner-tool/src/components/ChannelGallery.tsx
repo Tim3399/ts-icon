@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { apiFetch, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
 import { useToast } from './Toast';
 import SpacerBaseImageManager from './SpacerBaseImageManager';
+import { usePreviewOverlay } from '../preview/PreviewOverlayContext';
 
 type Channel = {
   name: string;
@@ -20,6 +21,7 @@ const ChannelGallery: React.FC = () => {
   const navigate = useNavigate();
   const { getToken } = useAuth();
   const { showToast } = useToast();
+  const { bumpRefresh } = usePreviewOverlay();
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +60,7 @@ const ChannelGallery: React.FC = () => {
       });
       showToast('Image updated!', 'success');
       setMissingImages(prev => ({ ...prev, [channelName]: false }));
+      bumpRefresh();
     } catch (err) {
       showToast(describeApiError(err,'Image could not be updated'), 'error');
     } finally {
@@ -82,6 +85,7 @@ const ChannelGallery: React.FC = () => {
       });
       showToast('Image deleted.', 'success');
       setMissingImages(prev => ({ ...prev, [channelName]: true }));
+      bumpRefresh();
     } catch (err) {
       showToast(describeApiError(err, 'Image could not be deleted'), 'error');
     } finally {
