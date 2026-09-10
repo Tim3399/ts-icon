@@ -18,6 +18,8 @@ export interface StoredImage {
   contentHash: string;
 }
 
+type ImageReader = Pick<PrismaService, "channelImage" | "channelImageAlias" | "channelReference">;
+
 function representation(row: ChannelImage | null): StoredImage | null {
   if (!row) return null;
   const image = Buffer.from(row.image);
@@ -40,10 +42,13 @@ function aliasMatches(alias: string, requested: string): boolean {
 export class ImagesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async legacyIds(channelName: string): Promise<string[]> {
+  private async legacyIds(
+    channelName: string,
+    client: ImageReader = this.prisma,
+  ): Promise<string[]> {
     const [aliases, rows] = await Promise.all([
-      this.prisma.channelImageAlias.findMany({ select: { alias: true, imageId: true } }),
-      this.prisma.channelImage.findMany({ select: { id: true, channelName: true } }),
+      client.channelImageAlias.findMany({ select: { alias: true, imageId: true } }),
+      client.channelImage.findMany({ select: { id: true, channelName: true } }),
     ]);
     return [
       ...new Set([
@@ -73,20 +78,30 @@ export class ImagesService {
     return representation(await this.prisma.channelImage.findUnique({ where: { channelId } }));
   }
 
+  private async legacyImageForChannel(
+    channelName: string,
+    client: ImageReader = this.prisma,
+  ): Promise<ChannelImage | null> {
+    // The shared spacer image is a fallback, never a channel-owned legacy image.
+    if (channelName === SPACER_BASE_IMAGE_CHANNEL_NAME) return null;
+    const references = await client.channelReference.findMany();
+    const sameName = references.filter(
+      (r) => normalizeChannelName(r.name) === normalizeChannelName(channelName),
+    );
+    if (sameName.length !== 1) return null;
+    const ids = await this.legacyIds(channelName, client);
+    if (ids.length !== 1) return null;
+    const legacy = await client.channelImage.findUnique({ where: { id: ids[0] } });
+    return legacy?.channelId === null ? legacy : null;
+  }
+
   async getPublicImageByChannelId(channelId: string): Promise<StoredImage | null> {
     const own = await this.getImageByChannelId(channelId);
     if (own) return own;
     const channel = await this.prisma.channelReference.findUnique({ where: { cid: channelId } });
     if (channel) {
-      const references = await this.prisma.channelReference.findMany();
-      const sameName = references.filter(
-        (r) => normalizeChannelName(r.name) === normalizeChannelName(channel.name),
-      );
-      const ids = await this.legacyIds(channel.name);
-      if (sameName.length === 1 && ids.length === 1) {
-        const legacy = await this.prisma.channelImage.findUnique({ where: { id: ids[0] } });
-        if (legacy && legacy.channelId === null) return representation(legacy);
-      }
+      const legacy = await this.legacyImageForChannel(channel.name);
+      if (legacy) return representation(legacy);
     }
     return channel?.isSpacer ? this.getImage(SPACER_BASE_IMAGE_CHANNEL_NAME) : null;
   }
@@ -195,7 +210,16 @@ export class ImagesService {
   }
 
   async deleteImageByChannelId(channelId: string): Promise<boolean> {
-    return (await this.prisma.channelImage.deleteMany({ where: { channelId } })).count > 0;
+    return this.prisma.$transaction(async (tx) => {
+      if ((await tx.channelImage.deleteMany({ where: { channelId } })).count > 0) return true;
+      const channel = await tx.channelReference.findUnique({ where: { cid: channelId } });
+      if (!channel) return false;
+      const legacy = await this.legacyImageForChannel(channel.name, tx);
+      if (!legacy) return false;
+      return (
+        (await tx.channelImage.deleteMany({ where: { id: legacy.id, channelId: null } })).count > 0
+      );
+    });
   }
 
   async listOptions() {

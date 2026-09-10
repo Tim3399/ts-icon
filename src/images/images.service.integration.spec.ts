@@ -285,4 +285,92 @@ describe("ImagesService (integration: real SQLite + real Prisma migrations)", ()
   it("reports false when deleting a channel with no stored image", async () => {
     await expect(service.deleteImage("never-existed")).resolves.toBe(false);
   });
+
+  it("deletes an unambiguous legacy image through the channel ID used to display it", async () => {
+    await service.syncChannels([{ cid: "701", name: "Legacy Delete" }]);
+    await service.saveImage("legacy-delete", Buffer.from("legacy"), "image/png");
+    expect((await service.getPublicImageByChannelId("701"))?.image).toEqual(Buffer.from("legacy"));
+
+    await expect(service.deleteImageByChannelId("701")).resolves.toBe(true);
+
+    await expect(service.getPublicImageByChannelId("701")).resolves.toBeNull();
+    await expect(service.getImage("legacy-delete")).resolves.toBeNull();
+    await expect(service.deleteImageByChannelId("701")).resolves.toBe(false);
+  });
+
+  it("does not delete an unassigned image when live channel names are ambiguous", async () => {
+    await service.syncChannels([
+      { cid: "702", name: "Duplicate Delete" },
+      { cid: "703", name: "Duplicate Delete" },
+    ]);
+    await service.saveImage("duplicate-delete", Buffer.from("shared-name"), "image/png");
+
+    await expect(service.deleteImageByChannelId("702")).resolves.toBe(false);
+    expect((await service.getImage("duplicate-delete"))?.image).toEqual(Buffer.from("shared-name"));
+  });
+
+  it("does not delete a same-name image assigned to a different channel", async () => {
+    await service.saveImage("Other Owner", Buffer.from("other"), "image/png", "704");
+    await service.syncChannels([{ cid: "705", name: "Other Owner" }], true);
+
+    await expect(service.deleteImageByChannelId("705")).resolves.toBe(false);
+    expect((await service.getImageByChannelId("704"))?.image).toEqual(Buffer.from("other"));
+  });
+
+  it("deletes the directly assigned image even with duplicate live names", async () => {
+    await service.syncChannels([
+      { cid: "706", name: "Assigned Duplicate" },
+      { cid: "707", name: "Assigned Duplicate" },
+    ]);
+    await service.saveImage("Assigned Duplicate", Buffer.from("first"), "image/png", "706");
+    await service.saveImage("Assigned Duplicate", Buffer.from("second"), "image/png", "707");
+
+    await expect(service.deleteImageByChannelId("706")).resolves.toBe(true);
+    expect((await service.getImageByChannelId("707"))?.image).toEqual(Buffer.from("second"));
+  });
+
+  it("preserves the shared spacer fallback when deleting a channel without its own image", async () => {
+    const { SPACER_BASE_IMAGE_CHANNEL_NAME } = await import("../util/util");
+    await service.saveImage(SPACER_BASE_IMAGE_CHANNEL_NAME, Buffer.from("base"), "image/png");
+    await service.syncChannels([
+      { cid: "708", name: "[spacer708]" },
+      { cid: "709", name: SPACER_BASE_IMAGE_CHANNEL_NAME },
+    ]);
+    expect((await service.getPublicImageByChannelId("708"))?.image).toEqual(Buffer.from("base"));
+
+    await expect(service.deleteImageByChannelId("708")).resolves.toBe(false);
+    await expect(service.deleteImageByChannelId("709")).resolves.toBe(false);
+    expect((await service.getImage(SPACER_BASE_IMAGE_CHANNEL_NAME))?.image).toEqual(
+      Buffer.from("base"),
+    );
+  });
+
+  it("resolves an unassigned image by its old alias for both display and deletion", async () => {
+    await service.syncChannels([{ cid: "710", name: "Old Alias Delete" }]);
+    await service.saveImage("old-alias-delete", Buffer.from("alias"), "image/png");
+    await prisma.channelImage.updateMany({
+      where: { channelName: "old-alias-delete" },
+      data: { channelName: "New Alias Delete" },
+    });
+    expect((await service.getPublicImageByChannelId("710"))?.image).toEqual(Buffer.from("alias"));
+
+    await expect(service.deleteImageByChannelId("710")).resolves.toBe(true);
+    await expect(service.getImage("new-alias-delete")).resolves.toBeNull();
+    expect(await prisma.channelImageAlias.count({ where: { alias: "old-alias-delete" } })).toBe(0);
+  });
+
+  it("does not delete legacy images with colliding names or historical aliases", async () => {
+    await service.syncChannels([{ cid: "711", name: "Colliding Alias" }]);
+    await service.saveImage("colliding-alias", Buffer.from("legacy"), "image/png");
+    await service.saveImage("Unrelated Channel", Buffer.from("other"), "image/png", "712");
+    const other = await prisma.channelImage.findUniqueOrThrow({ where: { channelId: "712" } });
+    await prisma.channelImageAlias.create({
+      data: { alias: "Colliding Alias", imageId: other.id },
+    });
+
+    await expect(service.getPublicImageByChannelId("711")).resolves.toBeNull();
+    await expect(service.deleteImageByChannelId("711")).resolves.toBe(false);
+    expect(await prisma.channelImage.count({ where: { channelName: "colliding-alias" } })).toBe(1);
+    expect((await service.getImageByChannelId("712"))?.image).toEqual(Buffer.from("other"));
+  });
 });

@@ -319,6 +319,26 @@ describe("CID images and durable wallpaper runs (real SQLite + HTTP)", () => {
     expect((await images.getPublicImageByChannelId("8"))?.image).toEqual(Buffer.from("base"));
   });
 
+  it("lets the gallery delete a displayed legacy image through its channel-ID route", async () => {
+    channels.set("80", {
+      cid: "80",
+      name: "Legacy Gallery",
+      pid: null,
+      bannerGfxUrl: "",
+      description: "",
+    });
+    await images.saveImage("legacy-gallery", png, "image/png");
+    const listed = await request(reqServer()).get("/images-local/channels").expect(200);
+    expect(listed.body).toMatchObject({ items: [{ cid: "80", hasImage: true }] });
+    await request(reqServer()).get("/images/by-id/80.png").expect(200);
+
+    await request(reqServer()).delete("/images-local/channels/80/image").expect(200);
+
+    await request(reqServer()).get("/images/by-id/80.png").expect(404);
+    const refreshed = await request(reqServer()).get("/images-local/channels").expect(200);
+    expect(refreshed.body).toMatchObject({ items: [{ cid: "80", hasImage: false }] });
+  });
+
   it("reports stale running leases as resumable and refuses an active lease", async () => {
     const prepared = await runs.prepare(randomUUID(), "hash", null, [
       { name: "Lease 1", depth: 0, isSpacer: false, image: png },

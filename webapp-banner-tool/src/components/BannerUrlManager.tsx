@@ -20,7 +20,9 @@ export default function BannerUrlManager() {
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
   const lock = useRef(false);
+  const mounted = useRef(true);
   const request = useRef<AbortController | null>(null);
+  const actionRequest = useRef<AbortController | null>(null);
   const { getToken } = useAuth();
   const { showToast } = useToast();
   const { bumpRefresh } = usePreviewOverlay();
@@ -45,8 +47,13 @@ export default function BannerUrlManager() {
     }
   }, [getToken]);
   useEffect(() => {
+    mounted.current = true;
     void load();
-    return () => request.current?.abort();
+    return () => {
+      mounted.current = false;
+      request.current?.abort();
+      actionRequest.current?.abort();
+    };
   }, [load]);
   const pending = channels.filter((c) => !c.managed);
   const apply = async (cid?: string) => {
@@ -54,18 +61,31 @@ export default function BannerUrlManager() {
     if (!cid && !window.confirm(`Set managed banner URLs for ${pending.length} channel(s)?`))
       return;
     lock.current = true;
+    const controller = new AbortController();
+    actionRequest.current = controller;
     setBusy(cid || "all");
     setError("");
     try {
       if (cid) {
-        await apiFetch(channelBannerEndpoint(cid), { method: "PATCH", getToken });
+        await apiFetch(channelBannerEndpoint(cid), {
+          method: "PATCH",
+          getToken,
+          signal: controller.signal,
+        });
+        if (!mounted.current || controller.signal.aborted) return;
         setResult("Banner URL updated.");
       } else {
         const outcome = await apiFetchJson<{
           updated: string[];
           alreadyManaged: string[];
           failed?: { cid?: string; name?: string; error: string }[];
-        }>(APPLY_BANNER_URLS_URL, { method: "POST", getToken, timeoutMs: 120_000 });
+        }>(APPLY_BANNER_URLS_URL, {
+          method: "POST",
+          getToken,
+          signal: controller.signal,
+          timeoutMs: 120_000,
+        });
+        if (!mounted.current || controller.signal.aborted) return;
         setResult(
           `Updated ${outcome.updated.length} channel(s); ${outcome.alreadyManaged.length} already correct.`,
         );
@@ -75,14 +95,18 @@ export default function BannerUrlManager() {
           );
       }
       await load();
+      if (!mounted.current || controller.signal.aborted) return;
       bumpRefresh();
       showToast("Banner URL operation finished. See the result below.", "info");
     } catch (err) {
-      setError(describeApiError(err, "Banner URLs could not be applied."));
-      bumpRefresh();
+      if (mounted.current && !controller.signal.aborted) {
+        setError(describeApiError(err, "Banner URLs could not be applied."));
+        bumpRefresh();
+      }
     } finally {
+      if (actionRequest.current === controller) actionRequest.current = null;
       lock.current = false;
-      setBusy(null);
+      if (mounted.current) setBusy(null);
     }
   };
   const managed = channels.length - pending.length;
