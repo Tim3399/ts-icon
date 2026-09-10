@@ -25,6 +25,10 @@ import {
   listChannelsOnConnection,
 } from "../teamspeak/teamspeak-channels";
 
+// These HTTP workflows commit to real SQLite files. Shared Windows runners can
+// exceed Jest's 5-second default during multi-step generate/undo/recreate flows.
+jest.setTimeout(30_000);
+
 let mockDbUrl = "";
 jest.mock("../../config", () => ({
   ...jest.requireActual<typeof import("../../config")>("../../config"),
