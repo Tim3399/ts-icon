@@ -19,7 +19,8 @@
     "strict": true,
     "moduleResolution": "node",
     "esModuleInterop": true,
-    "resolveJsonModule": true,
+    "resolveJsonModule": true
   },
-  "include": ["src/**/*", "test/**/*"]
+  "include": ["src/**/*", "test/**/*", "scripts/**/*.ts", "config.ts", "prisma.config.ts"],
+  "exclude": ["node_modules", "dist", ".tmp", "webapp-banner-tool"]
 }

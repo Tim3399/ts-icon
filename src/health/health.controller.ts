@@ -1,20 +1,14 @@
-import {
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  ServiceUnavailableException,
-} from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Public } from '../auth/public.decorator';
-import { HealthService } from './health.service';
+import { Controller, Get, HttpCode, HttpStatus, ServiceUnavailableException } from "@nestjs/common";
+import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Public } from "../auth/public.decorator";
+import { HealthService } from "./health.service";
 
 interface LivenessResponse {
-  status: 'ok';
+  status: "ok";
 }
 
 interface ReadinessResponse {
-  status: 'ok';
+  status: "ok";
 }
 
 /**
@@ -26,8 +20,8 @@ interface ReadinessResponse {
  * by HealthService instead.
  */
 interface ReadinessFailure {
-  status: 'error';
-  check: 'database';
+  status: "error";
+  check: "database";
 }
 
 /**
@@ -41,8 +35,8 @@ interface ReadinessFailure {
  * has no effect in the `public` app, which has no such guard, so the same
  * controller works unchanged in both.
  */
-@ApiTags('health')
-@Controller('health')
+@ApiTags("health")
+@Controller("health")
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
@@ -53,13 +47,13 @@ export class HealthController {
    * an otherwise-healthy process. Use /health/ready for dependency checks.
    */
   @Public()
-  @Get('live')
+  @Get("live")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Liveness probe: confirms the process is running and responsive',
+    summary: "Liveness probe: confirms the process is running and responsive",
   })
   live(): LivenessResponse {
-    return { status: 'ok' };
+    return { status: "ok" };
   }
 
   /**
@@ -68,17 +62,17 @@ export class HealthController {
    * non-identifying body when unhealthy — see ReadinessFailure.
    */
   @Public()
-  @Get('ready')
+  @Get("ready")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Readiness probe: confirms the database connection is reachable',
+    summary: "Readiness probe: confirms the database connection is reachable",
   })
   async ready(): Promise<ReadinessResponse> {
     const databaseReachable = await this.healthService.checkDatabase();
     if (!databaseReachable) {
-      const failure: ReadinessFailure = { status: 'error', check: 'database' };
+      const failure: ReadinessFailure = { status: "error", check: "database" };
       throw new ServiceUnavailableException(failure);
     }
-    return { status: 'ok' };
+    return { status: "ok" };
   }
 }

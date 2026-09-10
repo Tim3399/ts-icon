@@ -1,6 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsUrl, MaxLength } from 'class-validator';
-import { MAX_CHANNEL_NAME_LENGTH } from './channel-name-validation.pipe';
+import { ApiProperty } from "@nestjs/swagger";
+import { IsNotEmpty, IsString, IsUrl, MaxLength } from "class-validator";
+import { MAX_CHANNEL_NAME_LENGTH } from "./channel-name-validation.pipe";
 
 const MAX_URL_LENGTH = 2048;
 
@@ -11,14 +11,14 @@ const MAX_URL_LENGTH = 2048;
  * feed the same `normalizeChannelName()`/database-key path.
  */
 export class ImageFromUrlDto {
-  @ApiProperty({ example: 'my-channel', maxLength: MAX_CHANNEL_NAME_LENGTH })
+  @ApiProperty({ example: "my-channel", maxLength: MAX_CHANNEL_NAME_LENGTH })
   @IsString()
   @IsNotEmpty()
   @MaxLength(MAX_CHANNEL_NAME_LENGTH)
   channelName!: string;
 
   @ApiProperty({
-    example: 'https://example.com/image.png',
+    example: "https://example.com/image.png",
     maxLength: MAX_URL_LENGTH,
   })
   @IsUrl()

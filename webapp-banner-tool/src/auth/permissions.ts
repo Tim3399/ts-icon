@@ -1,9 +1,5 @@
-import { useAuth } from './AuthProvider';
-import {
-  KEYCLOAK_ENABLED,
-  KEYCLOAK_ADMIN_ROLE,
-  KEYCLOAK_EDITOR_ROLE,
-} from '../config';
+import { useAuth } from "./AuthContext";
+import { KEYCLOAK_ENABLED, KEYCLOAK_ADMIN_ROLE, KEYCLOAK_EDITOR_ROLE } from "../config";
 
 // Realm roles that grant upload permission in the Keycloak realm this
 // project uses. Configurable (VITE_KEYCLOAK_EDITOR_ROLE/VITE_KEYCLOAK_ADMIN_ROLE,

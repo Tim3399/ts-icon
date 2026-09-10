@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 
 interface ChannelAutocompleteProps {
   id: string;
@@ -38,8 +38,8 @@ const ChannelAutocomplete: React.FC<ChannelAutocompleteProps> = ({
         setIsOpen(false);
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const select = (name: string) => {
@@ -49,19 +49,30 @@ const ChannelAutocomplete: React.FC<ChannelAutocompleteProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") {
+      setIsOpen(false);
+      setHighlightedIndex(-1);
+      return;
+    }
+    if (!isOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      e.preventDefault();
+      setIsOpen(true);
+      setHighlightedIndex(0);
+      return;
+    }
     if (!isOpen || suggestions.length === 0) return;
-    if (e.key === 'ArrowDown') {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setHighlightedIndex((i) => Math.min(i + 1, suggestions.length - 1));
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlightedIndex((i) => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter') {
-      if (highlightedIndex >= 0) {
+    } else if (e.key === "Enter") {
+      if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
         e.preventDefault();
         select(suggestions[highlightedIndex]);
       }
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       setIsOpen(false);
     }
   };
@@ -71,6 +82,19 @@ const ChannelAutocomplete: React.FC<ChannelAutocompleteProps> = ({
       <input
         className="input"
         type="text"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={isOpen && suggestions.length > 0}
+        aria-controls={`${id}-listbox`}
+        aria-activedescendant={
+          isOpen && highlightedIndex >= 0 && highlightedIndex < suggestions.length
+            ? `${id}-option-${highlightedIndex}`
+            : undefined
+        }
+        onBlur={() => {
+          setIsOpen(false);
+          setHighlightedIndex(-1);
+        }}
         id={id}
         placeholder={placeholder}
         value={value}
@@ -85,13 +109,19 @@ const ChannelAutocomplete: React.FC<ChannelAutocompleteProps> = ({
         required
       />
       {isOpen && suggestions.length > 0 && (
-        <ul className="autocomplete-list" role="listbox">
+        <ul
+          className="autocomplete-list"
+          role="listbox"
+          id={`${id}-listbox`}
+          aria-label="Channel suggestions"
+        >
           {suggestions.map((name, index) => (
             <li
               key={name}
               role="option"
+              id={`${id}-option-${index}`}
               aria-selected={index === highlightedIndex}
-              className={`autocomplete-item${index === highlightedIndex ? ' autocomplete-item-highlighted' : ''}`}
+              className={`autocomplete-item${index === highlightedIndex ? " autocomplete-item-highlighted" : ""}`}
               // onMouseDown (not onClick) fires before the input's onBlur,
               // so selecting a suggestion isn't lost to the blur closing
               // the dropdown first.

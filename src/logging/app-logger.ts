@@ -1,7 +1,7 @@
-import { ConsoleLogger } from '@nestjs/common';
-import type { LogLevel } from '@nestjs/common';
-import { getRequestId } from './request-context';
-import { resolveEnabledLogLevels } from './log-level';
+import { ConsoleLogger } from "@nestjs/common";
+import type { LogLevel } from "@nestjs/common";
+import { getRequestId } from "./request-context";
+import { resolveEnabledLogLevels } from "./log-level";
 
 export interface AppLoggerOptions {
   /** Emit one JSON object per line instead of the colored text format. */
@@ -13,7 +13,7 @@ export interface AppLoggerOptions {
 interface PrintAsJsonOptions {
   context: string;
   logLevel: LogLevel;
-  writeStreamType?: 'stdout' | 'stderr';
+  writeStreamType?: "stdout" | "stderr";
   errorStack?: unknown;
 }
 
@@ -26,7 +26,7 @@ function jsonReplacer(_key: string, value: unknown): unknown {
   if (value instanceof Error) {
     return value.stack ?? value.message;
   }
-  if (typeof value === 'bigint') {
+  if (typeof value === "bigint") {
     return value.toString();
   }
   return value;
@@ -92,7 +92,7 @@ export class AppLogger extends ConsoleLogger {
       }
     }
 
-    const stream = options.writeStreamType ?? 'stdout';
+    const stream = options.writeStreamType ?? "stdout";
     process[stream].write(`${JSON.stringify(entry, jsonReplacer)}\n`);
   }
 }

@@ -4,10 +4,10 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
-} from '@nestjs/common';
-import type { Request } from 'express';
-import ipaddr from 'ipaddr.js';
-import { classifyIpRange } from '../images/ssrf-guard';
+} from "@nestjs/common";
+import type { Request } from "express";
+import ipaddr from "ipaddr.js";
+import { classifyIpRange } from "../images/ssrf-guard";
 
 /**
  * Ranges a caller's own source address is allowed to fall into to reach the
@@ -19,12 +19,7 @@ import { classifyIpRange } from '../images/ssrf-guard';
  * changes nothing in practice. This list is just the ranges an actual
  * loopback/private-network caller could really have.
  */
-const PRIVATE_CALLER_RANGES = new Set([
-  'loopback',
-  'private',
-  'uniqueLocal',
-  'linkLocal',
-]);
+const PRIVATE_CALLER_RANGES = new Set(["loopback", "private", "uniqueLocal", "linkLocal"]);
 
 /**
  * Unwraps an IPv4-mapped IPv6 address (e.g. "::ffff:127.0.0.1" -- how Node
@@ -65,6 +60,10 @@ export function isPrivateOrLoopbackAddress(address: string): boolean {
   return range !== null && PRIVATE_CALLER_RANGES.has(range);
 }
 
+export function isLoopbackAddress(address: string | undefined): boolean {
+  return !!address && classifyIpRange(normalizeCallerAddress(address)) === "loopback";
+}
+
 /**
  * Restricts a route to callers whose source IP is loopback or a private
  * range. Used only on the `public` app's /metrics endpoint (see
@@ -84,9 +83,11 @@ export class PrivateNetworkGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
     const callerAddress = request.ip;
-    if (!callerAddress || !isPrivateOrLoopbackAddress(callerAddress)) {
+    const forwardedWithoutTrust =
+      (request.headers?.["x-forwarded-for"] || request.headers?.forwarded) && !request.ips?.length;
+    if (forwardedWithoutTrust || !callerAddress || !isPrivateOrLoopbackAddress(callerAddress)) {
       this.logger.warn(
-        `Rejected /metrics request from a non-private address: ${callerAddress ?? 'unknown'}`,
+        `Rejected /metrics request from a non-private address: ${callerAddress ?? "unknown"}`,
       );
       throw new ForbiddenException();
     }

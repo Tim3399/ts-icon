@@ -1,7 +1,7 @@
-import { Module } from '@nestjs/common';
-import { MetricsModule } from './metrics.module';
-import { PublicMetricsController } from './public-metrics.controller';
-import { PrivateNetworkGuard } from './private-network.guard';
+import { Module } from "@nestjs/common";
+import { MetricsModule } from "./metrics.module";
+import { PublicMetricsController } from "./public-metrics.controller";
+import { PrivateNetworkGuard } from "./private-network.guard";
 
 /**
  * Wires MetricsModule's shared plumbing plus the `/metrics` endpoint for the

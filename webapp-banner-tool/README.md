@@ -1,41 +1,36 @@
-# ts-icon — admin frontend
+# ts-icon admin frontend
 
-React + Vite admin UI for [ts-icon](../README.md): logging in, picking a TeamSpeak channel, and cropping/uploading its banner image. This is one half of a two-part system — see the [root README](../README.md) for the full architecture, the two backend apps this talks to, API reference, and Keycloak setup.
+React and Vite interface for channel banners and recoverable wallpaper operations. See the [root README](../README.md) for Keycloak, both APIs, Docker and the complete setup.
 
-## Running standalone
+## Development
 
-```powershell
-npm install
+Use the repository's Node version, copy `.env.example` to `.env`, configure the two APIs and Keycloak, then run from this directory:
+
+```sh
+npm ci
 npm run dev
 ```
 
-Opens on `http://localhost:5173` by default. By default it points at a backend running on `localhost:3000`/`3001` — see [Configuration](#configuration) below to point it elsewhere.
+For the complete application, run `npm run setup` and `npm run dev` from the repository root. Local development without Keycloak requires both frontend `VITE_KEYCLOAK_ENABLED=false` and backend `AUTH_DISABLED=true`; it only works on loopback. Real settings belong in git-ignored `.env` files.
 
-Other scripts:
+## Checks
 
-| Script | Purpose |
-|---|---|
-| `npm run build` | Type-check (`tsc -b`) then build with Vite |
-| `npm run preview` | Preview a production build locally |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | Type-check only (`tsc -b`) |
-| `npm test` | Unit tests (Vitest + React Testing Library) |
+| Command                    | Purpose                                                                                            |
+| -------------------------- | -------------------------------------------------------------------------------------------------- |
+| `npm run lint`             | ESLint, including configuration and browser tests                                                  |
+| `npm run typecheck`        | TypeScript project checks                                                                          |
+| `npm test`                 | Vitest component, API client, auth and build-configuration tests                                   |
+| `npm run test:e2e:install` | Install Chromium for the browser workflows                                                         |
+| `npm run test:e2e`         | Desktop/mobile/tablet and zoom-layout workflows with the real Cropper and controlled API responses |
+| `npm run build`            | Typecheck and production build; requires explicit valid API and Keycloak settings                  |
+| `npm run preview`          | Serve an existing build locally                                                                    |
 
-## Configuration
+Run `npm run format` or `npm run check:format` from the repository root to apply the shared QuiltOR formatting rules.
 
-Copy `.env.example` to `.env` and adjust as needed. Full variable list and current defaults live in `.env.example` and `src/config.ts`; the notable ones:
+Browser tests own their Vite server on port 5178. Set `TS_ICON_E2E_PORT` to another available port (1024–65535) when another project uses it. The test URL and server port change together; tests never reuse an existing server.
 
-- `VITE_PUBLIC_API_URL` / `VITE_ADMIN_API_URL` — base URLs of the two backend apps (see the root README's Architecture section).
-- `VITE_KEYCLOAK_URL` / `VITE_KEYCLOAK_REALM` / `VITE_KEYCLOAK_CLIENT_ID` — Keycloak connection details.
-- `VITE_KEYCLOAK_ADMIN_ROLE` / `VITE_KEYCLOAK_EDITOR_ROLE` — realm role names granting admin/editor access; override if your realm uses different names.
-- `VITE_KEYCLOAK_ENABLED=false` skips the login screen, **but only when served from `localhost`/`127.0.0.1`/`::1`**, and **only** disables this frontend's own login redirect — the admin backend still requires a real token on every request unless it's *also* configured for no-auth mode. See the root README's [Quickstart](../README.md#quickstart) for how the two are meant to be used together (`AUTH_DISABLED=true` on the backend).
+## Production settings
 
-Never commit `.env`.
+`VITE_PUBLIC_API_URL` may be empty for same-origin image requests. The included nginx uses `/admin-api` as `VITE_ADMIN_API_URL`. Set `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM` and `VITE_KEYCLOAK_CLIENT_ID` to the real public client; role names must match the backend. Query strings, fragments and example placeholders are rejected during the build. Changing these settings requires rebuilding the frontend.
 
-## Testing
-
-Unit tests (`npm test`) use Vitest + React Testing Library. `src/auth/`, `src/components/Toast.tsx`, and `src/App.tsx`'s routing/access-guard behavior all have dedicated specs — check those for the testing patterns already in use before adding new ones (mocking `useAuth()`/`useCanUpload()` rather than the real Keycloak client, `vi.hoisted`/`vi.doMock` for module-level mocks, etc.).
-
-## See also
-
-The [root README](../README.md) covers the full picture this frontend is one piece of: the two backend apps and their API reference, authentication/authorization end to end, Docker Compose setup, and CI/CD.
+Browser tests intentionally simulate the API; real Keycloak login, TeamSpeak channel creation and server permissions require a separate installation check described in [operations](../docs/operations.md).

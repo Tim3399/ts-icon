@@ -1,108 +1,90 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Param,
   Req,
   Res,
   NotFoundException,
-  Logger,
-} from '@nestjs/common';
-import { ImagesService } from './images.service';
-import { Request, Response } from 'express';
-import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
-
+} from "@nestjs/common";
+import { ImagesService, type StoredImage } from "./images.service";
+import type { Request, Response } from "express";
+import { ApiTags, ApiOperation, ApiParam } from "@nestjs/swagger";
+import { parseChannelId } from "./dto/channel-id";
+export { parseChannelId } from "./dto/channel-id";
 import {
   normalizeChannelName,
   isSpacerChannelName,
   SPACER_BASE_IMAGE_CHANNEL_NAME,
-} from '../util/util';
-import { ChannelNameValidationPipe } from './dto/channel-name-validation.pipe';
+} from "../util/util";
 
-const logger = new Logger('ImagesPublicController');
-
-// expectedBannerUrl() (src/teamspeak/teamspeak-channels.ts) always appends
-// this suffix -- TeamSpeak 6 only renders a banner from a URL with a
-// recognized image file extension, unlike a browser, which goes by
-// Content-Type. Stripped back off here before normalizing, so both the
-// suffixed URL TS6 needs and the old extensionless form (existing tests,
-// any caller that built the URL by hand) resolve to the same channel.
-const PNG_SUFFIX = /\.png$/i;
-
-/**
- * Checks a raw `If-None-Match` request header value against the current
- * ETag. Supports the two shapes the HTTP spec actually allows for this
- * header: a bare `*` (matches any current representation) and a
- * comma-separated list of quoted entity tags — a client re-requesting a
- * single resource almost always sends back exactly the one ETag it was
- * given, but the list form is valid too and cheap to support correctly.
- */
-export function ifNoneMatchSatisfied(
-  ifNoneMatch: string | undefined,
-  etag: string,
-): boolean {
-  if (!ifNoneMatch) return false;
-  if (ifNoneMatch.trim() === '*') return true;
-  return ifNoneMatch
-    .split(',')
-    .map((value) => value.trim())
-    .includes(etag);
+export function ifNoneMatchSatisfied(value: string | undefined, etag: string): boolean {
+  if (!value) return false;
+  return (
+    value.trim() === "*" ||
+    value.split(",").some((tag) => tag.trim().replace(/^W\//, "") === etag.replace(/^W\//, ""))
+  );
 }
 
-@ApiTags('images')
-@Controller('images')
+@ApiTags("images")
+@Controller("images")
 export class ImagesPublicController {
   constructor(private readonly imagesService: ImagesService) {}
 
-  @Get(':channelName')
-  @ApiOperation({ summary: 'Fetch channel image from the database' })
-  @ApiParam({ name: 'channelName', type: String })
-  async getImage(
-    @Param('channelName', ChannelNameValidationPipe) channelName: string,
+  private send(image: StoredImage | null, req: Request, res: Response) {
+    if (!image) throw new NotFoundException("Image not found");
+    const etag = '"' + image.contentHash + '"';
+    res.setHeader("Cache-Control", "public, no-cache");
+    res.setHeader("ETag", etag);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    if (ifNoneMatchSatisfied(req.get("If-None-Match"), etag)) return res.status(304).end();
+    res.setHeader("Content-Type", image.mimeType);
+    return res.send(image.image);
+  }
+
+  @Get("by-id/:cid")
+  @ApiOperation({ summary: "Stable image URL for a TeamSpeak channel ID" })
+  async getImageById(@Param("cid") cid: string, @Req() req: Request, @Res() res: Response) {
+    return this.send(
+      await this.imagesService.getPublicImageByChannelId(parseChannelId(cid)),
+      req,
+      res,
+    );
+  }
+
+  @Get("wallpaper/:runId/:position")
+  async getWallpaperImage(
+    @Param("runId") runId: string,
+    @Param("position") position: string,
     @Req() req: Request,
     @Res() res: Response,
   ) {
-    const normalizedChannel = normalizeChannelName(
-      channelName.replace(PNG_SUFFIX, ''),
+    if (!/^[0-9a-f-]{36}$/i.test(runId) || !/^[0-9]{1,3}\.png$/.test(position)) {
+      throw new BadRequestException("Invalid wallpaper image address");
+    }
+    return this.send(
+      await this.imagesService.getWallpaperImage(runId, Number(position.slice(0, -4))),
+      req,
+      res,
     );
-    logger.log(`[getImage] Request: channelName=${normalizedChannel}`);
-    let image = await this.imagesService.getImage(normalizedChannel);
+  }
 
-    // A spacer channel with no image of its own falls back to the shared
-    // base image (if one has been set) rather than 404ing -- "a spacer is
-    // then always the base image, unless it has its own [image] set"
-    // (human operator's own framing). Deliberately a live, per-request
-    // fallback rather than a one-time bulk-copy into every spacer's own
-    // row: it applies to newly-created spacer channels automatically, with
-    // no separate "re-sync" step ever needed, and a channel keeps its own
-    // override for as long as it has one (checked first, above).
-    if (!image && isSpacerChannelName(normalizedChannel)) {
-      logger.log(
-        `[getImage] No image for spacer channel ${normalizedChannel}, falling back to the base image`,
-      );
+  @Get(":channelName")
+  @ApiOperation({ summary: "Legacy name-based image URL; ambiguous names return 409" })
+  @ApiParam({ name: "channelName", type: String })
+  async getImage(
+    @Param("channelName") channelName: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const name = channelName.replace(/\.png$/i, "");
+    if (!name.trim() || name.length > 200) throw new BadRequestException("Invalid channel name");
+    const normalized = normalizeChannelName(name);
+    if (!normalized) throw new BadRequestException("Channel name has no usable characters");
+    let image = await this.imagesService.getImage(normalized);
+    if (!image && isSpacerChannelName(normalized)) {
       image = await this.imagesService.getImage(SPACER_BASE_IMAGE_CHANNEL_NAME);
     }
-
-    if (!image) {
-      logger.warn(`[getImage] Image not found for ${normalizedChannel}`);
-      throw new NotFoundException('Image not found');
-    }
-
-    const etag = `"${image.contentHash}"`;
-    // Set for both the 304 and 200 outcomes below -- a 304 response must
-    // still carry the validator it's confirming, plus the same cache policy
-    // as the 200 it stands in for.
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.setHeader('ETag', etag);
-
-    if (ifNoneMatchSatisfied(req.get('If-None-Match'), etag)) {
-      logger.log(
-        `[getImage] Not modified (If-None-Match matched) for ${normalizedChannel}`,
-      );
-      return res.status(304).end();
-    }
-
-    res.setHeader('Content-Type', image.mimeType);
-    logger.log(`[getImage] Image served successfully for ${normalizedChannel}`);
-    return res.send(image.image);
+    return this.send(image, req, res);
   }
 }

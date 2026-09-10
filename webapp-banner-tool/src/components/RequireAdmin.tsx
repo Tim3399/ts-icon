@@ -1,6 +1,6 @@
-import React from 'react';
-import { Navigate } from 'react-router-dom';
-import { useIsAdmin } from '../auth/permissions';
+import React from "react";
+import { Navigate } from "react-router-dom";
+import { useIsAdmin } from "../auth/permissions";
 
 interface RequireAdminProps {
   children: React.ReactNode;

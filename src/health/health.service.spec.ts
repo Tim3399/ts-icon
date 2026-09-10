@@ -1,10 +1,14 @@
-import { HealthService } from './health.service';
-import type { PrismaService } from '../prisma/prisma.service';
-import type { MetricsService } from '../metrics/metrics.service';
+import { HealthService } from "./health.service";
+import type { PrismaService } from "../prisma/prisma.service";
+import type { MetricsService } from "../metrics/metrics.service";
 
 function createPrismaStub(findFirst: jest.Mock): PrismaService {
   return {
     channelImage: { findFirst },
+    channelImageAlias: { findFirst: jest.fn().mockResolvedValue(null) },
+    channelReference: { findFirst: jest.fn().mockResolvedValue(null) },
+    wallpaperRun: { findFirst: jest.fn().mockResolvedValue(null) },
+    wallpaperRunRow: { findFirst: jest.fn().mockResolvedValue(null) },
   } as unknown as PrismaService;
 }
 
@@ -20,8 +24,14 @@ function createMetricsStub(): { metrics: MetricsService; inc: jest.Mock } {
   return { metrics, inc };
 }
 
-describe('HealthService', () => {
-  it('returns true when the database query succeeds', async () => {
+describe("HealthService", () => {
+  it("rejects an old schema missing the wallpaper tables", async () => {
+    const prisma = createPrismaStub(jest.fn().mockResolvedValue(null));
+    jest.spyOn(prisma.wallpaperRunRow, "findFirst").mockRejectedValue(new Error("no such table"));
+    const { metrics } = createMetricsStub();
+    await expect(new HealthService(prisma, metrics).checkDatabase()).resolves.toBe(false);
+  });
+  it("returns true when the database query succeeds", async () => {
     const findFirst = jest.fn().mockResolvedValue(null);
     const { metrics, inc } = createMetricsStub();
     const service = new HealthService(createPrismaStub(findFirst), metrics);
@@ -31,21 +41,19 @@ describe('HealthService', () => {
     expect(inc).not.toHaveBeenCalled();
   });
 
-  it('returns false, without throwing, when the database query rejects, and records a database-error metric', async () => {
-    const findFirst = jest
-      .fn()
-      .mockRejectedValue(new Error('SQLITE_BUSY: database is locked'));
+  it("returns false, without throwing, when the database query rejects, and records a database-error metric", async () => {
+    const findFirst = jest.fn().mockRejectedValue(new Error("SQLITE_BUSY: database is locked"));
     const { metrics, inc } = createMetricsStub();
     const service = new HealthService(createPrismaStub(findFirst), metrics);
 
     await expect(service.checkDatabase()).resolves.toBe(false);
     expect(inc).toHaveBeenCalledWith({
-      operation: 'readiness-check',
+      operation: "readiness-check",
     });
   });
 
-  it('returns false when a non-Error value is thrown', async () => {
-    const findFirst = jest.fn().mockRejectedValue('connection reset');
+  it("returns false when a non-Error value is thrown", async () => {
+    const findFirst = jest.fn().mockRejectedValue("connection reset");
     const { metrics } = createMetricsStub();
     const service = new HealthService(createPrismaStub(findFirst), metrics);
 

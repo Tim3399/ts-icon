@@ -1,0 +1,8 @@
+# Keep text files deterministic across Windows, macOS and Linux.
+# Git detects binary files; explicit image rules document common binary assets.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary

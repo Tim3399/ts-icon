@@ -1,321 +1,227 @@
 name: CI
-
-# CI: install, lint, typecheck, build, test for both apps, plus a Docker
-# image build validation job (runs for every push/PR on any branch). On a
-# push to main specifically, once all of the above have passed, two more
-# jobs run: tagging the commit if package.json's version changed, and
-# building+pushing both Docker images to GHCR. Actual deployment still
-# needs host/SSH secrets that aren't configured yet.
 on: [push, pull_request]
 
-# Cancel superseded runs on the same branch/PR so we don't burn minutes on
-# stale commits.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
 
 jobs:
-  backend:
-    name: Backend (lint, typecheck, build, test)
-    runs-on: ubuntu-latest
+  checks:
+    name: App checks (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      VITE_PUBLIC_API_URL: ""
+      VITE_ADMIN_API_URL: /admin-api
+      VITE_KEYCLOAK_URL: https://login.example.test
+      VITE_KEYCLOAK_REALM: smoke
+      VITE_KEYCLOAK_CLIENT_ID: smoke
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          # Hardcoded rather than node-version-file to avoid any ambiguity
-          # about path resolution across jobs with different working
-          # directories (see the frontend job). Keep in sync with the
-          # root .nvmrc (currently pinned to 22).
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            webapp-banner-tool/package-lock.json
+      - run: npm install --global npm@11.7.0
+      - run: npm ci
+      - run: npm ci --prefix webapp-banner-tool
+      - run: npm run db:generate
+      - run: npm run check:format
+      - run: npm run lint
+      - run: npm run lint --prefix webapp-banner-tool
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run build --prefix webapp-banner-tool
+      - run: npm test -- --runInBand
+      - run: npm run test:e2e -- --runInBand
+      - run: npm run test:ops
+      - run: npm test --prefix webapp-banner-tool
+      - run: npm audit --audit-level=high
+      - run: npm audit --prefix webapp-banner-tool --audit-level=high
+      - run: npm run audit:production
+      - run: npm run audit:production --prefix webapp-banner-tool
+      - name: Explain missing image-release configuration
+        if: >-
+          github.event_name == 'push' && github.ref == 'refs/heads/main' && runner.os == 'Linux' &&
+          (vars.VITE_KEYCLOAK_URL == '' || vars.VITE_KEYCLOAK_REALM == '' || vars.VITE_KEYCLOAK_CLIENT_ID == '')
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ## Image publication awaits configuration
+          All CI checks run normally. The image release job is skipped until these repository variables are set:
+          - `VITE_KEYCLOAK_URL`
+          - `VITE_KEYCLOAK_REALM`
+          - `VITE_KEYCLOAK_CLIENT_ID`
+          Set the real public Keycloak client values under Settings → Secrets and variables → Actions → Variables, then push or rerun this workflow. Never use placeholder login settings for released images.
+          EOF
 
-      - name: Install dependencies
-        run: npm ci
-
-      # The generated Prisma client (node_modules/.prisma/client) isn't
-      # committed and nothing currently regenerates it automatically on
-      # `npm ci`. Without this step, PrismaClient resolves to an untyped
-      # value under the project's type-aware ESLint config, which turns
-      # ordinary Prisma usage into spurious "unsafe" lint errors.
-      #
-      # DATABASE_URL is set here even though `generate` never connects to a
-      # database: prisma.config.ts resolves it via env() as soon as the
-      # Prisma CLI loads its config, for any command, so a value must be
-      # present regardless of whether this specific command needs one.
-      - name: Generate Prisma client
-        run: npx prisma generate
-        env:
-          DATABASE_URL: file:./dev.db
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Build
-        run: npm run build
-
-      # There are currently no unit test files in src/, and Jest's default
-      # behavior is to exit non-zero ("No tests found") in that case, which
-      # would make this step permanently red before any tests exist.
-      # --passWithNoTests keeps it green until real spec files are added, at
-      # which point it starts exercising them automatically with no
-      # workflow change needed.
-      - name: Unit tests
-        run: npm test -- --passWithNoTests
-
-      # Rewritten against real routes (a public health check, and a
-      # protected route confirmed to reject an unauthenticated request).
-      # Neither touches the database, so this runs safely against a fresh
-      # checkout with no pre-existing SQLite file or migration step needed -
-      # better-sqlite3 creates an empty file on connect, which is enough
-      # since nothing here queries a table.
-      - name: E2E tests
-        run: npm run test:e2e
-
-  frontend:
-    name: Frontend (lint, typecheck, build)
+  browser:
+    name: Browser workflows (desktop, mobile, tablet and zoom layout)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: webapp-banner-tool
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          # See the comment in the backend job — hardcoded to match the
-          # root .nvmrc (22) rather than node-version-file, since this job's
-          # working directory is one level below the repo root where
-          # .nvmrc lives and setup-node's path resolution for
-          # node-version-file in that situation isn't worth relying on.
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: webapp-banner-tool/package-lock.json
+      - run: npm install --global npm@11.7.0
+      - run: npm ci --prefix webapp-banner-tool
+      - run: npx playwright install --with-deps chromium
+        working-directory: webapp-banner-tool
+      - run: npm run test:e2e --prefix webapp-banner-tool
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure
+          path: |
+            webapp-banner-tool/playwright-report
+            webapp-banner-tool/test-results
+          retention-days: 7
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Build
-        run: npm run build
-
-      - name: Unit tests
-        run: npm test
-
-  docker-build:
-    name: Docker image build (validation only, no push)
+  docker:
+    name: Container build, start and restore
     runs-on: ubuntu-latest
-    # Independent of the backend/frontend jobs above: a Dockerfile mistake
-    # (missing file in the build context, broken RUN step, wrong stage
-    # reference, etc.) is a different failure mode than lint/typecheck/test
-    # and previously wasn't caught by CI at all. No registry credentials are
-    # needed since nothing here is pushed anywhere.
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Builds the Dockerfile's final stage ("runner"), i.e. exactly what
-      # `docker build .` produces without `--target` — the image that
-      # actually ships. This is the build most likely to break in practice
-      # (e.g. a bad COPY path, a runtime-stage dependency that's missing
-      # after `npm ci --omit=dev`), so it's validated first.
-      - name: Build default (runner) stage
-        uses: docker/build-push-action@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
         with:
           context: .
-          push: false
-          cache-from: type=gha,scope=docker-runner
-          cache-to: type=gha,mode=max,scope=docker-runner
-
-      # Also validates the "builder" stage on its own (the stage the
-      # docker-compose "migrate" one-off service builds from, since it's the
-      # only stage with the Prisma CLI available). Cheap extra coverage
-      # given the layer cache above is mostly shared with it.
-      - name: Build builder stage
-        uses: docker/build-push-action@v6
+          target: runner
+          load: true
+          tags: ts-icon-backend:ci
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+      - uses: docker/build-push-action@v6
         with:
           context: .
-          target: builder
-          push: false
-          cache-from: type=gha,scope=docker-builder
-          cache-to: type=gha,mode=max,scope=docker-builder
-
-      # The frontend image had no CI coverage at all until now -- a broken
-      # frontend Dockerfile/nginx.conf would only surface once someone tried
-      # to actually build it for deployment. Build args are dummy values:
-      # this step only proves the image builds and Vite's build step
-      # succeeds, not that the baked-in config is correct for any real
-      # deployment target.
-      - name: Build frontend image
-        uses: docker/build-push-action@v6
+          target: tools
+          load: true
+          tags: ts-icon-tools:ci
+          cache-from: type=gha,scope=backend-tools
+          cache-to: type=gha,mode=max,scope=backend-tools
+      - uses: docker/build-push-action@v6
         with:
           context: ./webapp-banner-tool
-          push: false
+          load: true
+          tags: ts-icon-frontend:ci
           build-args: |
-            VITE_PUBLIC_API_URL=http://localhost:3000
-            VITE_ADMIN_API_URL=http://localhost:3001
-            VITE_KEYCLOAK_URL=http://localhost:8080
-            VITE_KEYCLOAK_REALM=ci-placeholder
-            VITE_KEYCLOAK_CLIENT_ID=ci-placeholder
-            VITE_KEYCLOAK_ENABLED=false
-            VITE_KEYCLOAK_ADMIN_ROLE=ci-placeholder-admin
-            VITE_KEYCLOAK_EDITOR_ROLE=ci-placeholder-editor
-          cache-from: type=gha,scope=docker-frontend
-          cache-to: type=gha,mode=max,scope=docker-frontend
+            VITE_PUBLIC_API_URL=
+            VITE_ADMIN_API_URL=/admin-api
+            VITE_KEYCLOAK_URL=https://login.example.test
+            VITE_KEYCLOAK_REALM=smoke
+            VITE_KEYCLOAK_CLIENT_ID=smoke
+            VITE_KEYCLOAK_ENABLED=true
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+      - run: node scripts/container-smoke.cjs
 
-  # Everything below only runs for real pushes to main (never for PRs or
-  # other branches), and only after backend/frontend/docker-build have all
-  # passed -- a version bump or an image push should never happen off the
-  # back of code that doesn't actually build or pass its tests.
-
-  version-tag:
-    name: Tag commit on version bump
+  release:
+    name: Publish paired images
+    needs: [checks, browser, docker]
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      vars.VITE_KEYCLOAK_URL != '' && vars.VITE_KEYCLOAK_REALM != '' && vars.VITE_KEYCLOAK_CLIENT_ID != ''
     runs-on: ubuntu-latest
-    needs: [backend, frontend, docker-build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
-    outputs:
-      version: ${{ steps.check.outputs.version }}
-      new_tag: ${{ steps.check.outputs.new_tag }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          # Need full history and tags to check whether a tag for the
-          # current version already exists, not just the latest commit.
-          fetch-depth: 0
-
-      - name: Check version and tag if new
-        id: check
-        run: |
-          set -euo pipefail
-          VERSION=$(node -p "require('./package.json').version")
-          FRONTEND_VERSION=$(node -p "require('./webapp-banner-tool/package.json').version")
-
-          # Root package.json is the single source of truth for the
-          # project's version; the frontend's own package.json is expected
-          # to always match it. If they've drifted apart, fail loudly here
-          # rather than silently tagging (or not tagging) based on a
-          # guess about which one is "right".
-          if [ "$VERSION" != "$FRONTEND_VERSION" ]; then
-            echo "::error::Root package.json ($VERSION) and webapp-banner-tool/package.json ($FRONTEND_VERSION) versions have drifted apart."
-            exit 1
-          fi
-
-          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
-            echo "Tag v$VERSION already exists -- version unchanged since the last tagged commit, nothing to do."
-            echo "new_tag=false" >> "$GITHUB_OUTPUT"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag "v$VERSION"
-            git push origin "v$VERSION"
-            echo "new_tag=true" >> "$GITHUB_OUTPUT"
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-  publish-images:
-    name: Build and push Docker images to GHCR
-    runs-on: ubuntu-latest
-    needs: [backend, frontend, docker-build, version-tag]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    permissions:
-      contents: read
       packages: write
+    env:
+      VITE_PUBLIC_API_URL: ""
+      VITE_ADMIN_API_URL: /admin-api
+      VITE_KEYCLOAK_URL: ${{ vars.VITE_KEYCLOAK_URL }}
+      VITE_KEYCLOAK_REALM: ${{ vars.VITE_KEYCLOAK_REALM }}
+      VITE_KEYCLOAK_CLIENT_ID: ${{ vars.VITE_KEYCLOAK_CLIENT_ID }}
+      VITE_KEYCLOAK_ENABLED: "true"
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      # Validate before reserving a version or pushing either image.
+      - run: node --input-type=module -e "import {validateBuildEnvironment} from './webapp-banner-tool/build-config.ts'; validateBuildEnvironment(process.env)"
+      - name: Resolve immutable version reservation (retryable)
+        id: version
+        run: node scripts/release-version.cjs
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      # `type=raw,value=v...,enable=...` only actually gets applied when
-      # version-tag found a brand new version -- otherwise every push to
-      # main would re-tag the previous version's images with their own
-      # version tag, which should be immutable once published.
-      - name: Backend image metadata
+      - name: Reuse immutable SHA candidates from an earlier attempt
+        id: candidates
+        run: node scripts/release-images.cjs inspect
+      - uses: docker/metadata-action@v5
         id: backend-meta
-        uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/ts-icon-backend
           tags: |
             type=raw,value=latest
             type=raw,value=main
             type=sha,prefix=sha-,format=short
-            type=raw,value=v${{ needs.version-tag.outputs.version }},enable=${{ needs.version-tag.outputs.new_tag == 'true' }}
-
-      - name: Build and push backend image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.backend-meta.outputs.tags }}
-          labels: ${{ steps.backend-meta.outputs.labels }}
-          cache-from: type=gha,scope=docker-runner
-          cache-to: type=gha,mode=max,scope=docker-runner
-
-      - name: Frontend image metadata
+            type=raw,value=v${{ steps.version.outputs.version }},enable=${{ steps.version.outputs.publish_version == 'true' }}
+      - uses: docker/metadata-action@v5
         id: frontend-meta
-        uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/ts-icon-frontend
           tags: |
             type=raw,value=latest
             type=raw,value=main
             type=sha,prefix=sha-,format=short
-            type=raw,value=v${{ needs.version-tag.outputs.version }},enable=${{ needs.version-tag.outputs.new_tag == 'true' }}
-
-      # Real VITE_* values belong in this repo's Actions "Variables" (not
-      # Secrets -- anything here ends up baked into the JS bundle and is
-      # visible to any browser that loads the app, so there's no
-      # confidentiality to protect). Until those are set, this pushes a
-      # frontend image built against empty/undefined config, matching no
-      # real deployment target -- deliberately not defaulted to
-      # localhost-shaped placeholders the way the build-validation step
-      # above is, since that could be mistaken for a real config in a
-      # pushed, deployable image.
-      - name: Build and push frontend image
+            type=raw,value=v${{ steps.version.outputs.version }},enable=${{ steps.version.outputs.publish_version == 'true' }}
+      - name: Publish backend candidate
         uses: docker/build-push-action@v6
+        if: steps.candidates.outputs.backend_exists != 'true'
+        with:
+          context: .
+          target: runner
+          push: true
+          tags: ${{ steps.candidates.outputs.backend_candidate }}
+          labels: ${{ steps.backend-meta.outputs.labels }}
+          cache-from: type=gha,scope=backend
+      - name: Publish frontend candidate
+        uses: docker/build-push-action@v6
+        if: steps.candidates.outputs.frontend_exists != 'true'
         with:
           context: ./webapp-banner-tool
           push: true
-          tags: ${{ steps.frontend-meta.outputs.tags }}
+          tags: ${{ steps.candidates.outputs.frontend_candidate }}
           labels: ${{ steps.frontend-meta.outputs.labels }}
           build-args: |
-            VITE_PUBLIC_API_URL=${{ vars.VITE_PUBLIC_API_URL }}
-            VITE_ADMIN_API_URL=${{ vars.VITE_ADMIN_API_URL }}
+            VITE_PUBLIC_API_URL=
+            VITE_ADMIN_API_URL=/admin-api
             VITE_KEYCLOAK_URL=${{ vars.VITE_KEYCLOAK_URL }}
             VITE_KEYCLOAK_REALM=${{ vars.VITE_KEYCLOAK_REALM }}
             VITE_KEYCLOAK_CLIENT_ID=${{ vars.VITE_KEYCLOAK_CLIENT_ID }}
-            VITE_KEYCLOAK_ENABLED=${{ vars.VITE_KEYCLOAK_ENABLED }}
+            VITE_KEYCLOAK_ENABLED=true
             VITE_KEYCLOAK_ADMIN_ROLE=${{ vars.VITE_KEYCLOAK_ADMIN_ROLE }}
             VITE_KEYCLOAK_EDITOR_ROLE=${{ vars.VITE_KEYCLOAK_EDITOR_ROLE }}
-          cache-from: type=gha,scope=docker-frontend
-          cache-to: type=gha,mode=max,scope=docker-frontend
+          cache-from: type=gha,scope=frontend
+      - name: Record digest pair and promote completed candidates
+        run: node scripts/release-images.cjs promote
+        env:
+          BACKEND_TAGS: ${{ steps.backend-meta.outputs.tags }}
+          FRONTEND_TAGS: ${{ steps.frontend-meta.outputs.tags }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-images-${{ github.sha }}
+          path: .tmp/release-images.json
+          if-no-files-found: ignore
+          retention-days: 90

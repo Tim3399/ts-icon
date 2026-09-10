@@ -1,188 +1,308 @@
-import React, { useEffect, useState } from 'react';
-import { API_URL, GET_CHANNELS_LIST_URL, VIEW_IMAGE_URL } from '../config';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../auth/AuthProvider';
-import { apiFetch, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
-import { useToast } from './Toast';
-import SpacerBaseImageManager from './SpacerBaseImageManager';
-import { usePreviewOverlay } from '../preview/PreviewOverlayContext';
+import { useRef, useState } from "react";
+import { useAuth } from "../auth/AuthContext";
+import { apiFetch, describeApiError, UPLOAD_TIMEOUT_MS } from "../api/client";
+import { channelImageEndpoint, channelImageUrl } from "../api/channels";
+import { useChannels } from "../hooks/useChannels";
+import { useToast } from "./ToastContext";
+import SpacerBaseImageManager from "./SpacerBaseImageManager";
+import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
+import UploadInput from "./UploadInput";
+import { imageFileError } from "../api/image-file";
+import RequestError from "./RequestError";
+import Icon from "./ui/Icon";
+import PageHeader from "./ui/PageHeader";
+import BannerFrame from "./ui/BannerFrame";
+import { EmptyState, Skeleton } from "./ui/States";
+import { uploadFieldError } from "../hooks/useFieldErrors";
+import type { Channel } from "../api/types";
 
-type Channel = {
-  name: string;
-};
+const FILTERS = [
+  ["all", "All channels"],
+  ["own", "Own image"],
+  ["missing", "Missing image"],
+  ["spacer", "Spacer channels"],
+] as const;
 
-const ChannelGallery: React.FC = () => {
-  const [channels, setChannels] = useState<Channel[]>([]);
-  const [missingImages, setMissingImages] = useState<Record<string, boolean>>({});
-  const [channelsLoading, setChannelsLoading] = useState(true);
-  const [uploadingChannel, setUploadingChannel] = useState<string | null>(null);
-  const [deletingChannel, setDeletingChannel] = useState<string | null>(null);
-  const [dragOverChannel, setDragOverChannel] = useState<string | null>(null);
-  const navigate = useNavigate();
+function imageState(channel: Channel): { label: string; variant: string } {
+  if (channel.hasImage) return { label: "Own image", variant: "badge-managed" };
+  if (channel.hasFallback) return { label: "Fallback", variant: "badge-info" };
+  return { label: "No image", variant: "badge-unmanaged" };
+}
+
+export default function ChannelGallery() {
+  const { channels, setChannels, loading, error, reload } = useChannels();
   const { getToken } = useAuth();
   const { showToast } = useToast();
   const { bumpRefresh } = usePreviewOverlay();
-
-  useEffect(() => {
-    let cancelled = false;
-
-    setChannelsLoading(true);
-    apiFetchJson<{ channels: string[] }>(GET_CHANNELS_LIST_URL, { getToken })
-      .then((data) => {
-        if (cancelled) return;
-        if (!Array.isArray(data.channels)) throw new Error('Response does not contain a valid channels array');
-        setChannels(data.channels.map((c: string) => ({ name: c })));
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        showToast(describeApiError(err,'Channel list could not be loaded'), 'error');
-      })
-      .finally(() => {
-        if (!cancelled) setChannelsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [getToken, showToast]);
-
-  const handleImageChange = async (channelName: string, file: File) => {
-    setUploadingChannel(channelName);
-    const formData = new FormData();
-    formData.append('file', file, 'banner.png');
+  const locks = useRef(new Set<string>());
+  const [operations, setOperations] = useState<Record<string, string>>({});
+  const [revisions, setRevisions] = useState<Record<string, number>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [fileErrors, setFileErrors] = useState<Record<string, string>>({});
+  const [fileResetKeys, setFileResetKeys] = useState<Record<string, number>>({});
+  const [dragOver, setDragOver] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  const changeImage = async (cid: string, file?: File) => {
+    if (locks.current.has(cid)) return;
+    const channel = channels.find((c) => c.cid === cid);
+    if (!channel) return;
+    if (file) setFileResetKeys((previous) => ({ ...previous, [cid]: (previous[cid] ?? 0) + 1 }));
+    const issue = file && imageFileError(file);
+    if (issue) {
+      setFileErrors((prev) => ({ ...prev, [cid]: issue }));
+      return;
+    }
+    if (!file && !window.confirm(`Delete the image for "${channel.name}"?`)) return;
+    locks.current.add(cid);
+    setOperations((prev) => ({ ...prev, [cid]: file ? "Uploading…" : "Deleting…" }));
+    setErrors((prev) => ({ ...prev, [cid]: "" }));
+    setFileErrors((prev) => ({ ...prev, [cid]: "" }));
     try {
-      // apiFetch throws on non-2xx responses, so reaching here means success.
-      await apiFetch(`${API_URL}${encodeURIComponent(channelName)}`, {
-        method: 'POST',
-        body: formData,
+      const body = new FormData();
+      if (file) body.append("file", file);
+      await apiFetch(channelImageEndpoint(cid), {
+        method: file ? "POST" : "DELETE",
+        body: file ? body : undefined,
         getToken,
         timeoutMs: UPLOAD_TIMEOUT_MS,
       });
-      showToast('Image updated!', 'success');
-      setMissingImages(prev => ({ ...prev, [channelName]: false }));
+      setChannels((prev) =>
+        prev.map((c) => (c.cid === cid ? { ...c, hasImage: Boolean(file) } : c)),
+      );
+      setRevisions((prev) => ({ ...prev, [cid]: Date.now() }));
+      showToast(file ? "Image updated!" : "Image deleted.", "success");
+      await reload();
       bumpRefresh();
     } catch (err) {
-      showToast(describeApiError(err,'Image could not be updated'), 'error');
+      const issue = file ? uploadFieldError(err) : "";
+      if (issue) setFileErrors((prev) => ({ ...prev, [cid]: issue }));
+      else {
+        const message = describeApiError(err, "The image could not be changed. Try again.");
+        setErrors((prev) => ({ ...prev, [cid]: message }));
+        showToast(message, "error");
+      }
     } finally {
-      setUploadingChannel(null);
-    }
-  };
-
-  const handleImageError = (channelName: string) => {
-    setMissingImages(prev => ({ ...prev, [channelName]: true }));
-  };
-
-  const handleDeleteImage = async (channelName: string) => {
-    const confirmed = window.confirm(`Delete the image for "${channelName}"?`);
-    if (!confirmed) return;
-
-    setDeletingChannel(channelName);
-    try {
-      // apiFetch throws on non-2xx responses, so reaching here means success.
-      await apiFetch(`${API_URL}${encodeURIComponent(channelName)}`, {
-        method: 'DELETE',
-        getToken,
+      locks.current.delete(cid);
+      setOperations((prev) => {
+        const next = { ...prev };
+        delete next[cid];
+        return next;
       });
-      showToast('Image deleted.', 'success');
-      setMissingImages(prev => ({ ...prev, [channelName]: true }));
-      bumpRefresh();
-    } catch (err) {
-      showToast(describeApiError(err, 'Image could not be deleted'), 'error');
-    } finally {
-      setDeletingChannel(null);
     }
   };
-
-  // Lets a channel's banner be replaced by dragging an image file straight
-  // onto its card, as an alternative to the file input below it. Both
-  // paths end up at the same handleImageChange -- drag-and-drop is just
-  // another way to supply the File object.
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>, channelName: string) => {
-    e.preventDefault();
-    if (dragOverChannel !== channelName) setDragOverChannel(channelName);
-  };
-
-  // dragleave fires when moving over any child element within the card too
-  // (the image, the file input), not just when actually leaving the card --
-  // ignoring those keeps the highlight from flickering while dragging over
-  // a card's contents.
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>, channelName: string) => {
-    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
-    setDragOverChannel(prev => (prev === channelName ? null : prev));
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>, channelName: string) => {
-    e.preventDefault();
-    setDragOverChannel(null);
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleImageChange(channelName, file);
-  };
-
+  const visible = channels.filter(
+    (c) =>
+      c.name.toLowerCase().includes(query.toLowerCase()) &&
+      (filter === "all" ||
+        (filter === "own" && c.hasImage) ||
+        (filter === "missing" && !c.hasImage && !c.hasFallback) ||
+        (filter === "spacer" && c.isSpacer)),
+  );
+  const filtered = query.trim() !== "" || filter !== "all";
   return (
     <div>
-      <div className="gallery-header">
-        <button type="button" className="btn btn-ghost" onClick={() => navigate('/')}>← Back</button>
-        <h2>Manage channel images</h2>
-      </div>
+      <PageHeader
+        eyebrow="Channels"
+        icon="image"
+        title="Manage channel images"
+        lead="Review every channel's banner at its real proportions, replace one by dropping a file on its card, or clear it again."
+        actions={
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => void reload()}
+            disabled={loading}
+          >
+            <Icon name="refresh" size={15} />
+            Refresh
+          </button>
+        }
+      />
+      <div className="page-sections">
+        <SpacerBaseImageManager onChanged={reload} />
 
-      <SpacerBaseImageManager />
-
-      {channelsLoading && <p className="loading-state">Loading channels…</p>}
-      {!channelsLoading && channels.length === 0 && (
-        <p className="empty-state">No channels found.</p>
-      )}
-
-      {!channelsLoading && channels.length > 0 && (
-        <div className="channel-grid">
-          {channels.map((channel) => (
-            <div
-              className={`channel-card${dragOverChannel === channel.name ? ' channel-card-drag-over' : ''}`}
-              key={channel.name}
-              onDragOver={(e) => handleDragOver(e, channel.name)}
-              onDragLeave={(e) => handleDragLeave(e, channel.name)}
-              onDrop={(e) => handleDrop(e, channel.name)}
-            >
-              <div className="channel-card-image">
-                {!missingImages[channel.name] ? (
-                  <img
-                    src={`${VIEW_IMAGE_URL}${encodeURIComponent(channel.name)}`}
-                    alt={channel.name}
-                    onError={() => handleImageError(channel.name)}
-                  />
-                ) : (
-                  <span className="placeholder">No image available</span>
-                )}
-              </div>
-              <div className="channel-card-name">{channel.name}</div>
-              <label
-                className={`dropzone dropzone-compact${dragOverChannel === channel.name ? ' dropzone-drag-over' : ''}`}
-                htmlFor={`file-upload-${channel.name}`}
-              >
-                {uploadingChannel === channel.name ? 'Uploading…' : 'Drag & drop or click to upload'}
+        <div className="card">
+          <div className="toolbar">
+            <label className="field">
+              Search channels
+              <span className="input-icon">
+                <Icon name="search" size={15} />
                 <input
-                  type="file"
-                  id={`file-upload-${channel.name}`}
-                  accept="image/*"
-                  disabled={uploadingChannel === channel.name}
-                  onChange={e => {
-                    if (e.target.files?.[0]) handleImageChange(channel.name, e.target.files[0]);
-                  }}
+                  className="input"
+                  type="search"
+                  value={query}
+                  placeholder="Filter by name"
+                  onChange={(e) => setQuery(e.target.value)}
                 />
-              </label>
-              <button
-                type="button"
-                className="btn btn-danger btn-block"
-                disabled={missingImages[channel.name] || deletingChannel === channel.name}
-                onClick={() => handleDeleteImage(channel.name)}
-              >
-                {deletingChannel === channel.name ? 'Deleting…' : 'Delete image'}
-              </button>
-            </div>
-          ))}
+              </span>
+            </label>
+            <label className="field">
+              Image status
+              <span className="select-wrap">
+                <select
+                  className="input"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                >
+                  {FILTERS.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </span>
+            </label>
+            <p className="toolbar-meta">
+              {loading
+                ? "Loading…"
+                : `${visible.length} of ${channels.length} channel${channels.length === 1 ? "" : "s"}`}
+            </p>
+          </div>
         </div>
-      )}
+
+        <RequestError message={error} retry={() => void reload()} />
+
+        {loading && (
+          <>
+            <p role="status" className="sr-only">
+              Loading channels…
+            </p>
+            {/* Deliberately not `.channel-card`: placeholders must never be
+                counted as real channels by anything selecting on that class. */}
+            <div className="channel-grid" aria-hidden="true">
+              {[0, 1, 2, 3, 4, 5].map((key) => (
+                <div className="skeleton-card" key={key}>
+                  <Skeleton height={40} radius={8} />
+                  <Skeleton height={14} width="60%" />
+                  <Skeleton height={10} width="40%" />
+                  <Skeleton height={52} radius={10} />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {!loading && !error && visible.length === 0 && (
+          <div className="card">
+            <EmptyState
+              icon="inbox"
+              title={channels.length ? "No channels match these filters." : "No channels found."}
+              description={
+                channels.length
+                  ? "Clear the search or choose a different image status."
+                  : "TeamSpeak reported no channels for this server."
+              }
+              action={
+                filtered && channels.length ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setQuery("");
+                      setFilter("all");
+                    }}
+                  >
+                    Reset filters
+                  </button>
+                ) : undefined
+              }
+            />
+          </div>
+        )}
+
+        {!loading && visible.length > 0 && (
+          <div className="channel-grid">
+            {visible.map((channel) => {
+              const state = imageState(channel);
+              const busy = operations[channel.cid];
+              return (
+                <article
+                  key={channel.cid}
+                  className={`channel-card${dragOver === channel.cid ? " channel-card-drag-over" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (!locks.current.has(channel.cid)) setDragOver(channel.cid);
+                  }}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+                      setDragOver(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDragOver(null);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) void changeImage(channel.cid, file);
+                  }}
+                >
+                  <BannerFrame
+                    className="channel-card-image"
+                    src={
+                      channel.hasImage || channel.hasFallback
+                        ? channelImageUrl(channel, revisions[channel.cid])
+                        : null
+                    }
+                    alt={channel.name}
+                    imageKey={revisions[channel.cid]}
+                    lazy
+                    placeholder="No image available"
+                    onError={() =>
+                      setErrors((prev) => ({
+                        ...prev,
+                        [channel.cid]:
+                          "This image could not be loaded. Refresh the channel list to try again.",
+                      }))
+                    }
+                  />
+                  <div className="channel-card-head">
+                    <h2 className="channel-card-name truncate" title={channel.name}>
+                      {channel.name}
+                    </h2>
+                    <span className={`badge ${state.variant}`}>{state.label}</span>
+                  </div>
+                  <p className="channel-card-status">
+                    {channel.pid
+                      ? `Under ${channels.find((c) => c.cid === channel.pid)?.name ?? "parent channel"} · `
+                      : ""}
+                    Channel #{channel.cid}
+                    {channel.hasFallback && !channel.hasImage ? " · Spacer base image" : ""}
+                  </p>
+                  <div className="channel-card-actions">
+                    <UploadInput
+                      id={`file-upload-${channel.cid}`}
+                      resetKey={fileResetKeys[channel.cid]}
+                      error={fileErrors[channel.cid]}
+                      disabled={Boolean(busy)}
+                      compact
+                      hint=""
+                      label={busy || "Drop or click to replace"}
+                      onFile={(file) => void changeImage(channel.cid, file)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-danger btn-block btn-sm"
+                      disabled={!channel.hasImage || Boolean(busy)}
+                      onClick={() => void changeImage(channel.cid)}
+                    >
+                      <Icon name="trash" size={14} />
+                      {busy === "Deleting…" ? "Deleting…" : "Delete image"}
+                    </button>
+                  </div>
+                  <RequestError
+                    message={errors[channel.cid] || ""}
+                    retry={() => {
+                      setErrors((prev) => ({ ...prev, [channel.cid]: "" }));
+                      setRevisions((prev) => ({ ...prev, [channel.cid]: Date.now() }));
+                      void reload();
+                    }}
+                  />
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
-};
-
-export default ChannelGallery;
+}

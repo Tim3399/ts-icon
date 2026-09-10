@@ -1,6 +1,6 @@
-import { Controller, Get, Res } from '@nestjs/common';
-import type { Response } from 'express';
-import { MetricsService } from './metrics.service';
+import { Controller, Get, Res } from "@nestjs/common";
+import type { Response } from "express";
+import { MetricsService } from "./metrics.service";
 
 /**
  * Exposes `/metrics` in the Prometheus text exposition format. Registered
@@ -14,9 +14,9 @@ import { MetricsService } from './metrics.service';
 export class MetricsController {
   constructor(private readonly metrics: MetricsService) {}
 
-  @Get('metrics')
+  @Get("metrics")
   async getMetrics(@Res() res: Response): Promise<void> {
-    res.setHeader('Content-Type', this.metrics.contentType);
+    res.setHeader("Content-Type", this.metrics.contentType);
     res.send(await this.metrics.getMetricsText());
   }
 }

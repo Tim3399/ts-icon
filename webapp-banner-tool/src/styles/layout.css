@@ -1,0 +1,385 @@
+/* ---------------------------------------------------------------------------
+   App shell
+--------------------------------------------------------------------------- */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/* Header
+--------------------------------------------------------------------------- */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: var(--shell-max);
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-5);
+  min-height: var(--header-height);
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+  color: var(--text);
+  border-radius: var(--radius-sm);
+}
+
+.brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.brand-name {
+  font-size: var(--text-md);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.brand-tagline {
+  display: block;
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+/* Primary navigation. Deliberately never collapsed behind a disclosure:
+   with four destinations a wrapping/scrolling bar keeps every page one Tab
+   stop away at any width, which a hamburger menu would not. */
+
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.app-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.app-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+  padding: 0 var(--space-3);
+  min-height: 30px;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 550;
+  white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
+}
+
+.app-nav-link:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.app-nav-link[aria-current="page"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-xs);
+}
+
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 3px var(--space-3) 3px 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  max-width: 220px;
+}
+
+.user-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border: 1px solid var(--accent-soft-border);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.user-name {
+  font-size: var(--text-sm);
+  font-weight: 550;
+  min-width: 0;
+}
+
+/* Body
+--------------------------------------------------------------------------- */
+
+.app-body {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  width: 100%;
+  max-width: var(--shell-max);
+  margin: 0 auto;
+}
+
+.app-body-with-rail {
+  grid-template-columns: minmax(0, 1fr) var(--rail-width);
+}
+
+.app-main {
+  min-width: 0;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-7) var(--space-5) var(--space-9);
+}
+
+/* Persistent live channel-tree rail. Always mounted regardless of route so it
+   never loses its poll or scroll state on navigation; hiding it is a CSS
+   concern only. */
+
+.app-rail {
+  position: sticky;
+  top: var(--header-height);
+  align-self: start;
+  min-width: 0;
+  max-height: calc(100dvh - var(--header-height));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-5) var(--space-6);
+  border-left: 1px solid var(--border);
+}
+
+.app-rail-hidden {
+  display: none;
+}
+
+.app-rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.app-rail-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+.app-rail-body {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+.app-rail .channel-tree {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+
+.app-rail .channel-tree-scroll {
+  max-height: none;
+  flex: 1 1 auto;
+}
+
+/* ---------------------------------------------------------------------------
+   Page layouts
+--------------------------------------------------------------------------- */
+
+/* Two-pane editor: settings on the left, the live artifact on the right.
+   Settings come first in the DOM so tab order follows the task order. */
+
+.workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.workbench-side,
+.workbench-main {
+  min-width: 0;
+}
+
+.workbench-side > * + * {
+  margin-top: var(--space-4);
+}
+
+.page-sections > * + * {
+  margin-top: var(--space-4);
+}
+
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.toolbar > .field {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.toolbar > .field + .field {
+  margin-top: 0;
+}
+
+.toolbar-meta {
+  margin-left: auto;
+  padding-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------
+   Responsive
+--------------------------------------------------------------------------- */
+
+@media (min-width: 1024px) {
+  .workbench {
+    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+    gap: var(--space-5);
+  }
+
+  .workbench-wide {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  }
+
+  .workbench-sticky {
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-5));
+  }
+}
+
+/* Below this width the rail becomes a normal block under the main content
+   rather than a column, so neither pane is squeezed under its usable size. */
+
+@media (max-width: 1199px) {
+  .app-body-with-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-rail {
+    position: static;
+    max-height: none;
+    width: 100%;
+    max-width: var(--content-max);
+    margin: 0 auto;
+    padding: 0 var(--space-5) var(--space-8);
+    border-left: 0;
+  }
+
+  .app-rail .channel-tree-scroll {
+    max-height: 340px;
+  }
+}
+
+@media (max-width: 767px) {
+  .app-header-inner {
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-3);
+  }
+
+  .app-nav {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .brand-tagline {
+    display: none;
+  }
+
+  .user-name {
+    display: none;
+  }
+
+  .user-chip {
+    padding: 3px;
+  }
+
+  .app-main {
+    padding: var(--space-5) var(--space-4) var(--space-8);
+  }
+
+  .app-rail {
+    padding: 0 var(--space-4) var(--space-7);
+  }
+
+  .card {
+    padding: var(--space-4);
+  }
+
+  .page-title {
+    font-size: var(--text-xl);
+  }
+
+  .channel-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .toolbar-meta {
+    margin-left: 0;
+    padding-bottom: 0;
+  }
+}

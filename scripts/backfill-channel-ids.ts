@@ -1,104 +1,58 @@
-/**
- * One-time backfill: populates `ChannelImage.channelId` for rows that
- * predate that column, by matching each row's stored `channelName` against
- * the current live TeamSpeak channel list (via `normalizeChannelName`, the
- * same normalization the app already applies everywhere else).
- *
- * How to run:
- *
- *   npx ts-node scripts/backfill-channel-ids.ts
- *
- * or, equivalently, via the package.json script:
- *
- *   npm run backfill:channel-ids
- *
- * ---------------------------------------------------------------------
- * IMPORTANT: this connects to a REAL TeamSpeak server and a REAL database.
- *
- * It uses whichever TS_HOST/TS_QUERY_PORT/TS_SERVER_PORT/TS_USERNAME/
- * TS_USERPASSWORD and DATABASE_URL are set in the environment it runs in
- * (the same variables the rest of this app reads — see config.ts). There is
- * no dry-run flag: as soon as it finds a match, it writes that row's
- * channelId immediately.
- *
- * Before running this against a production TeamSpeak server / production
- * database, confirm those environment variables actually point at the
- * intended server and database, and review the printed summary (matched
- * rows, and any rows left unmatched) after it finishes. It is idempotent —
- * it only ever looks at rows where channelId is still NULL — so it's safe
- * to re-run if some rows were left unmatched (e.g. after manually renaming
- * a channel back, or investigating why a name didn't match).
- * ---------------------------------------------------------------------
- */
-import 'dotenv/config';
-import { PrismaService } from '../src/prisma/prisma.service';
-import { fetchLiveChannels } from '../src/teamspeak/teamspeak-channels';
-import { matchChannelIdsToRows } from '../src/teamspeak/channel-id-matching';
-import { DATABASE_URL } from '../config';
+import "dotenv/config";
+import * as path from "node:path";
+import { PrismaService } from "../src/prisma/prisma.service";
+import { TeamSpeakChannelsService } from "../src/teamspeak/teamspeak-channels";
+import { normalizeChannelName } from "../src/util/util";
+import { DATABASE_URL, TS_HOST } from "../config";
+import { backupDatabase, checkDatabase } from "./db";
+import { resolveSqlitePath } from "./lib/sqlite-path";
+import { planBackfill } from "./lib/backfill-plan";
 
 async function main(): Promise<void> {
-  console.log('[backfill-channel-ids] Starting...');
+  const apply = process.argv.includes("--apply");
+  const databasePath = resolveSqlitePath(DATABASE_URL);
+  checkDatabase(databasePath);
   console.log(
-    `[backfill-channel-ids] Target database (DATABASE_URL): ${DATABASE_URL}`,
+    JSON.stringify({ mode: apply ? "apply" : "dry-run", databasePath, teamSpeakHost: TS_HOST }),
   );
-  console.log(
-    '[backfill-channel-ids] Target TeamSpeak server is whatever TS_HOST/TS_QUERY_PORT/TS_SERVER_PORT currently resolve to in this environment — confirm this is the intended server before running against production data.',
-  );
-
   const prisma = new PrismaService();
   await prisma.onModuleInit();
-
   try {
     const rows = await prisma.channelImage.findMany({
-      where: { channelId: null },
-      select: { channelName: true },
+      select: {
+        id: true,
+        channelName: true,
+        channelId: true,
+        aliases: { select: { alias: true } },
+      },
     });
-    console.log(
-      `[backfill-channel-ids] Found ${rows.length} row(s) with no channelId yet.`,
-    );
-    if (rows.length === 0) {
-      console.log('[backfill-channel-ids] Nothing to do.');
+    const channels = await new TeamSpeakChannelsService().fetchLiveChannels();
+    const plan = planBackfill(rows, channels, normalizeChannelName);
+    console.log(JSON.stringify(plan, null, 2));
+    if (!apply || plan.updates.length === 0) {
+      console.log("Database unchanged. Review conflicts; use --apply for the unambiguous rows.");
       return;
     }
-
-    const liveChannels = await fetchLiveChannels();
-    console.log(
-      `[backfill-channel-ids] Fetched ${liveChannels.length} live channel(s) from TeamSpeak.`,
+    const backup = path.resolve(
+      "backups",
+      "before-backfill-" + new Date().toISOString().replace(/[:.]/g, "-") + ".db",
     );
-
-    const { matched, unmatched } = matchChannelIdsToRows(rows, liveChannels);
-
-    for (const { channelName, channelId } of matched) {
-      await prisma.channelImage.update({
-        where: { channelName },
-        data: { channelId },
+    await backupDatabase(databasePath, backup);
+    console.log("Verified backup: " + backup);
+    for (const update of plan.updates) {
+      const result = await prisma.channelImage.updateMany({
+        where: { id: update.id, channelId: null },
+        data: { channelId: update.channelId },
       });
+      if (result.count !== 1) throw new Error("Row changed during backfill: " + update.id);
     }
-
-    console.log('');
-    console.log('[backfill-channel-ids] Summary');
-    console.log('==============================');
-    console.log(`Matched and updated: ${matched.length}`);
-    for (const m of matched) {
-      console.log(`  - ${m.channelName} -> channelId ${m.channelId}`);
-    }
-    console.log('');
-    console.log(`Unmatched (left as channelId = NULL): ${unmatched.length}`);
-    for (const name of unmatched) {
-      console.log(`  - ${name}`);
-    }
-    if (unmatched.length > 0) {
-      console.log('');
-      console.log(
-        '[backfill-channel-ids] The channel names above have no currently-live TeamSpeak channel matching them — most likely the channel was renamed or deleted since its image was uploaded. Review these manually; nothing destructive has been done to their rows.',
-      );
-    }
+    console.log("Applied " + plan.updates.length + " unambiguous assignments.");
   } finally {
     await prisma.onModuleDestroy();
   }
 }
 
-main().catch((err: unknown) => {
-  console.error('[backfill-channel-ids] Failed:', err);
+main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
 });

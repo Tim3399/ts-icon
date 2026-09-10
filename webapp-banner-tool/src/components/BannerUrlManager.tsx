@@ -1,169 +1,236 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { API_URL, CHANNEL_BANNER_URLS_URL, APPLY_BANNER_URLS_URL } from '../config';
-import { useAuth } from '../auth/AuthProvider';
-import { useCanUpload } from '../auth/permissions';
-import { apiFetch, apiFetchJson, describeApiError } from '../api/client';
-import { useToast } from './Toast';
-import SpacerBaseImageManager from './SpacerBaseImageManager';
-import { usePreviewOverlay } from '../preview/PreviewOverlayContext';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CHANNEL_BANNER_URLS_URL, APPLY_BANNER_URLS_URL } from "../config";
+import { channelBannerEndpoint } from "../api/channels";
+import type { Channel } from "../api/types";
+import { useAuth } from "../auth/AuthContext";
+import { apiFetch, apiFetchJson, describeApiError } from "../api/client";
+import { useToast } from "./ToastContext";
+import SpacerBaseImageManager from "./SpacerBaseImageManager";
+import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
+import RequestError from "./RequestError";
+import Icon from "./ui/Icon";
+import PageHeader from "./ui/PageHeader";
+import Section from "./ui/Section";
+import { EmptyState, LoadingState, Skeleton } from "./ui/States";
 
-interface ChannelBannerStatus {
-  name: string;
-  bannerGfxUrl: string | null;
-  managed: boolean;
-}
-
-const BannerUrlManager: React.FC = () => {
-  const [channels, setChannels] = useState<ChannelBannerStatus[]>([]);
+export default function BannerUrlManager() {
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [settingChannel, setSettingChannel] = useState<string | null>(null);
-  const [applyingAll, setApplyingAll] = useState(false);
-  const navigate = useNavigate();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState("");
+  const lock = useRef(false);
+  const request = useRef<AbortController | null>(null);
   const { getToken } = useAuth();
   const { showToast } = useToast();
-  const canUpload = useCanUpload();
   const { bumpRefresh } = usePreviewOverlay();
-
-  const loadChannels = useCallback(() => {
+  const load = useCallback(async () => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
     setLoading(true);
-    return apiFetchJson<{ channels: ChannelBannerStatus[] }>(
-      CHANNEL_BANNER_URLS_URL,
-      { getToken },
-    )
-      .then((data) => {
-        if (!Array.isArray(data.channels)) {
-          throw new Error('Response does not contain a valid channels array');
-        }
-        setChannels(data.channels);
-      })
-      .catch((err) => {
-        showToast(describeApiError(err, 'Channel banner status could not be loaded'), 'error');
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [getToken, showToast]);
-
-  useEffect(() => {
-    loadChannels();
-  }, [loadChannels]);
-
-  const handleSetBannerUrl = async (channelName: string) => {
-    if (!canUpload) {
-      showToast("You don't have permission to do this.", 'error');
-      return;
-    }
-    setSettingChannel(channelName);
+    setError("");
     try {
-      await apiFetch(`${API_URL}${encodeURIComponent(channelName)}/banner-url`, {
-        method: 'PATCH',
+      const data = await apiFetchJson<{ channels: Channel[] }>(CHANNEL_BANNER_URLS_URL, {
         getToken,
+        signal: controller.signal,
       });
-      showToast(`Banner URL set for ${channelName}.`, 'success');
-      await loadChannels();
-      bumpRefresh();
+      if (!Array.isArray(data.channels)) throw new Error("Invalid channels");
+      if (!controller.signal.aborted) setChannels(data.channels);
     } catch (err) {
-      showToast(describeApiError(err, 'Banner URL could not be set'), 'error');
+      if (!controller.signal.aborted)
+        setError(describeApiError(err, "Channel banner status could not be loaded."));
     } finally {
-      setSettingChannel(null);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  };
-
-  const handleApplyAll = async () => {
-    if (!canUpload) {
-      showToast("You don't have permission to do this.", 'error');
+  }, [getToken]);
+  useEffect(() => {
+    void load();
+    return () => request.current?.abort();
+  }, [load]);
+  const pending = channels.filter((c) => !c.managed);
+  const apply = async (cid?: string) => {
+    if (lock.current) return;
+    if (!cid && !window.confirm(`Set managed banner URLs for ${pending.length} channel(s)?`))
       return;
-    }
-    const unmanagedCount = channels.filter((c) => !c.managed).length;
-    const confirmed = window.confirm(
-      unmanagedCount > 0
-        ? `This will set the banner URL on ${unmanagedCount} channel(s) that aren't already managed by this server. Continue?`
-        : 'Every channel already appears to be managed by this server. Re-apply anyway?',
-    );
-    if (!confirmed) return;
-
-    setApplyingAll(true);
+    lock.current = true;
+    setBusy(cid || "all");
+    setError("");
     try {
-      const result = await apiFetchJson<{ updated: string[]; alreadyManaged: string[] }>(
-        APPLY_BANNER_URLS_URL,
-        { method: 'POST', getToken },
-      );
-      showToast(
-        `Updated ${result.updated.length} channel(s), ${result.alreadyManaged.length} already correct.`,
-        'success',
-      );
-      await loadChannels();
+      if (cid) {
+        await apiFetch(channelBannerEndpoint(cid), { method: "PATCH", getToken });
+        setResult("Banner URL updated.");
+      } else {
+        const outcome = await apiFetchJson<{
+          updated: string[];
+          alreadyManaged: string[];
+          failed?: { cid?: string; name?: string; error: string }[];
+        }>(APPLY_BANNER_URLS_URL, { method: "POST", getToken, timeoutMs: 120_000 });
+        setResult(
+          `Updated ${outcome.updated.length} channel(s); ${outcome.alreadyManaged.length} already correct.`,
+        );
+        if (outcome.failed?.length)
+          setResult(
+            `Updated ${outcome.updated.length}. Failed: ${outcome.failed.map((f) => `${f.name || f.cid}: ${f.error}`).join("; ")}`,
+          );
+      }
+      await load();
       bumpRefresh();
+      showToast("Banner URL operation finished. See the result below.", "info");
     } catch (err) {
-      showToast(describeApiError(err, 'Banner URLs could not be applied'), 'error');
+      setError(describeApiError(err, "Banner URLs could not be applied."));
+      bumpRefresh();
     } finally {
-      setApplyingAll(false);
+      lock.current = false;
+      setBusy(null);
     }
   };
-
+  const managed = channels.length - pending.length;
   return (
     <div>
-      <div className="gallery-header">
-        <button type="button" className="btn btn-ghost" onClick={() => navigate('/')}>← Back</button>
-        <h2>Channel banner URLs</h2>
-      </div>
+      <PageHeader
+        eyebrow="TeamSpeak"
+        icon="link"
+        title="Channel banner URLs"
+        lead="Point each channel's TeamSpeak banner at the image this application serves. Until a channel is managed, TeamSpeak keeps showing whatever URL it had before."
+        actions={
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => void load()}
+            disabled={loading}
+          >
+            <Icon name="refresh" size={15} />
+            Refresh
+          </button>
+        }
+      />
 
-      <div className="card">
-        <h2 className="card-title">Bulk action</h2>
-        <p style={{ marginTop: 0 }}>
-          Sets every channel's TeamSpeak banner URL to point at this server's managed image, skipping any channel already correctly set.
-        </p>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={handleApplyAll}
-          disabled={applyingAll || loading || !canUpload}
-        >
-          {applyingAll ? 'Applying…' : 'Set for all channels'}
-        </button>
-      </div>
-
-      <SpacerBaseImageManager />
-
-      {loading && <p className="loading-state">Loading channels…</p>}
-      {!loading && channels.length === 0 && (
-        <p className="empty-state">No channels found.</p>
-      )}
-
-      {!loading && channels.length > 0 && (
-        <div className="channel-grid">
-          {channels.map((channel) => (
-            <div className="channel-card" key={channel.name}>
-              <div className="channel-card-name">{channel.name}</div>
-              <div style={{ textAlign: 'center' }}>
-                {channel.managed ? (
-                  <span className="badge badge-managed">Managed</span>
-                ) : (
-                  <span className="badge badge-unmanaged">Not managed</span>
-                )}
-              </div>
-              <div
-                className="channel-card-status"
-                style={{ wordBreak: 'break-all' }}
-                title="The channel's current TeamSpeak banner URL"
-              >
-                {channel.bannerGfxUrl ?? 'No banner URL set'}
-              </div>
-              <button
-                type="button"
-                className="btn btn-secondary btn-block"
-                disabled={settingChannel === channel.name || !canUpload}
-                onClick={() => handleSetBannerUrl(channel.name)}
-              >
-                {settingChannel === channel.name ? 'Setting…' : 'Set banner URL'}
-              </button>
-            </div>
-          ))}
+      <div className="page-sections">
+        <div className="stat-grid">
+          <div className="stat">
+            <p className="stat-label">
+              <Icon name="check" size={13} />
+              Managed
+            </p>
+            <p className="stat-value">{loading ? "—" : managed}</p>
+          </div>
+          <div className="stat">
+            <p className="stat-label">
+              <Icon name="alert" size={13} />
+              Not managed
+            </p>
+            <p className="stat-value">{loading ? "—" : pending.length}</p>
+          </div>
+          <div className="stat">
+            <p className="stat-label">
+              <Icon name="tree" size={13} />
+              Channels
+            </p>
+            <p className="stat-value">{loading ? "—" : channels.length}</p>
+          </div>
         </div>
-      )}
+
+        <Section
+          title="Apply to every channel"
+          icon="sparkles"
+          subtitle="Rewrites the banner URL of each channel that is not managed yet. Existing images are untouched."
+          footer={
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={Boolean(busy) || loading || Boolean(error)}
+              onClick={() => void apply()}
+            >
+              {busy === "all" ? (
+                <span className="spinner" aria-hidden="true" />
+              ) : (
+                <Icon name="link" size={15} />
+              )}
+              {busy === "all" ? "Applying…" : "Set for all channels"}
+            </button>
+          }
+        >
+          <p className="hint">
+            {loading
+              ? "Checking which channels already point at this application…"
+              : pending.length === 0
+                ? "Every channel already points at a managed banner URL."
+                : `${pending.length} channel(s) still point somewhere else.`}
+          </p>
+          {result && (
+            <p role="status" className="alert alert-info">
+              <Icon name="info" size={16} />
+              <span className="alert-body">{result}</span>
+            </p>
+          )}
+        </Section>
+
+        <SpacerBaseImageManager />
+
+        <RequestError message={error} retry={() => void load()} />
+
+        {loading && (
+          <div className="card">
+            <LoadingState label="Loading channels…" />
+            <Skeleton height={54} radius={10} />
+          </div>
+        )}
+
+        {!loading && !error && channels.length === 0 && (
+          <div className="card">
+            <EmptyState
+              icon="inbox"
+              title="No channels found."
+              description="TeamSpeak reported no channels for this server."
+            />
+          </div>
+        )}
+
+        {!loading && channels.length > 0 && (
+          <section className="card">
+            <div className="card-head">
+              <div className="card-head-text">
+                <h2 className="card-title">
+                  <Icon name="tree" size={16} />
+                  Per channel
+                </h2>
+                <p className="card-subtitle">
+                  Set a single channel's banner URL without touching the rest.
+                </p>
+              </div>
+            </div>
+            <ul className="url-list">
+              {channels.map((channel) => (
+                <li className="url-row" key={channel.cid}>
+                  <div className="url-row-main">
+                    <p className="url-row-name truncate" title={channel.name}>
+                      {channel.name}
+                    </p>
+                    <p className="url-row-meta">
+                      <span
+                        className={`badge ${channel.managed ? "badge-managed" : "badge-unmanaged"}`}
+                      >
+                        {channel.managed ? "Managed" : "Not managed"}
+                      </span>
+                      <span className="muted">Channel #{channel.cid}</span>
+                    </p>
+                    <p className="url-text mono">{channel.bannerGfxUrl || "No banner URL set"}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={Boolean(busy)}
+                    onClick={() => void apply(channel.cid)}
+                  >
+                    {busy === channel.cid ? "Setting…" : "Set banner URL"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
     </div>
   );
-};
-
-export default BannerUrlManager;
+}

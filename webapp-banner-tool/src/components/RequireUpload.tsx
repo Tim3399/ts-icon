@@ -1,6 +1,6 @@
-import React from 'react';
-import { Navigate } from 'react-router-dom';
-import { useCanUpload } from '../auth/permissions';
+import React from "react";
+import { Navigate } from "react-router-dom";
+import { useCanUpload } from "../auth/permissions";
 
 interface RequireUploadProps {
   children: React.ReactNode;

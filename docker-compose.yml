@@ -1,100 +1,120 @@
+name: ts-icon
+
+x-backend: &backend
+  build:
+    context: .
+    target: runner
+  image: ts-icon-backend:local
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+  volumes:
+    - db-data:/data
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+  networks: [app]
+
 services:
-  public:
-    build: .
-    image: tsicon-public
-    command: npm run start:public
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    ports:
-      - "3000:3000"
-    environment:
-      - IMG_WEB_PORT=3000
-      - DATABASE_URL=file:/data/dev.db
-    volumes:
-      - db-data:/data
-    # Uses Node itself (already in the image) rather than curl/wget, neither
-    # of which node:22-alpine ships by default. /health/live checks nothing
-    # but process responsiveness, matching this being a liveness probe, not
-    # a readiness one.
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "require('http').get('http://localhost:3000/health/live', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
-  local:
-    build: .
-    image: tsicon-local
-    command: npm run start:local
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    # Reads TS_USERNAME/TS_USERPASSWORD/TS_QUERY_PORT/TS_SERVER_PORT (and any
-    # other operator-supplied secrets) from the root .env file. The
-    # environment block below intentionally overrides a few keys with
-    # container-specific values (env_file values lose to environment: on a
-    # key collision).
-    env_file: .env
-    ports:
-      - "127.0.0.1:3001:3001"
-    environment:
-      - IMG_API_PORT=3001
-      - DATABASE_URL=file:/data/dev.db
-      - TS_HOST=host.docker.internal
-    volumes:
-      - db-data:/data
-    # /health/live is @Public(), so this needs no bearer token despite every
-    # other route on this app requiring one.
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "require('http').get('http://localhost:3001/health/live', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
-  # One-off database migration/schema-setup service. Builds only the
-  # "builder" stage of the Dockerfile (the only stage with the Prisma CLI —
-  # the production stage strips it via `npm ci --omit=dev`). This service
-  # does not run as part of `docker compose up`; it must be run explicitly:
-  #
-  #   docker compose run --rm migrate
-  #
-  # Run it once before the very first start against a fresh database volume,
-  # and again after any change to the Prisma schema/migrations. The trailing
-  # chown hands the database file back to the same non-root user the
-  # long-running app containers run as, since this service's image runs as
-  # root and would otherwise leave the file unwritable by them.
   migrate:
     build:
       context: .
-      target: builder
-    image: tsicon-migrate
-    profiles: ["tools"]
-    command: sh -c "npx prisma migrate deploy && chown -R node:node /data"
+      target: tools
+    image: ts-icon-tools:local
+    command: sh -c "npm run db:migrate && chown -R node:node /data"
     environment:
-      - DATABASE_URL=file:/data/dev.db
+      DATABASE_URL: file:/data/dev.db
     volumes:
       - db-data:/data
+    networks: [app]
+
+  public:
+    <<: *backend
+    command: npm run start:public
+    ports:
+      - "${PUBLIC_BIND_ADDRESS:-127.0.0.1}:${PUBLIC_PORT:-3000}:3000"
+    environment:
+      IMG_WEB_PORT: "3000"
+      DATABASE_URL: file:/data/dev.db
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-172.30.20.10}
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "require('http').get('http://127.0.0.1:3000/health/ready', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  local:
+    <<: *backend
+    command: npm run start:local
+    env_file: .env
+    ports:
+      - "127.0.0.1:${ADMIN_PORT:-3001}:3001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      IMG_API_PORT: "3001"
+      DATABASE_URL: file:/data/dev.db
+      TS_HOST: ${TS_HOST:?Set TS_HOST in .env}
+      AUTH_DISABLED: "false"
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-172.30.20.10}
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "require('http').get('http://127.0.0.1:3001/health/ready', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./webapp-banner-tool
+      args:
+        VITE_PUBLIC_API_URL: ""
+        VITE_ADMIN_API_URL: /admin-api
+        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:?Set VITE_KEYCLOAK_URL in .env}
+        VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM:?Set VITE_KEYCLOAK_REALM in .env}
+        VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:?Set VITE_KEYCLOAK_CLIENT_ID in .env}
+        VITE_KEYCLOAK_ENABLED: "true"
+        VITE_KEYCLOAK_ADMIN_ROLE: ${OIDC_ADMIN_ROLE:-ts-icon-admin}
+        VITE_KEYCLOAK_EDITOR_ROLE: ${OIDC_EDITOR_ROLE:-ts-icon-editor}
+    image: ts-icon-frontend:local
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-8088}:8080"
+    depends_on:
+      public:
+        condition: service_healthy
+      local:
+        condition: service_healthy
+    networks:
+      app:
+        ipv4_address: 172.30.20.10
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/health/live]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
 volumes:
   db-data:
+
+networks:
+  app:
+    ipam:
+      config:
+        - subnet: 172.30.20.0/24

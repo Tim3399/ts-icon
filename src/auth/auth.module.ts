@@ -1,13 +1,13 @@
-import { Module, type Provider } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
-import type { JWTVerifyGetKey } from 'jose';
-import { getOidcConfig, isAuthDisabled, type OidcConfig } from '../../config';
-import { JWKS_KEY_GETTER, OIDC_CONFIG } from './auth.tokens';
-import { createJwksKeyGetter } from './jwks';
-import { JwtAuthGuard } from './jwt-auth.guard';
-import { NoAuthGuard } from './no-auth.guard';
-import { RolesGuard } from './roles.guard';
-import { MetricsModule } from '../metrics/metrics.module';
+import { Module, type Provider } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
+import type { JWTVerifyGetKey } from "jose";
+import { getOidcConfig, isAuthDisabled, type OidcConfig } from "../../config";
+import { JWKS_KEY_GETTER, OIDC_CONFIG } from "./auth.tokens";
+import { createJwksKeyGetter } from "./jwks";
+import { JwtAuthGuard } from "./jwt-auth.guard";
+import { NoAuthGuard } from "./no-auth.guard";
+import { RolesGuard } from "./roles.guard";
+import { MetricsModule } from "../metrics/metrics.module";
 
 /**
  * Builds the provider set for whichever mode is configured. Extracted into

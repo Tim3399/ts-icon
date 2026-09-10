@@ -1,7 +1,7 @@
-import { Controller, Get, Res, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
-import { MetricsService } from './metrics.service';
-import { PrivateNetworkGuard } from './private-network.guard';
+import { Controller, Get, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
+import { MetricsService } from "./metrics.service";
+import { PrivateNetworkGuard } from "./private-network.guard";
 
 /**
  * Exposes `/metrics` in the Prometheus text exposition format, restricted
@@ -18,9 +18,9 @@ export class PublicMetricsController {
   constructor(private readonly metrics: MetricsService) {}
 
   @UseGuards(PrivateNetworkGuard)
-  @Get('metrics')
+  @Get("metrics")
   async getMetrics(@Res() res: Response): Promise<void> {
-    res.setHeader('Content-Type', this.metrics.contentType);
+    res.setHeader("Content-Type", this.metrics.contentType);
     res.send(await this.metrics.getMetricsText());
   }
 }

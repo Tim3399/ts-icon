@@ -1,484 +1,181 @@
-import 'reflect-metadata';
+import "reflect-metadata";
 import {
   BadRequestException,
-  ConflictException,
-  ServiceUnavailableException,
   UnprocessableEntityException,
   UnsupportedMediaTypeException,
-} from '@nestjs/common';
-import type { Request } from 'express';
+} from "@nestjs/common";
+import type { Request } from "express";
+import { ROLES_KEY } from "../auth/roles.decorator";
+import { OIDC_ADMIN_ROLE } from "../../config";
 import {
   ChannelWallpaperController,
-  parseBackgroundColor,
   namesForRows,
+  parseBackgroundColor,
   prepareRows,
   resolveSourceImage,
-} from './channel-wallpaper.controller';
-import {
-  withTeamSpeakConnection,
-  listChannelsOnConnection,
-  fetchLiveChannels,
-  invalidateLiveChannelsCache,
-} from '../teamspeak/teamspeak-channels';
-import {
-  createChannelWallpaper,
-  deleteManagedChannels,
-} from '../teamspeak/teamspeak-channel-admin';
-import { sliceWallpaper } from './wallpaper-slicer';
-import { fetchImageSafely, FetchFailedError } from './safe-url-fetcher';
-import { InvalidImageError } from './image-processing';
-import type { ImagesService } from './images.service';
-import type { MetricsService } from '../metrics/metrics.service';
-import { ROLES_KEY } from '../auth/roles.decorator';
-import { OIDC_ADMIN_ROLE } from '../../config';
-import type { GenerateChannelWallpaperDto } from './dto/generate-channel-wallpaper.dto';
+} from "./channel-wallpaper.controller";
+import type { ChannelWallpaperService } from "./channel-wallpaper.service";
+import type { MetricsService } from "../metrics/metrics.service";
+import { fetchImageSafely, SsrfValidationError } from "./safe-url-fetcher";
+import { TeamSpeakChannelsService } from "../teamspeak/teamspeak-channels";
+import { sliceWallpaper } from "./wallpaper-slicer";
+import { InvalidImageError } from "./image-processing";
+import type { GenerateChannelWallpaperDto } from "./dto/generate-channel-wallpaper.dto";
 
-const TEST_PUBLIC_BASE_URL = 'https://ts-icon.example.test';
-
-jest.mock('../../config', () => {
-  const actual =
-    jest.requireActual<typeof import('../../config')>('../../config');
-  return { ...actual, getPublicBaseUrl: jest.fn(() => TEST_PUBLIC_BASE_URL) };
-});
-
-jest.mock('./safe-url-fetcher', () => {
-  const actual =
-    jest.requireActual<typeof import('./safe-url-fetcher')>(
-      './safe-url-fetcher',
-    );
-  return { ...actual, fetchImageSafely: jest.fn() };
-});
-
-jest.mock('../teamspeak/teamspeak-channels', () => {
-  const actual = jest.requireActual<
-    typeof import('../teamspeak/teamspeak-channels')
-  >('../teamspeak/teamspeak-channels');
-  return {
-    ...actual,
-    withTeamSpeakConnection: jest.fn(),
-    listChannelsOnConnection: jest.fn(),
-    fetchLiveChannels: jest.fn(),
-    invalidateLiveChannelsCache: jest.fn(),
-  };
-});
-
-jest.mock('../teamspeak/teamspeak-channel-admin', () => ({
-  createChannelWallpaper: jest.fn(),
-  deleteManagedChannels: jest.fn(),
+jest.mock("./safe-url-fetcher", () => ({
+  ...jest.requireActual<typeof import("./safe-url-fetcher")>("./safe-url-fetcher"),
+  fetchImageSafely: jest.fn(),
 }));
-
-jest.mock('./wallpaper-slicer', () => {
-  const actual =
-    jest.requireActual<typeof import('./wallpaper-slicer')>(
-      './wallpaper-slicer',
-    );
-  return { ...actual, sliceWallpaper: jest.fn() };
-});
-
-const mockedWithTeamSpeakConnection =
-  withTeamSpeakConnection as jest.MockedFunction<
-    typeof withTeamSpeakConnection
-  >;
-const mockedListChannelsOnConnection =
-  listChannelsOnConnection as jest.MockedFunction<
-    typeof listChannelsOnConnection
-  >;
-const mockedFetchLiveChannels = fetchLiveChannels as jest.MockedFunction<
-  typeof fetchLiveChannels
->;
-const mockedInvalidateCache =
-  invalidateLiveChannelsCache as jest.MockedFunction<
-    typeof invalidateLiveChannelsCache
-  >;
-const mockedCreateChannelWallpaper =
-  createChannelWallpaper as jest.MockedFunction<typeof createChannelWallpaper>;
-const mockedDeleteManagedChannels =
-  deleteManagedChannels as jest.MockedFunction<typeof deleteManagedChannels>;
-const mockedSliceWallpaper = sliceWallpaper as jest.MockedFunction<
-  typeof sliceWallpaper
->;
-const mockedFetchImageSafely = fetchImageSafely as jest.MockedFunction<
-  typeof fetchImageSafely
->;
-
-function createImagesServiceStub(): {
-  imagesService: ImagesService;
-  channelNameInUse: jest.Mock;
-  saveImage: jest.Mock;
-} {
-  const channelNameInUse = jest.fn().mockResolvedValue(false);
-  const saveImage = jest.fn().mockResolvedValue(undefined);
-  const imagesService = {
-    channelNameInUse,
-    saveImage,
-  } as unknown as ImagesService;
-  return { imagesService, channelNameInUse, saveImage };
+jest.mock("./wallpaper-slicer", () => ({
+  ...jest.requireActual<typeof import("./wallpaper-slicer")>("./wallpaper-slicer"),
+  sliceWallpaper: jest.fn(),
+}));
+const fetchLiveChannels = jest.fn<
+  ReturnType<TeamSpeakChannelsService["fetchLiveChannels"]>,
+  Parameters<TeamSpeakChannelsService["fetchLiveChannels"]>
+>();
+const channelAccess = { fetchLiveChannels } as unknown as TeamSpeakChannelsService;
+const requestId = "e0ed8bc0-0d6c-4ae7-889a-38a5f45e7014";
+const dto: GenerateChannelWallpaperDto = { requestId, namePrefix: "Wall", spacerMode: "flat" };
+const file = { buffer: Buffer.from("image") } as Express.Multer.File;
+const req = { user: { sub: "editor" } } as Request;
+function fixture() {
+  const result = { runId: requestId, status: "completed", createdChannels: [], rowCount: 0 };
+  const runs = {
+    existing: jest.fn().mockResolvedValue(null),
+    prepare: jest.fn().mockResolvedValue(result),
+    resume: jest.fn().mockResolvedValue(result),
+    undo: jest.fn().mockResolvedValue({ deleted: [], failed: [], run: result }),
+  };
+  const metrics = { channelWallpaperGenerationsTotal: { inc: jest.fn() } };
+  return {
+    runs,
+    result,
+    controller: new ChannelWallpaperController(
+      runs as unknown as ChannelWallpaperService,
+      metrics as unknown as MetricsService,
+      channelAccess,
+    ),
+  };
 }
-
-function createMetricsStub(): {
-  metrics: MetricsService;
-  wallpaperIncMock: jest.Mock;
-  teamspeakErrorsIncMock: jest.Mock;
-} {
-  const wallpaperIncMock = jest.fn();
-  const teamspeakErrorsIncMock = jest.fn();
-  const metrics = {
-    channelWallpaperGenerationsTotal: { inc: wallpaperIncMock },
-    teamspeakErrorsTotal: { inc: teamspeakErrorsIncMock },
-  } as unknown as MetricsService;
-  return { metrics, wallpaperIncMock, teamspeakErrorsIncMock };
-}
-
-function createController(
-  imagesService: ImagesService = createImagesServiceStub().imagesService,
-  metrics: MetricsService = createMetricsStub().metrics,
-): ChannelWallpaperController {
-  return new ChannelWallpaperController(imagesService, metrics);
-}
-
-function createReq(sub = 'test-subject'): Request {
-  return { user: { sub, roles: [] } } as unknown as Request;
-}
-
-function fakeFile(): Express.Multer.File {
-  return { buffer: Buffer.from('fake-image-bytes') } as Express.Multer.File;
-}
-
-const FLAT_CHANNELS = [
-  { cid: '1', name: 'General', bannerGfxUrl: null, pid: null },
-];
 
 beforeEach(() => {
-  mockedListChannelsOnConnection.mockResolvedValue(FLAT_CHANNELS);
-  mockedFetchLiveChannels.mockResolvedValue(FLAT_CHANNELS);
-  mockedWithTeamSpeakConnection.mockImplementation(async (fn) =>
-    fn({} as never),
-  );
-});
-
-afterEach(() => {
   jest.clearAllMocks();
+  jest.mocked(fetchLiveChannels).mockResolvedValue([]);
+  jest
+    .mocked(sliceWallpaper)
+    .mockResolvedValue([{ row: { depth: 0, isSpacer: false }, image: Buffer.from("slice") }]);
 });
 
-describe('parseBackgroundColor', () => {
-  it('returns undefined when no hex is given', () => {
-    expect(parseBackgroundColor(undefined)).toBeUndefined();
+describe("Wallpaper input preparation", () => {
+  it("parses both RGB and RGBA and rejects malformed colors", () => {
+    expect(parseBackgroundColor("#112233")).toEqual({ r: 17, g: 34, b: 51, alpha: 255 });
+    expect(parseBackgroundColor("#11223380")?.alpha).toBe(128);
+    expect(parseBackgroundColor()).toBeUndefined();
+    expect(() => parseBackgroundColor("red")).toThrow(BadRequestException);
   });
-
-  it('parses a #RRGGBB hex string, defaulting alpha to 255', () => {
-    expect(parseBackgroundColor('#112233')).toEqual({
-      r: 0x11,
-      g: 0x22,
-      b: 0x33,
-      alpha: 255,
-    });
+  it("numbers art and spacer rows separately", () => {
+    expect(
+      namesForRows("Wall", [
+        { depth: 0, isSpacer: false },
+        { depth: 1, isSpacer: true },
+        { depth: 0, isSpacer: false },
+      ]),
+    ).toEqual(["Wall 1", "Wall spacer 1", "Wall 2"]);
   });
-
-  it('parses a #RRGGBBAA hex string including alpha', () => {
-    expect(parseBackgroundColor('#11223344')).toEqual({
-      r: 0x11,
-      g: 0x22,
-      b: 0x33,
-      alpha: 0x44,
-    });
+  it("resolves parent depth and rejects a missing parent", async () => {
+    const channels = [
+      { cid: "1", name: "Root", pid: null, bannerGfxUrl: null },
+      { cid: "2", name: "Child", pid: "1", bannerGfxUrl: null },
+    ];
+    expect((await prepareRows(channels, "2", "flat")).parentDepth).toBe(1);
+    expect((await prepareRows(channels, undefined, "flat")).parentDepth).toBe(-1);
+    await expect(prepareRows(channels, "3", "flat")).rejects.toBeInstanceOf(BadRequestException);
   });
-
-  it('throws BadRequestException for a malformed hex string', () => {
-    expect(() => parseBackgroundColor('not-a-color')).toThrow(
+  it("accepts exactly one image source and maps disallowed URLs to 400", async () => {
+    await expect(resolveSourceImage(file, undefined)).resolves.toEqual(file.buffer);
+    await expect(resolveSourceImage(file, "https://example.test/x.png")).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(resolveSourceImage(undefined, undefined)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    jest.mocked(fetchImageSafely).mockRejectedValue(new SsrfValidationError("Blocked"));
+    await expect(resolveSourceImage(undefined, "https://127.0.0.1/x.png")).rejects.toBeInstanceOf(
       BadRequestException,
     );
   });
 });
 
-describe('namesForRows', () => {
-  it('numbers art and spacer rows independently', () => {
-    const rows = [
-      { depth: 0, isSpacer: false },
-      { depth: 1, isSpacer: true },
-      { depth: 0, isSpacer: false },
-      { depth: 1, isSpacer: true },
-    ];
-    expect(namesForRows('Wall', rows)).toEqual([
-      'Wall 1',
-      'Wall spacer 1',
-      'Wall 2',
-      'Wall spacer 2',
-    ]);
+describe("ChannelWallpaperController", () => {
+  it("persists the prepared slices before asking the service to execute them", async () => {
+    const { controller, runs, result } = fixture();
+    expect(await controller.generate(file, dto, req)).toEqual(result);
+    expect(runs.prepare).toHaveBeenCalledWith(
+      requestId,
+      expect.any(String),
+      null,
+      [{ name: "Wall 1", depth: 0, isSpacer: false, image: Buffer.from("slice") }],
+      "editor",
+    );
+    expect(runs.resume).toHaveBeenCalledWith(requestId);
+    expect(runs.prepare.mock.invocationCallOrder[0]).toBeLessThan(
+      runs.resume.mock.invocationCallOrder[0],
+    );
   });
-});
-
-describe('prepareRows', () => {
-  const channels = [
-    { cid: '1', name: 'Root', bannerGfxUrl: null, pid: null },
-    { cid: '2', name: 'Child', bannerGfxUrl: null, pid: '1' },
-  ];
-
-  it('resolves parentDepth -1 for no parentCid (top-level)', async () => {
-    const { parentDepth } = await prepareRows(channels, undefined, 'flat');
-    expect(parentDepth).toBe(-1);
+  it("returns the previous durable result without rerendering or recreating on retry", async () => {
+    const { controller, runs, result } = fixture();
+    runs.existing.mockResolvedValue(result);
+    expect(await controller.generate(file, dto, req)).toEqual(result);
+    expect(sliceWallpaper).not.toHaveBeenCalled();
+    expect(runs.prepare).not.toHaveBeenCalled();
   });
-
-  it('resolves parentDepth for an existing nested parentCid', async () => {
-    const { parentDepth } = await prepareRows(channels, '2', 'flat');
-    expect(parentDepth).toBe(1);
-  });
-
-  it('throws BadRequestException when parentCid matches no live channel', async () => {
+  it("requires a UUID idempotency key for generation", async () => {
     await expect(
-      prepareRows(channels, 'missing', 'flat'),
+      fixture().controller.generate(file, { ...dto, requestId: undefined }, req),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
-});
-
-describe('resolveSourceImage', () => {
-  it('throws when both file and sourceImageUrl are given', async () => {
-    await expect(
-      resolveSourceImage(fakeFile(), 'https://example.test/x.png'),
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('throws when neither file nor sourceImageUrl are given', async () => {
-    await expect(
-      resolveSourceImage(undefined, undefined),
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('returns the file buffer when a file is given', async () => {
-    const file = fakeFile();
-    await expect(resolveSourceImage(file, undefined)).resolves.toBe(
-      file.buffer,
+  it("rejects zero rendered rows and corrupt source data before persistence", async () => {
+    const { controller, runs } = fixture();
+    jest.mocked(sliceWallpaper).mockResolvedValue([]);
+    await expect(controller.generate(file, dto, req)).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
     );
+    jest.mocked(sliceWallpaper).mockRejectedValue(new InvalidImageError("Invalid"));
+    await expect(controller.generate(file, dto, req)).rejects.toBeInstanceOf(
+      UnsupportedMediaTypeException,
+    );
+    expect(runs.prepare).not.toHaveBeenCalled();
   });
-
-  it('fetches the URL via fetchImageSafely when sourceImageUrl is given', async () => {
-    const buffer = Buffer.from('fetched-bytes');
-    mockedFetchImageSafely.mockResolvedValue({
-      buffer,
-      contentType: 'image/png',
+  it("previews without creating a persistent run and applies absolute parent depth", async () => {
+    const { controller, runs } = fixture();
+    jest
+      .mocked(fetchLiveChannels)
+      .mockResolvedValue([{ cid: "1", name: "Parent", pid: null, bannerGfxUrl: null }]);
+    const preview = await controller.preview(file, {
+      ...dto,
+      parentCid: "1",
+      spacerMode: "nested-spacer",
     });
-    await expect(
-      resolveSourceImage(undefined, 'https://example.test/x.png'),
-    ).resolves.toBe(buffer);
+    expect(preview.rows[0]).toMatchObject({ depth: 0, isSpacer: false });
+    expect(preview.rows[0].imageDataUrl).toContain("data:image/png;base64,");
+    expect(jest.mocked(sliceWallpaper).mock.calls[0][1][0].depth).toBe(1);
+    expect(jest.mocked(sliceWallpaper).mock.calls[0][1][1].depth).toBe(2);
+    expect(runs.prepare).not.toHaveBeenCalled();
   });
-
-  it('maps a FetchFailedError from fetchImageSafely to 422, not a generic 500', async () => {
-    mockedFetchImageSafely.mockRejectedValue(
-      new FetchFailedError('too many redirects'),
-    );
-    await expect(
-      resolveSourceImage(undefined, 'https://example.test/x.png'),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  it("passes only the run ID to undo", async () => {
+    const { controller, runs } = fixture();
+    await controller.undo({ runId: requestId });
+    expect(runs.undo).toHaveBeenCalledWith(requestId);
   });
-});
-
-function baseDto(
-  overrides: Partial<GenerateChannelWallpaperDto> = {},
-): GenerateChannelWallpaperDto {
-  return {
-    namePrefix: 'Wall',
-    spacerMode: 'flat',
-    ...overrides,
-  } as GenerateChannelWallpaperDto;
-}
-
-describe('ChannelWallpaperController.generate', () => {
-  it('pre-checks name collisions for the whole prospective range before creating anything', async () => {
-    // relativeRows (the real, unmocked buildAlternatingRowPlan output) always
-    // alternates art/spacer regardless of spacerMode -- 2 rows means "Wall 1"
-    // (art) then "Wall spacer 1" (spacer), which is what the row names are
-    // actually derived from, not sliceWallpaper's mocked return value here.
-    mockedSliceWallpaper.mockResolvedValue([
-      { row: { depth: 0, isSpacer: false }, image: Buffer.from('a') },
-      { row: { depth: 0, isSpacer: false }, image: Buffer.from('b') },
-    ]);
-    const { imagesService, channelNameInUse, saveImage } =
-      createImagesServiceStub();
-    channelNameInUse.mockImplementation((name: string) =>
-      Promise.resolve(name === 'Wall spacer 1'),
-    );
-    const controller = createController(imagesService);
-
-    await expect(
-      controller.generate(fakeFile(), baseDto(), createReq()),
-    ).rejects.toBeInstanceOf(ConflictException);
-
-    expect(channelNameInUse).toHaveBeenCalledWith('Wall 1');
-    expect(channelNameInUse).toHaveBeenCalledWith('Wall spacer 1');
-    expect(mockedCreateChannelWallpaper).not.toHaveBeenCalled();
-    expect(saveImage).not.toHaveBeenCalled();
-  });
-
-  it('creates channels in order and saves each successfully-created row image', async () => {
-    mockedSliceWallpaper.mockResolvedValue([
-      { row: { depth: 0, isSpacer: false }, image: Buffer.from('row1') },
-      { row: { depth: 0, isSpacer: true }, image: Buffer.from('row2') },
-    ]);
-    mockedCreateChannelWallpaper.mockResolvedValue({
-      created: [
-        { cid: '10', name: 'Wall 1', depth: 0, isSpacer: false },
-        { cid: '11', name: 'Wall spacer 1', depth: 0, isSpacer: true },
-      ],
-    });
-    const { imagesService, saveImage } = createImagesServiceStub();
-    const { metrics, wallpaperIncMock } = createMetricsStub();
-    const controller = createController(imagesService, metrics);
-
-    const result = await controller.generate(
-      fakeFile(),
-      baseDto(),
-      createReq('subj-1'),
-    );
-
-    expect(result.createdChannels).toEqual([
-      { cid: '10', name: 'Wall 1', kind: 'art', depth: 0 },
-      { cid: '11', name: 'Wall spacer 1', kind: 'spacer', depth: 0 },
-    ]);
-    expect(result.rowCount).toBe(2);
-    expect(saveImage).toHaveBeenNthCalledWith(
-      1,
-      'Wall 1',
-      Buffer.from('row1'),
-      'image/png',
-      '10',
-      'subj-1',
-    );
-    expect(saveImage).toHaveBeenNthCalledWith(
-      2,
-      'Wall spacer 1',
-      Buffer.from('row2'),
-      'image/png',
-      '11',
-      'subj-1',
-    );
-    expect(mockedInvalidateCache).toHaveBeenCalledTimes(1);
-    expect(wallpaperIncMock).toHaveBeenCalledWith({ result: 'success' });
-  });
-
-  it('reports a mid-batch failure without throwing, and only saves images for rows that actually succeeded', async () => {
-    mockedSliceWallpaper.mockResolvedValue([
-      { row: { depth: 0, isSpacer: false }, image: Buffer.from('row1') },
-      { row: { depth: 0, isSpacer: false }, image: Buffer.from('row2') },
-    ]);
-    mockedCreateChannelWallpaper.mockResolvedValue({
-      created: [{ cid: '10', name: 'Wall 1', depth: 0, isSpacer: false }],
-      failedAt: { name: 'Wall 2', error: 'name already exists' },
-    });
-    const { imagesService, saveImage } = createImagesServiceStub();
-    const { metrics, wallpaperIncMock } = createMetricsStub();
-    const controller = createController(imagesService, metrics);
-
-    const result = await controller.generate(
-      fakeFile(),
-      baseDto(),
-      createReq(),
-    );
-
-    expect(result.createdChannels).toHaveLength(1);
-    expect(result.failedAt).toEqual({
-      name: 'Wall 2',
-      error: 'name already exists',
-    });
-    expect(saveImage).toHaveBeenCalledTimes(1);
-    expect(wallpaperIncMock).toHaveBeenCalledWith({
-      result: 'partial-failure',
-    });
-  });
-
-  it('maps an InvalidImageError from slicing to 415, not a generic 503', async () => {
-    mockedSliceWallpaper.mockRejectedValue(
-      new InvalidImageError('not a real image'),
-    );
-    const controller = createController();
-
-    await expect(
-      controller.generate(fakeFile(), baseDto(), createReq()),
-    ).rejects.toBeInstanceOf(UnsupportedMediaTypeException);
-    expect(mockedCreateChannelWallpaper).not.toHaveBeenCalled();
-  });
-
-  it('maps an unexpected connection failure to 503 and increments the TeamSpeak-error counter', async () => {
-    mockedWithTeamSpeakConnection.mockRejectedValue(new Error('ECONNREFUSED'));
-    const { metrics, teamspeakErrorsIncMock } = createMetricsStub();
-    const controller = createController(undefined, metrics);
-
-    await expect(
-      controller.generate(fakeFile(), baseDto(), createReq()),
-    ).rejects.toBeInstanceOf(ServiceUnavailableException);
-    expect(teamspeakErrorsIncMock).toHaveBeenCalledWith({
-      operation: 'generate-channel-wallpaper',
-    });
-  });
-});
-
-describe('ChannelWallpaperController.preview', () => {
-  it('never touches ServerQuery mutation or image storage', async () => {
-    mockedSliceWallpaper.mockResolvedValue([
-      { row: { depth: 0, isSpacer: false }, image: Buffer.from('row1') },
-    ]);
-    const { imagesService, saveImage } = createImagesServiceStub();
-    const controller = createController(imagesService);
-
-    const result = await controller.preview(fakeFile(), baseDto());
-
-    expect(result.rows).toEqual([
-      {
-        depth: 0,
-        isSpacer: false,
-        imageDataUrl: `data:image/png;base64,${Buffer.from('row1').toString('base64')}`,
-      },
-    ]);
-    expect(mockedWithTeamSpeakConnection).not.toHaveBeenCalled();
-    expect(mockedCreateChannelWallpaper).not.toHaveBeenCalled();
-    expect(saveImage).not.toHaveBeenCalled();
-    expect(mockedInvalidateCache).not.toHaveBeenCalled();
-  });
-
-  it('uses the cached fetchLiveChannels() rather than opening a dedicated connection', async () => {
-    mockedSliceWallpaper.mockResolvedValue([]);
-    const controller = createController();
-
-    await controller.preview(fakeFile(), baseDto());
-
-    expect(mockedFetchLiveChannels).toHaveBeenCalledTimes(1);
-    expect(mockedListChannelsOnConnection).not.toHaveBeenCalled();
-  });
-});
-
-describe('ChannelWallpaperController.undo', () => {
-  it('deletes the given cids', async () => {
-    mockedDeleteManagedChannels.mockResolvedValue({
-      deleted: ['1', '2'],
-      failed: [],
-    });
-    const controller = createController();
-
-    const result = await controller.undo({ cids: ['1', '2'] });
-
-    expect(mockedDeleteManagedChannels).toHaveBeenCalledWith(['1', '2']);
-    expect(result).toEqual({ deleted: ['1', '2'], failed: [] });
-  });
-
-  it('maps an unexpected failure to 503', async () => {
-    mockedDeleteManagedChannels.mockRejectedValue(new Error('ECONNREFUSED'));
-    const controller = createController();
-
-    await expect(controller.undo({ cids: ['1'] })).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
-  });
-});
-
-describe('ChannelWallpaperController role requirements', () => {
-  function rolesOf(methodName: keyof ChannelWallpaperController): unknown {
-    return Reflect.getMetadata(
-      ROLES_KEY,
-      ChannelWallpaperController.prototype[methodName],
-    );
-  }
-
-  it('requires the admin role for generate/preview/undo', () => {
-    expect(rolesOf('generate')).toEqual([OIDC_ADMIN_ROLE]);
-    expect(rolesOf('preview')).toEqual([OIDC_ADMIN_ROLE]);
-    expect(rolesOf('undo')).toEqual([OIDC_ADMIN_ROLE]);
+  it("protects all generation, history, recovery and undo routes with the admin role", () => {
+    for (const method of ["generate", "preview", "listRuns", "getRun", "resume", "undo"] as const) {
+      expect(
+        Reflect.getMetadata(
+          ROLES_KEY,
+          Reflect.get(ChannelWallpaperController.prototype, method) as object,
+        ),
+      ).toEqual([OIDC_ADMIN_ROLE]);
+    }
   });
 });

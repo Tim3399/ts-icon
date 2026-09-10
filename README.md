@@ -1,329 +1,144 @@
 # ts-icon
 
-A system for managing per-channel banner images ("icons") for TeamSpeak. It has two parts:
+Manage TeamSpeak channel banners with a NestJS image API and a React admin interface. Images are decoded and stored as 500 × 44 PNGs. Channel IDs keep images stable across renames and duplicate channel names. Wallpaper generation records recoverable operations, including partial failures and undo.
 
-- A **NestJS backend** (`src/`), split into two separately-run apps: a public, read-only image API (for TeamSpeak/clients to fetch banners) and a Keycloak-protected admin API (for uploading, cropping, and importing banners).
-- A **React + Vite admin frontend** (`webapp-banner-tool/`) for logging in, picking a channel, and cropping/uploading its banner.
+## Local development
 
-## Features
-- Public, read-only image API with per-IP rate limiting and no authentication required
-- Admin API protected end-to-end by Keycloak (OIDC): every endpoint requires a valid Bearer token, with two roles (`ts-icon-editor`, `ts-icon-admin`) controlling what an authenticated user can do
-- React + Vite frontend for cropping and uploading channel banners, with Keycloak login (Authorization Code + PKCE)
-- Admin-only banner-URL manager page: points a TeamSpeak channel's own banner setting at this server's managed image, one channel at a time or in bulk for every channel not already set
-- SSRF-hardened URL-import endpoints (import a banner from a URL, or preview one, without the server becoming an open proxy to internal network resources)
-- Prisma ORM with SQLite
-- Docker Compose setup, including a dedicated one-off database migration step
-- CI (GitHub Actions): lint/typecheck/build/test for both apps, plus a Docker image build-validation job
+Use **Node 22.23.2** (see `.nvmrc`) and npm 11.7.0. The project also accepts npm 10.9+; the Windows launcher must resolve to a functioning Node/npm installation.
 
-## Quickstart
+1. Copy `.env.example` to `.env` and `webapp-banner-tool/.env.example` to `webapp-banner-tool/.env`.
+2. Set your TeamSpeak ServerQuery host, transport, username and password.
+3. Choose authentication: configure Keycloak below, or set **both** `AUTH_DISABLED=true` in the root file and `VITE_KEYCLOAK_ENABLED=false` in the frontend file for local development.
+4. Run:
 
-Two ways to run this, each with two auth modes. Pick one path below.
-
-### Docker Compose (recommended for trying the whole system)
-
-```powershell
-git clone <this-repo-url>
-cd ts-icon
-cp .env.example .env   # then edit .env — see below
-docker compose run --rm migrate
-docker compose up --build
-```
-
-- **With real Keycloak (OAuth2)**: fill in `OIDC_ISSUER_URL`/`OIDC_AUDIENCE` (and `TS_USERNAME`/`TS_USERPASSWORD`) in `.env` before starting — see [Keycloak Setup](#keycloak-setup). This is the only supported mode under Docker Compose.
-- **Without OAuth2**: **not possible under Docker Compose.** The image always runs with `NODE_ENV=production` baked in (see `Dockerfile`), and `AUTH_DISABLED=true` refuses to start under `NODE_ENV=production` by design — see below.
-
-### Local npm (for development, or a true no-Keycloak localhost overlay)
-
-Backend:
-```powershell
-npm install
-npm run start:public   # in one terminal
-npm run start:local    # in another
-```
-Frontend:
-```powershell
-cd webapp-banner-tool
-npm install
+```sh
+npm run setup
 npm run dev
 ```
 
-- **With real Keycloak (OAuth2)**: set `OIDC_ISSUER_URL`/`OIDC_AUDIENCE` in the root `.env` and `VITE_KEYCLOAK_URL`/`VITE_KEYCLOAK_REALM`/`VITE_KEYCLOAK_CLIENT_ID` in `webapp-banner-tool/.env` — see [Keycloak Setup](#keycloak-setup). This is the default; it's what happens if you don't set the flags below.
-- **Without OAuth2 — localhost overlay**: set **both** `AUTH_DISABLED=true` in the root `.env` and `VITE_KEYCLOAK_ENABLED=false` in `webapp-banner-tool/.env`. Neither flag alone is enough (see [Web Frontend](#web-frontend)). This is a genuine escape hatch — the admin API really does accept unauthenticated requests in this mode — so it comes with real restrictions, not just a warning label:
-  - It **refuses to start** if `NODE_ENV=production` is set.
-  - Even when enabled, every request must still come from a loopback or private-network address (see `src/auth/no-auth.guard.ts`) — a caller from anywhere else still gets rejected.
-  - It is meant for one thing only: running this entirely on your own machine, with nothing reachable from any other machine. **Never** set this on a host anything else can reach.
+Setup installs both lockfiles, validates the required settings, generates Prisma, applies migrations and builds the backend. It never overwrites existing environment files. On a completely fresh checkout, `npm run setup -- --local` creates examples with the local auth flags; fill in the reported missing TeamSpeak settings and rerun setup.
 
-## Architecture
-The backend is one NestJS codebase with two independent entry points/apps, each meant to run as its own process (and, in Docker, its own container):
+Open [the local UI](http://localhost:5173). The public API runs on port 3000 and the admin API on 3001. The combined dev command watches all three processes; Ctrl+C stops its process tree. Individual commands:
 
-| App | Entry point | Default port | Purpose | Auth |
-|---|---|---|---|---|
-| **public** | `src/main.public.ts` | 3000 | Serves channel images to TeamSpeak clients / anyone | None (rate-limited instead) |
-| **local** (admin) | `src/main.local.ts` | 3001 | Upload, crop-and-send, URL-import, channel listing | Keycloak Bearer token required on every endpoint |
+| Command                                        | Purpose                                         |
+| ---------------------------------------------- | ----------------------------------------------- |
+| `npm run dev:public` / `npm run dev:local`     | Watch one backend with its explicit entry point |
+| `npm run debug:public` / `npm run debug:local` | Debug on loopback ports 9230 / 9229             |
+| `npm run build`                                | Compile backend and shared tooling              |
+| `npm run start:public` / `npm run start:local` | Start the previously built applications         |
+| `npm run dev --prefix webapp-banner-tool`      | Start only Vite                                 |
 
-The `local` app is meant to stay on a trusted network path (see [Docker Setup](#docker-setup) — its port is bound to `127.0.0.1` only by default) even though it now also enforces its own authentication.
+With authentication disabled, the admin listener and guard accept **loopback only**. This mode is rejected under `NODE_ENV=production`. It does not grant LAN access. The frontend independently allows its no-login setting only on a localhost origin.
 
-## Web Frontend
-The repository contains a small React + Vite frontend located at `webapp-banner-tool/` which can be used to interact with the APIs via a simple user interface (upload/crop and view banners).
+## Docker Compose
 
-- Located in `webapp-banner-tool/`
-- Built with React and Vite
-- Main entry: `webapp-banner-tool/src/App.tsx`
-- Includes an **admin-only** page (`/banner-urls`) for pointing TeamSpeak channels' own banner setting at this server's managed image — gated to the `ts-icon-admin` role specifically (not editor), both in the UI and by the backend endpoints it calls. Requires `PUBLIC_BASE_URL` to be set on the backend.
-- Start locally:
-  ```powershell
-  cd webapp-banner-tool
-  npm install
-  npm run dev
-  ```
-- Access via `http://localhost:5173` (default)
-- Authentication via Keycloak (Authorization Code flow + PKCE, no client secret) — users are redirected to the Keycloak login page before accessing the app. Keycloak can only be turned off when the app is actually served from `localhost`/`127.0.0.1`; on any other hostname it is always required, regardless of configuration.
-- All requests to the admin API include a `Bearer` token in the `Authorization` header when Keycloak is enabled, via a small central fetch wrapper (`src/api/client.ts`) that also applies a request timeout and turns 401/403/429/5xx responses into distinct, user-facing error categories.
+Compose includes **frontend, public API, admin API and database migration**, with schema readiness checks and a persistent SQLite volume. It requires real Keycloak settings and HTTPS public URLs in production.
 
-Configuration is read from environment variables (see `webapp-banner-tool/.env.example` for the full list and current defaults) via `webapp-banner-tool/src/config.ts`:
-
-- `VITE_PUBLIC_API_URL` — base URL of the public image API (default `http://localhost:3000`)
-- `VITE_ADMIN_API_URL` — base URL of the admin/local API (default `http://localhost:3001`)
-- `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID` — Keycloak connection details
-- `VITE_KEYCLOAK_ENABLED` — see the table below
-
-`VITE_KEYCLOAK_ENABLED=false` (in a `.env` file in `webapp-banner-tool/`) skips the Keycloak login **only when the app is served from `localhost`/`127.0.0.1`**. On any other hostname this setting is ignored and login is always required — there is no way to disable authentication on a real deployment.
-
-| Hostname | `VITE_KEYCLOAK_ENABLED` | Behavior |
-|---|---|---|
-| `localhost` / `127.0.0.1` / `::1` | not set / `true` | Keycloak login required, Bearer token sent with API calls |
-| `localhost` / `127.0.0.1` / `::1` | `false` | No login required, app usable immediately without Keycloak |
-| anything else | any value | Keycloak login always required |
-
-This is a client-side developer convenience only, not a security boundary (it's trivially bypassed by anyone editing the served JS) — real enforcement is the backend's JWT guard, described below.
-
-**`VITE_KEYCLOAK_ENABLED=false` on its own only skips the frontend's login screen** — the admin backend still requires a valid Keycloak-issued token on every request regardless of any frontend setting, so every API call would still 401. To actually run without Keycloak end to end, the backend's own `AUTH_DISABLED=true` (see [Quickstart](#quickstart) and [Environment Variables](#environment-variables)) has to be set too — the two flags are meant to be used together, not independently.
-
-## Backend
-- Located in `src/`
-- Built with NestJS
-- Main entries:
-  - `src/main.local.ts` — admin/editing server. Use this to upload, change, or crop images for TeamSpeak channels. Requires a valid Keycloak Bearer token on every request.
-  - `src/main.public.ts` — public server (viewing endpoints). Use this to serve images to TeamSpeak clients or web frontends. No authentication, but rate-limited.
-- Start the admin (local) server:
-  ```powershell
-  npm install
-  npm run start:local
-  ```
-- Start the public server:
-  ```powershell
-  npm run start:public
-  ```
-
-## API Endpoints
-Below is a concise reference for the backend endpoints. Replace the port with your `IMG_WEB_PORT` (public) or `IMG_API_PORT` (local) if you changed them.
-
-### Public server — read-only, default port 3000, no authentication
-
-| Method & path | Description | Response |
-|---|---|---|
-| `GET /images/:channelName` | Returns the stored image for the given channel name. An optional trailing `.png` on `channelName` is accepted and stripped before lookup (see below); the extensionless form keeps working too. | Binary image; `Content-Type` set to the stored MIME type; `Cache-Control: public, max-age=86400` |
-
-Example:
-```powershell
-curl http://localhost:3000/images/news -o news.png
+```sh
+cp .env.docker.example .env
+# Edit .env: TeamSpeak credentials/host, public HTTPS URL and both OIDC/VITE settings.
+docker compose up --build --wait
 ```
 
-**Why the URLs the app sets on TeamSpeak channels end in `.png`:** TeamSpeak 6 only renders a channel banner from a URL with a recognized image file extension — unlike a browser, it does not consult the response's `Content-Type` header at all. Every stored image is always re-encoded to canonical PNG by `processImageForStorage()` regardless of what was uploaded, so `expectedBannerUrl()` (`src/teamspeak/teamspeak-channels.ts`) always appends `.png` when computing the URL a managed channel should have. This endpoint strips that suffix back off before doing the actual channel lookup, so both URL shapes resolve to the same image — existing tooling or manually-built extensionless links keep working. Any channel still pointed at the old, pre-fix extensionless URL is picked up as "not managed" and gets rewritten automatically the next time `POST /images-local/channels/apply-banner-urls` runs (see below).
+Open [the local frontend entry](http://localhost:8088). For a deployed installation, put your HTTPS reverse proxy in front of this port and register that external origin in Keycloak. Ports are bound to loopback by default. `PUBLIC_BASE_URL` must be the HTTPS address that TeamSpeak clients can actually reach, not a Docker service name.
 
-This endpoint is rate-limited per client IP (see [Rate Limiting](#rate-limiting) below). There is no endpoint on the public server that lists channels or images — that moved to the admin API (see below).
+- `TS_HOST` is respected. For TeamSpeak on the Docker host, use `host.docker.internal`; Compose includes Linux's host-gateway mapping. A remote host or another reachable container can also be configured.
+- Frontend requests use the same origin: `/admin-api` proxies to the admin API and `/images` to the public API.
+- Frontend configuration is checked at build time. Missing/example Keycloak values fail the build. Changing `VITE_*` requires rebuilding; container environment variables do not rewrite an existing JS bundle.
+- Compose assigns the frontend `172.30.20.10` in subnet `172.30.20.0/24` and trusts that exact proxy IP by default. If this subnet conflicts with an existing network, change the subnet, frontend IP and backend trusted-proxy setting together.
+- The public nginx entry blocks both metrics paths. See [operation and proxy configuration](docs/operations.md) for additional proxy hops, backups and updates.
 
-### Local server — admin/editing, default port 3001, **requires a Keycloak Bearer token on every request**
+Do not use `docker compose down --volumes` for an update: that deletes the persistent database.
 
-| Method & path | Description | Required role | Notes |
-|---|---|---|---|
-| `POST /images-local/:channelName` | Upload a file for the channel (`multipart/form-data`, field `file`) | `ts-icon-editor` | Max 5 MB, MIME must be one of `image/png`, `image/jpeg`, `image/webp`, `image/gif` |
-| `POST /images-local/from-url` | Fetch an external URL and save it as the channel image | `ts-icon-editor` | Body: JSON `{ "channelName": "...", "url": "https://..." }`; SSRF-hardened (see below) |
-| `GET /images-local/img-from-url?url=...` | Proxy an external image URL and return it (used by the frontend's "load image from URL" preview) | `ts-icon-editor` | SSRF-hardened (see below) |
-| `GET /images-local/channels` | Returns a list of channels fetched live via TeamSpeak ServerQuery | `ts-icon-editor` | Returns `{ "channels": [] , "error": "..." }` if TeamSpeak is unreachable, rather than failing the request |
-| `GET /images-local/options` | Lists every stored channel image (channel name + MIME type) across the whole database | `ts-icon-admin` | Administrative listing endpoint — deliberately gated to admin, not editor |
-| `GET /images-local/channels/banner-urls` | Returns each live channel's current TeamSpeak banner URL and whether it's already set to this server's managed image | `ts-icon-admin` | Used by the frontend's banner-URL manager page (admin-only, both in the UI and at this endpoint) |
-| `PATCH /images-local/:channelName/banner-url` | Sets a channel's TeamSpeak banner URL to point at this server's managed image for that channel | `ts-icon-admin` | Requires `PUBLIC_BASE_URL` to be configured (see [Environment Variables](#environment-variables)) |
-| `POST /images-local/channels/apply-banner-urls` | Sets the banner URL on every channel not already pointed at this server, in one TeamSpeak connection | `ts-icon-admin` | Returns `{ "updated": [...], "alreadyManaged": [...] }`; skips channels already correctly set |
-| `DELETE /images-local/:channelName` | Deletes the stored image for a channel | `ts-icon-editor` | Returns 404 if no image exists for the channel |
+## Keycloak
 
-Example (upload):
-```powershell
-curl -F "file=@banner.png" -H "Authorization: Bearer <token>" http://localhost:3001/images-local/news
+Create a **public client** with Standard Flow enabled, client authentication disabled, and PKCE S256. Register the exact frontend redirect origins; avoid production wildcards. Create the realm roles `ts-icon-editor` and `ts-icon-admin`, and assign them to users/groups.
+
+| Backend setting                                             | Frontend setting                                                              |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `OIDC_ISSUER_URL=https://login.example.com/realms/my-realm` | `VITE_KEYCLOAK_URL=https://login.example.com`, `VITE_KEYCLOAK_REALM=my-realm` |
+| `OIDC_AUDIENCE=ts-icon`                                     | `VITE_KEYCLOAK_CLIENT_ID=ts-icon`                                             |
+| `OIDC_EDITOR_ROLE`, `OIDC_ADMIN_ROLE`                       | `VITE_KEYCLOAK_EDITOR_ROLE`, `VITE_KEYCLOAK_ADMIN_ROLE`                       |
+
+The backend verifies RS256 signatures against the issuer's JWKS, issuer, expiry/not-before, **`typ=Bearer`** and **`azp` equal to the configured client ID**. `OIDC_AUDIENCE` is the historical name of the setting checked against `azp`; it is not an `aud` matcher. ID tokens and access tokens with the wrong client are rejected. Admin includes editor permissions.
+
+Outside production, `/swagger` provides OAuth2/PKCE and Bearer authorization for interactive API documentation. It shares the application's access-token policy. Swagger is disabled in production.
+
+## Main workflows and API
+
+Select channels by their CID; the UI shows names and parent context. The gallery supports upload, deletion, search and image-state filters. Crop controls work with keyboard and touch, and preserve the selected content when the preview size changes. Saved-image previews refresh immediately.
+
+Wallpaper preview/generation is admin-only. Each generation has a persistent run ID and idempotency key. The UI can reload operation history, resume partial work and retry partial undo. Undo is limited to that operation's channels and refuses unsafe deletion of changed/occupied channels.
+
+| API                                                             | Access                                                   |
+| --------------------------------------------------------------- | -------------------------------------------------------- |
+| `GET /images/by-id/:cid.png`                                    | Public stable channel image; PNG, ETag and revalidation  |
+| `GET /images/:legacyName.png`                                   | Public legacy URL; ambiguous aliases return 409          |
+| `GET /images/wallpaper/:runId/:position.png`                    | Public recorded wallpaper image                          |
+| `GET /images-local/channels`                                    | Editor; `items` contains CIDs and image metadata         |
+| `POST/DELETE /images-local/channels/:cid/image`                 | Editor; multipart field `file` for upload                |
+| `POST /images-local/from-url`, `GET /images-local/img-from-url` | Editor; bounded HTTPS image fetch                        |
+| `GET/POST /images-local/spacer-base-image`                      | Editor; shared spacer fallback                           |
+| `GET /images-local/options`                                     | Admin; stored image metadata                             |
+| `GET /images-local/channels/banner-urls`                        | Admin; live banner settings                              |
+| `PATCH /images-local/channels/:cid/banner-url`                  | Admin; set one stable managed URL                        |
+| `POST /images-local/channels/apply-banner-urls`                 | Admin; bulk update with partial results                  |
+| `/images-local/channel-wallpaper/*`                             | Admin; preview, generation, runs, resume and undo        |
+| `GET /health/live`, `GET /health/ready`                         | Unauthenticated health; readiness checks required schema |
+
+The public image API applies burst and per-minute limits. Downloads and image processing enforce byte/pixel/deadline/concurrency limits. Expected errors include a safe message and request ID; secrets and raw image bytes are excluded from logs. Never use the image URL-import mechanism as a general HTTP proxy.
+
+DTO validation errors also include `fieldErrors`, mapping input names to arrays of messages. The UI associates known fields with their inputs and preserves a general error for failures that need a retry or cannot be assigned to a field.
+
+## Database and maintenance
+
+Both applications and all `db:*` commands share one SQLite path resolver. `file:./dev.db` means `prisma/dev.db` in local development; Docker uses `file:/data/dev.db`. Absolute `file:C:/...` and `file:///...` URLs are supported.
+
+```sh
+npm run db:generate
+npm run db:migrate
+npm run db:check
+npm run db:backup -- --output backups/manual.db
+npm run db:dry-run
+npm run backfill:channel-ids
 ```
 
-On success, the upload and URL-import endpoints return `{ "message": "Image saved successfully" }`.
+`db:dry-run` applies migrations to a disposable copy. The channel-ID backfill also defaults to a dry run and reports ambiguous names/aliases; `--apply` writes only unambiguous assignments after creating a verified backup. Existing IDs are never reassigned automatically.
 
-- Swagger UI: the local server exposes a Swagger UI at `/swagger`, but **only outside `NODE_ENV=production`** — it's disabled entirely in production. Note that Swagger UI itself is not covered by the JWT guard below (it's mounted directly on the underlying HTTP adapter rather than as a routed controller), which is why it stays restricted to non-production environments.
-- Do not expose the local/admin server to the public internet without also keeping it behind a trusted network boundary — see [Docker Setup](#docker-setup) for the default `127.0.0.1`-only port binding.
+A restore defaults to validation only:
 
-## Authentication & Authorization
-The admin (`local`) API validates a Keycloak-issued JWT on **every** endpoint — there is no unauthenticated route, except for the explicit `AUTH_DISABLED=true` localhost-overlay escape hatch described in [Quickstart](#quickstart) (loopback/private-network callers only, refuses to start in production). The public API has no authentication at all (by design; it only serves already-public banner images) and relies on rate limiting instead.
-
-- **401 Unauthorized** — no `Authorization: Bearer <token>` header, or the token fails verification (missing/invalid signature, wrong issuer, wrong authorized party/`azp`, expired, not-yet-valid, or signed with an algorithm other than `RS256`). The response never reveals which specific check failed.
-- **403 Forbidden** — the token is valid, but the caller's roles don't include one required for the endpoint.
-
-Verification is done locally against the configured Keycloak realm's JWKS endpoint (`{issuer}/protocol/openid-connect/certs`) — the backend does not call back to Keycloak for token introspection, so it works even if Keycloak is briefly unreachable after the signing keys have been cached.
-
-### Roles
-Two Keycloak realm roles are used:
-
-| Role | Grants access to |
-|---|---|
-| `ts-icon-editor` | Upload, URL-import (`from-url`, `img-from-url`), channel listing |
-| `ts-icon-admin` | Everything `ts-icon-editor` can do, **plus** the image-listing endpoint (`GET /images-local/options`) |
-
-In other words, `ts-icon-admin` is a strict superset — a caller with the admin role automatically satisfies any endpoint gated on the editor role. There is no separate endpoint that only the admin role can reach except the listing endpoint above (no delete/config endpoint exists yet).
-
-Role names can be overridden via `OIDC_ADMIN_ROLE`/`OIDC_EDITOR_ROLE` (see `.env.example`), but default to `ts-icon-admin`/`ts-icon-editor`.
-
-### Keycloak Setup
-This project uses **one public Keycloak client** — no client secret, Authorization Code flow with PKCE (S256) — that serves double duty: it's both the frontend's OIDC client and the client the backend expects tokens to be authorized for. A separate confidential backend client is not needed, because the backend only validates JWTs locally via the realm's JWKS; it never performs token introspection or a client-credentials flow, so it has no reason to be a registered client itself — it only needs to know which client id to expect.
-
-The backend checks this via the token's **`azp`** (authorized party) claim, not `aud`: Keycloak doesn't reliably include the requesting client's own id in `aud` without configuring a dedicated audience mapper, but it always sets `azp` to the client a token was issued to — so `azp` is what `OIDC_AUDIENCE` is actually compared against (see `src/auth/jwt-auth.guard.ts`).
-
-To configure your own Keycloak instance:
-
-1. Create (or use an existing) realm, e.g. `<your-realm>`.
-2. Create a single client:
-   - **Client ID:** `<your-client-id>` (used as both `VITE_KEYCLOAK_CLIENT_ID` on the frontend and `OIDC_AUDIENCE` on the backend)
-   - **Client authentication:** off (public client)
-   - **Standard flow (Authorization Code):** on
-   - **Direct access grants:** off
-   - **Valid redirect URIs / web origins:** your frontend's actual origin(s) (no wildcards in production)
-3. Create two **realm roles** (not scoped to the client): `ts-icon-editor` and `ts-icon-admin`, and assign them to the appropriate users/groups.
-4. Point the backend at your realm via `OIDC_ISSUER_URL=https://<your-keycloak-url>/realms/<your-realm>` and `OIDC_AUDIENCE=<your-client-id>` (see `.env.example`).
-5. Point the frontend at the same realm/client via `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID` (see `webapp-banner-tool/.env.example`).
-
-The actual realm name, issuer URL, and client id used for this deployment are not part of this repository — they live only in the (git-ignored) local `.env` files.
-
-## Rate Limiting
-The public image endpoint (`GET /images/:channelName`) is rate-limited per client IP via `@nestjs/throttler`, using two limits enforced together:
-
-| Name | Window | Limit |
-|---|---|---|
-| `burst` | 2 seconds | 150 requests |
-| `per-minute` | 60 seconds | 600 requests |
-
-These are deliberately generous, not just "some reasonable-looking number": a real TeamSpeak client fetches the banner for *every* channel visible in the tree as soon as it connects, not just the current one — so a single legitimate connect can burst to roughly the server's total channel count almost at once. The original tighter limits (5 req/sec) were tuned for a generic "prevent scraping" case and started rejecting real banner loads outright on any server with more than 5 channels. Both limits above give headroom well above this project's documented ~100-channel scale, including a few users behind the same shared/NAT IP connecting around the same time, while still bounding sustained abuse far below what an actual scraping pattern would look like.
-
-This only applies to the public app — the admin/local app has no rate limiting of its own (it's already gated by authentication).
-
-When a limit is exceeded, the response is **HTTP 429** with a JSON body (`{ "statusCode": 429, "message": "ThrottlerException: Too Many Requests" }`) and headers reflecting *which* limit was hit — since two named throttlers are configured, the standard `@nestjs/throttler` headers come back with a per-limit suffix rather than a single unsuffixed name, e.g. `Retry-After-burst` or `Retry-After-per-minute` (seconds until that limit resets), alongside `X-RateLimit-Limit-<name>`, `X-RateLimit-Remaining-<name>`, and `X-RateLimit-Reset-<name>`. There is no plain `Retry-After` header on this endpoint.
-
-## Health Checks
-Both apps expose `GET /health/live` (process is running, no dependency checks) and `GET /health/ready` (checks the database connection; returns 503 with a minimal `{ "status": "error", "check": "database" }` body on failure, revealing nothing else). Both routes are reachable without a token even in the `local` app, for container/CI probes.
-
-## Metrics
-Both apps expose `GET /metrics` in the Prometheus text exposition format (via `prom-client`), covering HTTP request count/duration by method/route/status, upload success/failure, auth (401) and authorization (403) failure counts, TeamSpeak and database error counts, and SSRF-blocked request counts.
-
-Access to `/metrics` is protected differently on each app, matching how each app is already protected everywhere else:
-
-| App | Protection |
-|---|---|
-| `local` | Same global Keycloak JWT guard as every other route — not a special case. Point a Prometheus scrape job at it with a static bearer token configured in the scrape config (a normal Prometheus feature). |
-| `public` | No Keycloak guard exists on this app by design, so `/metrics` is instead restricted to callers whose source IP is loopback or a private range (`127.0.0.1`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, etc.) — anyone else gets a 403. Scrape it from the same host or network, not over the public internet. |
-
-## SSRF Protection
-Both URL-import endpoints (`POST /images-local/from-url` and `GET /images-local/img-from-url`) fetch a caller-supplied URL server-side, which is inherently an SSRF risk. Both endpoints go through the same hardening: the target's resolved IP addresses are checked against private/loopback/link-local/reserved ranges before connecting (and the connection is pinned to the addresses that were actually checked, closing the gap between "we checked DNS" and "we connected"), redirects are not followed automatically (each hop is re-validated the same way), and requests are subject to size and time limits. See `src/images/ssrf-guard.ts` and `src/images/safe-url-fetcher.ts` for the implementation.
-
-## Docker Setup
-Build and run with Docker Compose:
-
-```powershell
-docker compose run --rm migrate
-docker compose up --build
+```sh
+npm run db:restore -- --source backups/manual.db
+# Stop both backend applications, then:
+npm run db:restore -- --source backups/manual.db --apply --offline
 ```
 
-The **`migrate` step is required** before the very first start, and again after any change to the Prisma schema/migrations — it is not run automatically by `docker compose up`. `docker-compose.yml` defines three services:
+The previous database is retained beside the target. Read [the full backup, restore and update procedure](docs/operations.md) before operating on a deployed database.
 
-| Service | Purpose |
-|---|---|
-| `public` | The public image API (port 3000) |
-| `local` | The admin/editing API (port 3001, bound to `127.0.0.1` only by default) |
-| `migrate` | One-off: applies Prisma migrations against the shared database volume. Only runs via `docker compose run --rm migrate` — it has no `restart` policy and isn't started by `docker compose up`. |
+## Checks and formatting
 
-`public` and `local` share a Docker image built from the repository's single `Dockerfile` (a multi-stage build: `builder`, which has the full toolchain including the Prisma CLI, and `runner`, the slim production image that both long-running services actually use). `migrate` builds from the `builder` stage instead, since the Prisma CLI is a dev dependency that `runner` deliberately excludes.
+The adopted [project profile](docs/PROJECT_PROFILE.md) maps commands, formatter ownership, agent workflow and outstanding requirements to the vendored [engineering standard 1.1.0](docs/standards/README.md). Agents follow `AGENTS.md`; project-specific adaptations belong in the profile.
 
-Both long-running services run as a non-root user and use SQLite via a named volume (`db-data`) mounted at `/data`; `restart: unless-stopped` and basic JSON-file log rotation are configured for both.
+`npm run check` runs formatting, backend/frontend lint and type checks. Tests and production builds are separate gates. On Windows, use `npm.cmd` if a PowerShell `npm` shim points to a missing CLI.
 
-## Database
-- Prisma schema in `prisma/schema.prisma`, migrations in `prisma/migrations/`.
-- SQLite by default (`DATABASE_URL=file:./dev.db` for local, non-Docker use).
-- Outside Docker, apply migrations with:
-  ```powershell
-  npx prisma migrate deploy
-  ```
-  **This fails against the default relative `DATABASE_URL=file:./dev.db`** with `P1013: The provided database string is invalid`. The Prisma CLI parses `DATABASE_URL` itself and requires an absolute path for this command — unlike the app's own runtime (`src/prisma/prisma.service.ts`), which resolves a relative path manually against `prisma/` and works fine with the default as-is. Override `DATABASE_URL` with an absolute path just for this command, e.g.:
-  ```powershell
-  $env:DATABASE_URL = "file:$($PWD.Path -replace '\\','/')/prisma/dev.db"
-  npx prisma migrate deploy
-  ```
-  ```bash
-  DATABASE_URL="file:$(pwd)/prisma/dev.db" npx prisma migrate deploy
-  ```
-- Inside Docker, use the `migrate` service described above instead of running Prisma commands inside the long-running `public`/`local` containers.
+```sh
+npm run check
+npm run build
+npm run build --prefix webapp-banner-tool
+npm test -- --runInBand
+npm run test:e2e
+npm run test:ops
+npm test --prefix webapp-banner-tool
+npm run test:e2e:install --prefix webapp-banner-tool
+npm run test:e2e --prefix webapp-banner-tool
+```
 
-## Environment Variables
-Backend configuration is read from a root `.env` file — see `.env.example` for the full, current list and safe example values. Notable behaviors:
+Formatting follows the adopted standard: Biome 2.5.7 formats JS/TS/JSX/TSX/JSON/CSS with two spaces, double quotes, semicolons, 100 columns and LF. Prettier 3.9.6 formats Markdown/YAML/HTML only. `npm run format` applies both; ESLint checks code quality separately. Use the respective formatter on changed files during feature work; reserve the full write command for a dedicated normalization change.
 
-- `TS_USERNAME`/`TS_USERPASSWORD` (TeamSpeak ServerQuery credentials) have **no default fallback** — the admin app fails fast at startup if either is unset, rather than silently using a known default credential.
-- `TS_PROTOCOL` selects the ServerQuery transport: `raw` (classic, default) or `ssh` (needed for servers, e.g. TeamSpeak 6, that only expose SSH ServerQuery). Falls back to `raw` if unset or unrecognized.
-- `DATABASE_URL` defaults to `file:./dev.db` for local development, but is required (fails fast) when `NODE_ENV=production`.
-- `LOG_LEVEL` sets the minimum severity printed (`verbose`/`debug`/`log`/`warn`/`error`/`fatal`); falls back to `debug` outside production, `log` in production, if unset or unrecognized.
-- `OIDC_ISSUER_URL`/`OIDC_AUDIENCE` are required — there is no default issuer or audience to validate JWTs against — **unless** `AUTH_DISABLED=true` (below).
-- `CORS_ORIGINS` is a comma-separated allowlist for the admin API; if unset, no cross-origin browser access is enabled at all (no wildcard fallback).
-- `AUTH_DISABLED=true` disables backend authentication on the `local` app entirely — see [Quickstart](#quickstart) for the full picture (pairing with the frontend, the loopback-only restriction, and why this never works under Docker Compose).
-- `PUBLIC_BASE_URL` (e.g. `https://ts-icon.example.com`) is the base URL the *public* app is actually reachable at — required for the banner-URL management endpoints (`GET/PATCH/POST /images-local/channels/.../banner-url`), which compute a TeamSpeak channel's expected banner URL from it. No default; the `local` app fails to start if it's unset.
+CI runs app checks on Windows and Linux, real Chromium workflows at desktop/mobile/tablet sizes and a 200%-zoom-equivalent layout, and container startup/restore checks. The browser tests use a local API fixture; they complement backend integration tests and do not claim to prove a real TeamSpeak/Keycloak installation. Current audit implementation and verification results are recorded in [UMSETZUNG.md](UMSETZUNG.md).
 
-Frontend configuration is read from a `.env` file in `webapp-banner-tool/` — see `webapp-banner-tool/.env.example` for the full list (`VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`, `VITE_KEYCLOAK_ENABLED`, `VITE_KEYCLOAK_ADMIN_ROLE`, `VITE_KEYCLOAK_EDITOR_ROLE`, `VITE_PUBLIC_API_URL`, `VITE_ADMIN_API_URL`).
-
-Never commit either `.env` file.
-
-## Scripts
-
-Backend (root `package.json`):
-
-| Script | Purpose |
-|---|---|
-| `npm run build` | Compile TypeScript to `dist/` |
-| `npm run start:public` / `npm run start:local` | Run the compiled public/local app |
-| `npm run start:dev` / `npm run start:debug` | Run via `nest start --watch` (with/without debugger) |
-| `npm run lint` | Lint (no auto-fix) |
-| `npm run lint:fix` | Lint with auto-fix |
-| `npm run typecheck` | Type-check only, no emit |
-| `npm test` / `npm run test:watch` / `npm run test:cov` | Unit tests (Jest) |
-| `npm run test:e2e` | End-to-end tests |
-| `npm run format` | Prettier |
-| `npm run backfill:channel-ids` | One-time script matching existing rows to live TeamSpeak channel IDs (see the Database section's Prisma schema notes) |
-
-Frontend (`webapp-banner-tool/package.json`):
-
-| Script | Purpose |
-|---|---|
-| `npm run dev` | Vite dev server |
-| `npm run build` | Type-check (`tsc -b`) then build with Vite |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | Type-check only (`tsc -b`) |
-| `npm test` | Unit tests (Vitest + React Testing Library) |
-| `npm run preview` | Preview a production build locally |
-
-## Node Version
-The Node version is pinned in `.nvmrc` (currently `22`). Use a Node version manager (e.g. `nvm use`) to match it, both locally and in CI.
-
-## Continuous Integration
-`.github/workflows/ci.yml` runs on every push and pull request:
-
-- **Backend job:** install, generate Prisma client, lint, typecheck, build, unit tests.
-- **Frontend job:** install, lint, typecheck, build, unit tests.
-- **Docker build job:** validates that the backend's `builder`/`runner` stages and the frontend image all actually build (nothing is pushed anywhere in this job).
-
-On a push to `main`, once the three jobs above have all passed, two more run:
-
-- **`version-tag`:** compares the root `package.json` version against existing git tags. If `vX.Y.Z` doesn't already exist as a tag, it's created and pushed. Root `package.json` is the single source of truth for the version — `webapp-banner-tool/package.json` is expected to always match it, and this job fails loudly if they've drifted apart instead of guessing which one is right.
-- **`publish-images`:** builds and pushes both Docker images to GHCR — `ghcr.io/<owner>/ts-icon-backend` and `ghcr.io/<owner>/ts-icon-frontend`. Every push to `main` updates the `latest`/`main`/`sha-<short-sha>` tags; a `vX.Y.Z` tag is added only on the push where `version-tag` actually created that tag. The frontend image's `VITE_*` values (baked into the JS bundle at build time — see `webapp-banner-tool/Dockerfile`) come from this repo's Actions **Variables** (not Secrets, since they end up visible in the shipped JS bundle anyway); until `VITE_PUBLIC_API_URL`/`VITE_ADMIN_API_URL`/`VITE_KEYCLOAK_URL`/`VITE_KEYCLOAK_REALM`/`VITE_KEYCLOAK_CLIENT_ID`/`VITE_KEYCLOAK_ENABLED`/`VITE_KEYCLOAK_ADMIN_ROLE`/`VITE_KEYCLOAK_EDITOR_ROLE` are set there, the published frontend image is built against empty config and isn't yet meaningful to deploy as-is.
-
-Neither job deploys anywhere — that still needs host/SSH secrets that aren't configured yet.
+Main-branch releases validate frontend settings before publication, build both candidate images and then publish the paired aliases. Retry preserves an existing commit's version reservation and repairs a partial release. Deploy the **two digests from the same successful release manifest**, rather than independently updating mutable `latest` tags. See [release procedure and dependency policy](docs/operations.md).
 
 ## License
-MIT — see `LICENSE`.
+
+MIT — see [LICENSE](LICENSE).

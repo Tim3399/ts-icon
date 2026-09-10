@@ -1,12 +1,8 @@
-import { Logger } from '@nestjs/common';
-import { TeamSpeak } from 'ts3-nodejs-library';
-import type * as Props from 'ts3-nodejs-library/lib/types/PropertyTypes';
-import {
-  withTeamSpeakConnection,
-  invalidateLiveChannelsCache,
-} from './teamspeak-channels';
+import { Logger } from "@nestjs/common";
+import { TeamSpeak } from "ts3-nodejs-library";
+import { TeamSpeakChannelsService } from "./teamspeak-channels";
 
-const logger = new Logger('TeamSpeakChannelAdmin');
+const logger = new Logger("TeamSpeakChannelAdmin");
 
 export interface CreateManagedChannelParams {
   parentCid: string | null;
@@ -14,42 +10,23 @@ export interface CreateManagedChannelParams {
   /** cid to sort this channel right under, or null to sort first. */
   orderAfterCid: string | null;
   bannerUrl: string;
+  description?: string;
 }
 
-/**
- * Creates a single permanent channel with its banner URL already set at
- * creation time. `channelBannerGfxUrl`'s value is deterministic from the
- * channel name alone (see `expectedBannerUrl()`), so it doesn't need to wait
- * for the image to be sliced/stored -- passing it here instead of a
- * follow-up `channelEdit()` halves the ServerQuery round-trips per row.
- *
- * `channelFlagPermanent: true` is required -- a channel created without it
- * is temporary and disappears once empty. Takes an already-open `ts3`
- * (caller owns the connection lifecycle) so a whole generation run of many
- * rows is one connection, not one per row -- same reasoning as
- * `applyBannerUrlsForAllChannels` in `teamspeak-channels.ts`.
- *
- * `Props.ChannelEdit` already declares `cpid`/`channelOrder`/
- * `channelFlagPermanent` (unlike `channelBannerGfxUrl`, which needs the same
- * intersection-cast trick `setChannelBannerUrl` uses), so only that one
- * property needs the cast. `channelOrder` is declared as `number`, even
- * though what it actually holds is a channel's cid (every cid elsewhere in
- * this codebase, e.g. `LiveChannel.cid`, is a `string`) -- converted with
- * `Number()` here rather than folded into the same cast, since the value is
- * genuinely numeric and this keeps the one remaining cast limited to the
- * property that's actually missing from the library's types.
+/** Creates a permanent channel with its provisional run URL and optional ownership marker.
+ * The caller owns the bounded connection and any persistence/recovery around the command.
  */
 export async function createManagedChannel(
   ts3: TeamSpeak,
   params: CreateManagedChannelParams,
 ): Promise<{ cid: string; name: string }> {
   const channel = await ts3.channelCreate(params.name, {
-    cpid: params.parentCid ?? '0',
-    channelOrder:
-      params.orderAfterCid !== null ? Number(params.orderAfterCid) : undefined,
+    cpid: params.parentCid ?? "0",
+    channelOrder: params.orderAfterCid !== null ? Number(params.orderAfterCid) : undefined,
     channelFlagPermanent: true,
     channelBannerGfxUrl: params.bannerUrl,
-  } as Props.ChannelEdit & { channelBannerGfxUrl: string });
+    ...(params.description ? { channelDescription: params.description } : {}),
+  });
   return { cid: channel.cid, name: channel.name };
 }
 
@@ -59,32 +36,29 @@ export interface DeleteManagedChannelsResult {
 }
 
 /**
- * Deletes each given channel by cid, tolerant of individual failures (e.g.
- * a channel already deleted by someone else) so one bad cid doesn't abort
- * the whole cleanup -- the "undo a bad generation run" primitive. Opens its
- * own single connection for the whole batch.
+ * Low-level batch deletion on one connection, reporting individual failures.
+ * Durable wallpaper undo uses ChannelWallpaperService's ownership checks instead.
  */
 export async function deleteManagedChannels(
+  channels: TeamSpeakChannelsService,
   cids: string[],
 ): Promise<DeleteManagedChannelsResult> {
-  const result = await withTeamSpeakConnection(async (ts3) => {
+  const result = await channels.withConnection(async (ts3) => {
     const deleted: string[] = [];
     const failed: { cid: string; error: string }[] = [];
     for (const cid of cids) {
       try {
-        await ts3.channelDelete(cid, true);
+        await ts3.channelDelete(cid, false);
         deleted.push(cid);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        logger.warn(
-          `[deleteManagedChannels] Failed to delete ${cid}: ${message}`,
-        );
+        logger.warn(`[deleteManagedChannels] Failed to delete ${cid}: ${message}`);
         failed.push({ cid, error: message });
       }
     }
     return { deleted, failed };
   });
-  invalidateLiveChannelsCache();
+  channels.invalidateCache();
   return result;
 }
 
@@ -108,20 +82,10 @@ export interface CreateChannelWallpaperResult {
 }
 
 /**
- * Creates every slice's channel in order on a single already-open
- * connection. `slice.depth` is relative to `parentCid` (0 = direct child of
- * it), and rows are reconstructed into a tree the same way an indented
- * outline is: a row at depth d parents under the most recently created row
- * at depth d-1 (or `parentCid` itself at depth 0) -- this is what lets the
- * "nested spacer" preset put each spacer under the specific art channel
- * right before it, rather than under the fixed batch root. Sibling order
- * within a parent chains from the previous row created under that same
- * parent, so rows land top-to-bottom in the tree exactly as sliced.
- *
- * Real ServerQuery has no transactions -- on a mid-batch failure this stops
- * and reports which rows succeeded/failed rather than attempting a
- * rollback; the caller can retry or use `deleteManagedChannels()` to clean
- * up the partial result.
+ * Low-level ordered creation on a caller-owned connection. Depth is relative
+ * to parentCid; each deeper row attaches to the latest row one level above.
+ * Stops on the first failure. This helper has no persistence or retry safety;
+ * application workflows use ChannelWallpaperService's durable run protocol.
  */
 export async function createChannelWallpaper(
   ts3: TeamSpeak,
@@ -174,9 +138,7 @@ export async function createChannelWallpaper(
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.error(
-        `[createChannelWallpaper] Failed to create "${slice.name}": ${message}`,
-      );
+      logger.error(`[createChannelWallpaper] Failed to create "${slice.name}": ${message}`);
       return { created, failedAt: { name: slice.name, error: message } };
     }
   }

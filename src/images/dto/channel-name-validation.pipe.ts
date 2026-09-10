@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, PipeTransform } from '@nestjs/common';
+import { BadRequestException, Injectable, PipeTransform } from "@nestjs/common";
 
 export const MAX_CHANNEL_NAME_LENGTH = 100;
 
@@ -23,12 +23,10 @@ export const MAX_CHANNEL_NAME_LENGTH = 100;
  * independently of whether the global pipe is even active.
  */
 @Injectable()
-export class ChannelNameValidationPipe
-  implements PipeTransform<string, string>
-{
+export class ChannelNameValidationPipe implements PipeTransform<string, string> {
   transform(value: string): string {
-    if (typeof value !== 'string' || value.trim().length === 0) {
-      throw new BadRequestException('channelName must not be empty');
+    if (typeof value !== "string" || value.trim().length === 0) {
+      throw new BadRequestException("channelName must not be empty");
     }
     if (value.length > MAX_CHANNEL_NAME_LENGTH) {
       throw new BadRequestException(

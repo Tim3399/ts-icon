@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsUrl, MaxLength } from 'class-validator';
+import { ApiProperty } from "@nestjs/swagger";
+import { IsNotEmpty, IsUrl, MaxLength } from "class-validator";
 
 const MAX_URL_LENGTH = 2048;
 
@@ -11,7 +11,7 @@ const MAX_URL_LENGTH = 2048;
  */
 export class ImgFromUrlQueryDto {
   @ApiProperty({
-    example: 'https://example.com/image.jpg',
+    example: "https://example.com/image.jpg",
     maxLength: MAX_URL_LENGTH,
   })
   @IsUrl()

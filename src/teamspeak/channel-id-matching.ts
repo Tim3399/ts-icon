@@ -1,5 +1,5 @@
-import { normalizeChannelName } from '../util/util';
-import { LiveChannel } from './teamspeak-channels';
+import { normalizeChannelName } from "../util/util";
+import { LiveChannel } from "./teamspeak-channels";
 
 export interface ChannelImageRowForMatching {
   channelName: string;
@@ -13,6 +13,7 @@ export interface ChannelIdMatch {
 export interface ChannelIdMatchResult {
   matched: ChannelIdMatch[];
   unmatched: string[];
+  conflicts: { channelName: string; channelIds: string[] }[];
 }
 
 /**
@@ -35,22 +36,26 @@ export function matchChannelIdsToRows(
   rows: ChannelImageRowForMatching[],
   liveChannels: LiveChannel[],
 ): ChannelIdMatchResult {
-  const liveByNormalizedName = new Map<string, LiveChannel>();
+  const liveByNormalizedName = new Map<string, LiveChannel[]>();
   for (const channel of liveChannels) {
-    liveByNormalizedName.set(normalizeChannelName(channel.name), channel);
+    const name = normalizeChannelName(channel.name);
+    liveByNormalizedName.set(name, [...(liveByNormalizedName.get(name) ?? []), channel]);
   }
 
   const matched: ChannelIdMatch[] = [];
   const unmatched: string[] = [];
+  const conflicts: ChannelIdMatchResult["conflicts"] = [];
 
   for (const row of rows) {
-    const liveMatch = liveByNormalizedName.get(row.channelName);
-    if (liveMatch) {
-      matched.push({ channelName: row.channelName, channelId: liveMatch.cid });
+    const candidates = liveByNormalizedName.get(normalizeChannelName(row.channelName)) ?? [];
+    if (candidates.length > 1) {
+      conflicts.push({ channelName: row.channelName, channelIds: candidates.map((c) => c.cid) });
+    } else if (candidates.length === 1) {
+      matched.push({ channelName: row.channelName, channelId: candidates[0].cid });
     } else {
       unmatched.push(row.channelName);
     }
   }
 
-  return { matched, unmatched };
+  return { matched, unmatched, conflicts };
 }

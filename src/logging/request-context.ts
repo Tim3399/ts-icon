@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
+import { AsyncLocalStorage } from "node:async_hooks";
 
 /**
  * Per-request state that should be visible to any log line produced while
@@ -26,10 +26,7 @@ const requestContextStorage = new AsyncLocalStorage<RequestContext>();
  * same context via `getRequestId()`. Two calls to this function never see
  * each other's context, even when their executions interleave.
  */
-export function runWithRequestContext<T>(
-  context: RequestContext,
-  callback: () => T,
-): T {
+export function runWithRequestContext<T>(context: RequestContext, callback: () => T): T {
   return requestContextStorage.run(context, callback);
 }
 

@@ -1,4 +1,4 @@
-import sharp from 'sharp';
+import sharp from "sharp";
 
 /**
  * The buffer sharp was handed does not decode as a real image at all, or it
@@ -11,7 +11,7 @@ import sharp from 'sharp';
 export class InvalidImageError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'InvalidImageError';
+    this.name = "InvalidImageError";
   }
 }
 
@@ -26,7 +26,7 @@ export class InvalidImageError extends Error {
 export class ImageTooLargeError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'ImageTooLargeError';
+    this.name = "ImageTooLargeError";
   }
 }
 
@@ -40,7 +40,7 @@ export const TARGET_HEIGHT = 44;
 // `format`, not any client-supplied string) -- a cheap MIME-type-string
 // pre-check may still happen earlier as a fast rejection, but it is not the
 // security boundary.
-const ACCEPTED_FORMATS = new Set(['png', 'jpeg', 'webp', 'gif']);
+const ACCEPTED_FORMATS = new Set(["png", "jpeg", "webp", "gif"]);
 
 // Dimension ceiling, checked against `sharp(...).metadata()` alone -- which
 // reads only the file's header fields for every format accepted here and
@@ -64,7 +64,7 @@ const MAX_PIXELS = 25_000_000;
 // apply. This is also the mime type persisted alongside the image and
 // returned as the `Content-Type` on read, replacing whatever the client or
 // the fetched URL originally claimed.
-export const OUTPUT_MIME_TYPE = 'image/png';
+export const OUTPUT_MIME_TYPE = "image/png";
 
 export interface ProcessedImage {
   buffer: Buffer;
@@ -92,9 +92,7 @@ export interface ProcessedImage {
  * function relies on that default rather than opting into animated mode, so
  * no special-case frame-stripping code is needed.
  */
-export async function processImageForStorage(
-  input: Buffer,
-): Promise<ProcessedImage> {
+export async function processImageForStorage(input: Buffer): Promise<ProcessedImage> {
   let metadata;
   try {
     // `sharp()`'s constructor can throw synchronously (e.g. on an empty
@@ -102,23 +100,17 @@ export async function processImageForStorage(
     // buffer that doesn't decode -- both are handled the same way here.
     metadata = await sharp(input).metadata();
   } catch {
-    throw new InvalidImageError('The file could not be decoded as an image');
+    throw new InvalidImageError("The file could not be decoded as an image");
   }
 
   const { format, width, height } = metadata;
   if (!format || !ACCEPTED_FORMATS.has(format)) {
-    throw new InvalidImageError(
-      `Unsupported or unrecognized image format: ${format ?? 'unknown'}`,
-    );
+    throw new InvalidImageError(`Unsupported or unrecognized image format: ${format ?? "unknown"}`);
   }
   if (!width || !height) {
-    throw new InvalidImageError('Image is missing width/height metadata');
+    throw new InvalidImageError("Image is missing width/height metadata");
   }
-  if (
-    width > MAX_DIMENSION_PX ||
-    height > MAX_DIMENSION_PX ||
-    width * height > MAX_PIXELS
-  ) {
+  if (width > MAX_DIMENSION_PX || height > MAX_DIMENSION_PX || width * height > MAX_PIXELS) {
     throw new ImageTooLargeError(
       `Image dimensions ${width}x${height} exceed the maximum allowed size`,
     );
@@ -138,7 +130,7 @@ export async function processImageForStorage(
       // ratio (most relevant for the URL-import path, which has no
       // client-side cropping step at all) has its edges cropped away, not
       // its content squished.
-      .resize(TARGET_WIDTH, TARGET_HEIGHT, { fit: 'cover', position: 'centre' })
+      .resize(TARGET_WIDTH, TARGET_HEIGHT, { fit: "cover", position: "centre" })
       // No `.withMetadata()` call: sharp does not carry source metadata
       // (EXIF, ICC profiles, etc.) into the re-encoded output by default,
       // so this also strips everything else besides orientation, which was
@@ -151,6 +143,6 @@ export async function processImageForStorage(
     // actual decode/resize pipeline (e.g. a truncated/corrupt body past the
     // header) -- still an "not a valid image we can use" case, not a server
     // error.
-    throw new InvalidImageError('The image could not be processed');
+    throw new InvalidImageError("The image could not be processed");
   }
 }

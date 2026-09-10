@@ -1,6 +1,6 @@
-import { Module } from '@nestjs/common';
-import { MetricsModule } from './metrics.module';
-import { MetricsController } from './metrics.controller';
+import { Module } from "@nestjs/common";
+import { MetricsModule } from "./metrics.module";
+import { MetricsController } from "./metrics.controller";
 
 /**
  * Wires MetricsModule's shared plumbing plus the `/metrics` endpoint for the

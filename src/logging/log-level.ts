@@ -1,17 +1,10 @@
-import type { LogLevel } from '@nestjs/common';
+import type { LogLevel } from "@nestjs/common";
 
 /**
  * Nest's own severity ordering (least to most severe) — matches the order
  * used internally by `@nestjs/common`'s `ConsoleLogger`/`isLogLevelEnabled`.
  */
-const LOG_LEVEL_ORDER: LogLevel[] = [
-  'verbose',
-  'debug',
-  'log',
-  'warn',
-  'error',
-  'fatal',
-];
+const LOG_LEVEL_ORDER: LogLevel[] = ["verbose", "debug", "log", "warn", "error", "fatal"];
 
 /**
  * Expands a single configured minimum severity (e.g. `LOG_LEVEL=warn`) into

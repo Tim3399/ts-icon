@@ -1,8 +1,8 @@
-import * as dns from 'dns';
-import * as net from 'net';
-import * as https from 'https';
-import { URL } from 'url';
-import ipaddr from 'ipaddr.js';
+import * as dns from "dns";
+import * as net from "net";
+import * as https from "https";
+import { URL } from "url";
+import ipaddr from "ipaddr.js";
 
 /**
  * Thrown whenever a caller-supplied URL is rejected on security grounds
@@ -14,12 +14,12 @@ import ipaddr from 'ipaddr.js';
 export class SsrfValidationError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'SsrfValidationError';
+    this.name = "SsrfValidationError";
   }
 }
 
-const ALLOWED_PROTOCOL = 'https:';
-const ALLOWED_PORT = '443';
+const ALLOWED_PROTOCOL = "https:";
+const ALLOWED_PORT = "443";
 
 /**
  * Validates the *shape* of an external URL before any network access is
@@ -31,21 +31,19 @@ export function assertSafeUrlShape(rawUrl: string): URL {
   try {
     parsed = new URL(rawUrl);
   } catch {
-    throw new SsrfValidationError('Malformed URL');
+    throw new SsrfValidationError("Malformed URL");
   }
 
   if (parsed.protocol !== ALLOWED_PROTOCOL) {
-    throw new SsrfValidationError('Only https:// URLs are allowed');
+    throw new SsrfValidationError("Only https:// URLs are allowed");
   }
 
   if (parsed.username || parsed.password) {
-    throw new SsrfValidationError(
-      'URLs with embedded credentials are not allowed',
-    );
+    throw new SsrfValidationError("URLs with embedded credentials are not allowed");
   }
 
   if (parsed.port && parsed.port !== ALLOWED_PORT) {
-    throw new SsrfValidationError('Only the default HTTPS port is allowed');
+    throw new SsrfValidationError("Only the default HTTPS port is allowed");
   }
 
   return parsed;
@@ -58,8 +56,8 @@ export function assertSafeUrlShape(rawUrl: string): URL {
  * generic checks accidentally loosening one of these).
  */
 const KNOWN_METADATA_ADDRESSES = new Set([
-  '169.254.169.254', // AWS/GCP/Azure/DigitalOcean/etc. instance metadata (also link-local)
-  'fd00:ec2::254', // AWS IMDSv2 IPv6 metadata address (also unique-local)
+  "169.254.169.254", // AWS/GCP/Azure/DigitalOcean/etc. instance metadata (also link-local)
+  "fd00:ec2::254", // AWS IMDSv2 IPv6 metadata address (also unique-local)
 ]);
 
 /**
@@ -110,7 +108,7 @@ export function isBlockedIp(address: string): boolean {
     return true;
   }
 
-  return range !== 'unicast';
+  return range !== "unicast";
 }
 
 export interface ResolvedAddress {
@@ -126,9 +124,7 @@ export interface ResolvedAddress {
  * hostname resolves to a mix of safe and unsafe addresses, only the safe
  * ones are ever handed to the HTTP client.
  */
-export async function resolveSafeAddresses(
-  hostname: string,
-): Promise<ResolvedAddress[]> {
+export async function resolveSafeAddresses(hostname: string): Promise<ResolvedAddress[]> {
   let records: dns.LookupAddress[];
   try {
     records = await dns.promises.lookup(hostname, {
@@ -136,13 +132,13 @@ export async function resolveSafeAddresses(
       verbatim: true,
     });
   } catch {
-    throw new SsrfValidationError('Host could not be resolved');
+    throw new SsrfValidationError("Host could not be resolved");
   }
 
   const safe = records.filter((record) => !isBlockedIp(record.address));
 
   if (safe.length === 0) {
-    throw new SsrfValidationError('Resolved address is not allowed');
+    throw new SsrfValidationError("Resolved address is not allowed");
   }
 
   return safe;
@@ -169,9 +165,7 @@ type NodeLookupFunction = (
  * still validates the certificate against the original hostname, since
  * that comes from the request's `host`/SNI, not from the lookup function.
  */
-export function createPinnedHttpsAgent(
-  safeAddresses: ResolvedAddress[],
-): https.Agent {
+export function createPinnedHttpsAgent(safeAddresses: ResolvedAddress[]): https.Agent {
   const lookup: NodeLookupFunction = (_hostname, options, callback) => {
     if (options && options.all) {
       callback(

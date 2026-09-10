@@ -1,14 +1,14 @@
-import { randomUUID } from 'node:crypto';
-import type { NextFunction, Request, Response } from 'express';
-import { runWithRequestContext } from './request-context';
+import { randomUUID } from "node:crypto";
+import type { NextFunction, Request, Response } from "express";
+import { runWithRequestContext } from "./request-context";
 
-const REQUEST_ID_HEADER = 'x-request-id';
-const RESPONSE_HEADER_NAME = 'X-Request-Id';
+const REQUEST_ID_HEADER = "x-request-id";
+const RESPONSE_HEADER_NAME = "X-Request-Id";
 
 function readIncomingRequestId(req: Request): string | undefined {
   const header = req.headers[REQUEST_ID_HEADER];
   const value = Array.isArray(header) ? header[0] : header;
-  return value && value.trim().length > 0 ? value : undefined;
+  return value && /^[A-Za-z0-9._:-]{1,128}$/.test(value) ? value : undefined;
 }
 
 /**
@@ -29,11 +29,7 @@ function readIncomingRequestId(req: Request): string | undefined {
  * middleware, so it runs ahead of Nest's own routing/guards/interceptors —
  * the request id is available to all of them, not just to controller code.
  */
-export function requestIdMiddleware(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
+export function requestIdMiddleware(req: Request, res: Response, next: NextFunction): void {
   const requestId = readIncomingRequestId(req) ?? randomUUID();
 
   res.setHeader(RESPONSE_HEADER_NAME, requestId);

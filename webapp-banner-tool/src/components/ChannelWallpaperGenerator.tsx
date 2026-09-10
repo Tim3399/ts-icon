@@ -1,438 +1,741 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CHANNEL_WALLPAPER_URL,
   CHANNEL_WALLPAPER_PREVIEW_URL,
   CHANNEL_WALLPAPER_UNDO_URL,
-} from '../config';
-import { useAuth } from '../auth/AuthProvider';
-import { apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
-import { useToast } from './Toast';
-import ChannelTreePreview from './ChannelTreePreview';
-import { usePreviewOverlay } from '../preview/PreviewOverlayContext';
+} from "../config";
+import { useAuth } from "../auth/AuthContext";
+import { ApiError, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from "../api/client";
+import type { PreviewRow, WallpaperRun } from "../api/types";
+import { useToast } from "./ToastContext";
+import ChannelTreePreview from "./ChannelTreePreview";
+import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
+import UploadInput from "./UploadInput";
+import RequestError from "./RequestError";
+import FieldError from "./FieldError";
+import Icon from "./ui/Icon";
+import PageHeader from "./ui/PageHeader";
+import Section from "./ui/Section";
+import { EmptyState, LoadingState } from "./ui/States";
+import { fieldAttributes, useFieldErrors, type FieldMessages } from "../hooks/useFieldErrors";
 
-type SpacerMode = 'flat' | 'nested-spacer';
-
-interface PreviewRow {
-  depth: number;
-  isSpacer: boolean;
-  imageDataUrl: string;
-}
-
-interface CreatedChannel {
-  cid: string;
-  name: string;
-  kind: 'art' | 'spacer';
-  depth: number;
-}
-
-interface GenerateResult {
-  createdChannels: CreatedChannel[];
-  rowCount: number;
-  failedAt?: { name: string; error: string };
-}
-
-// Generation does many ServerQuery round-trips plus one image encode per
-// row, so it can legitimately run much longer than a single image upload.
+const RUNS_URL = `${CHANNEL_WALLPAPER_URL}/runs`;
 const GENERATE_TIMEOUT_MS = 120_000;
-const PREVIEW_DEBOUNCE_MS = 500;
-
-function buildFormData(params: {
-  file: File | null;
-  sourceImageUrl: string;
+type Options = {
   parentCid: string | null;
   namePrefix: string;
-  spacerMode: SpacerMode;
+  spacerMode: "flat" | "nested-spacer";
   xOffset: string;
   yOffset: string;
   backgroundColor: string;
   coverFitMode: boolean;
-}): FormData {
-  const formData = new FormData();
-  if (params.file) {
-    formData.append('file', params.file);
-  } else if (params.sourceImageUrl.trim()) {
-    formData.append('sourceImageUrl', params.sourceImageUrl.trim());
-  }
-  if (params.parentCid) formData.append('parentCid', params.parentCid);
-  formData.append('namePrefix', params.namePrefix);
-  formData.append('spacerMode', params.spacerMode);
-  if (params.xOffset.trim()) formData.append('xOffset', params.xOffset.trim());
-  if (params.yOffset.trim()) formData.append('yOffset', params.yOffset.trim());
-  if (params.backgroundColor.trim()) {
-    formData.append('backgroundColor', params.backgroundColor.trim());
-  }
-  formData.append('coverFitMode', params.coverFitMode ? 'true' : 'false');
-  return formData;
+};
+const initialOptions: Options = {
+  parentCid: null,
+  namePrefix: "Wallpaper",
+  spacerMode: "flat",
+  xOffset: "",
+  yOffset: "",
+  backgroundColor: "#00000000",
+  coverFitMode: true,
+};
+function formData(file: File | null, sourceImageUrl: string, options: Options): FormData {
+  const body = new FormData();
+  if (file) body.append("file", file);
+  else body.append("sourceImageUrl", sourceImageUrl.trim());
+  for (const [key, value] of Object.entries(options))
+    if (value !== null && value !== "") body.append(key, String(value));
+  return body;
 }
+// Key order matters: useFieldErrors focuses the first of these that carries a
+// message, so this list is kept in visual form order.
+const FIELD_IDS = {
+  file: "wallpaper-file-upload",
+  sourceImageUrl: "wallpaper-source-url",
+  parentCid: "wallpaper-parent",
+  namePrefix: "wallpaper-name-prefix",
+  spacerMode: "wallpaper-spacer-mode",
+  xOffset: "wallpaper-xOffset",
+  yOffset: "wallpaper-yOffset",
+  backgroundColor: "wallpaper-background",
+  coverFitMode: "wallpaper-cover-fit",
+};
+const ADVANCED_FIELDS = ["xOffset", "yOffset", "backgroundColor", "coverFitMode"];
 
-const ChannelWallpaperGenerator: React.FC = () => {
+const RUN_STATUS: Record<WallpaperRun["status"], { label: string; badge: string }> = {
+  pending: { label: "Pending", badge: "badge-warning" },
+  running: { label: "Running", badge: "badge-accent badge-busy" },
+  completed: { label: "Completed", badge: "badge-managed" },
+  "partial-failure": { label: "Partial failure", badge: "badge-danger" },
+  undoing: { label: "Undoing", badge: "badge-accent badge-busy" },
+  "undo-partial": { label: "Undo incomplete", badge: "badge-danger" },
+  undone: { label: "Undone", badge: "badge-neutral" },
+};
+
+function validation(options: Options, source: string, file: File | null): FieldMessages {
+  const errors: FieldMessages = {};
+  if (!options.namePrefix.trim()) errors.namePrefix = "Enter a channel name prefix.";
+  if (!/^#[\da-f]{6}([\da-f]{2})?$/i.test(options.backgroundColor))
+    errors.backgroundColor = "Use a background color such as #00000000 or #FFFFFF.";
+  for (const key of ["xOffset", "yOffset"] as const) {
+    const value = options[key];
+    if (value !== "" && (!Number.isSafeInteger(Number(value)) || Math.abs(Number(value)) > 20_000))
+      errors[key] = "Enter a whole number between -20000 and 20000.";
+  }
+  if (!file && source) {
+    try {
+      if (new URL(source).protocol !== "https:") errors.sourceImageUrl = "Use an HTTPS image URL.";
+    } catch {
+      errors.sourceImageUrl = "Enter a complete HTTPS image URL.";
+    }
+  }
+  return errors;
+}
+function recoverRequest(draft: string): string {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem("wallpaper-pending-request") || "null");
+    if (saved?.draft === draft && typeof saved.id === "string") return saved.id;
+  } catch {
+    /* Storage may be unavailable. */
+  }
+  const id = crypto.randomUUID();
+  try {
+    sessionStorage.setItem("wallpaper-pending-request", JSON.stringify({ draft, id }));
+  } catch {
+    /* Server run history remains available. */
+  }
+  return id;
+}
+export default function ChannelWallpaperGenerator() {
   const [file, setFile] = useState<File | null>(null);
-  const [sourceImageUrl, setSourceImageUrl] = useState('');
-  const [dragOver, setDragOver] = useState(false);
-  const [parentCid, setParentCid] = useState<string | null>(null);
-  const [namePrefix, setNamePrefix] = useState('Wallpaper');
-  const [spacerMode, setSpacerMode] = useState<SpacerMode>('flat');
+  const [sourceImageUrl, setSourceImageUrl] = useState("");
+  const [fileResetKey, setFileResetKey] = useState(0);
+  const [options, setOptions] = useState(initialOptions);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [xOffset, setXOffset] = useState('');
-  const [yOffset, setYOffset] = useState('');
-  const [backgroundColor, setBackgroundColor] = useState('#00000000');
-  const [coverFitMode, setCoverFitMode] = useState(true);
-
-  const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
+  const [preview, setPreview] = useState<{ draft: string; rows: PreviewRow[] } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [undoing, setUndoing] = useState(false);
-  const [result, setResult] = useState<GenerateResult | null>(null);
-  const [treeRefreshKey, setTreeRefreshKey] = useState(0);
-
-  const navigate = useNavigate();
+  const [previewError, setPreviewError] = useState("");
+  const [previewRetry, setPreviewRetry] = useState(0);
+  const [runs, setRuns] = useState<WallpaperRun[]>([]);
+  const [runsError, setRunsError] = useState("");
+  const [runsLoading, setRunsLoading] = useState(true);
+  const [actionError, setActionError] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const locked = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const listRequest = useRef<AbortController | null>(null);
   const { getToken } = useAuth();
   const { showToast } = useToast();
-  const { setOverlay, bumpRefresh } = usePreviewOverlay();
+  const { setOverlay, bumpRefresh, refreshKey } = usePreviewOverlay();
+  const hasSource = Boolean(file) || Boolean(sourceImageUrl.trim());
+  const fields = useFieldErrors(FIELD_IDS, Boolean(busy));
+  const receiveFieldErrors = fields.receive;
+  const clearFieldErrors = fields.clear;
+  const localErrors = validation(options, sourceImageUrl, file);
+  const issue = Object.values(localErrors)[0] || "";
+  const fieldErrors = { ...fields.errors, ...localErrors };
+  const fieldError = (key: keyof typeof FIELD_IDS) => (
+    <FieldError id={FIELD_IDS[key]} message={fieldErrors[key]} />
+  );
+  const fieldProps = (key: keyof typeof FIELD_IDS) =>
+    fieldAttributes(FIELD_IDS[key], fieldErrors[key]);
+  const receiveFields = useCallback(
+    (error: unknown) => {
+      const handled = receiveFieldErrors(error);
+      if (error instanceof ApiError && error.status && error.status < 500 && error.fieldErrors) {
+        const keys = Object.keys(error.fieldErrors || {});
+        if (keys.some((key) => ADVANCED_FIELDS.includes(key))) setAdvancedOpen(true);
+      }
+      return handled;
+    },
+    [receiveFieldErrors],
+  );
+  const draft = useMemo(
+    () =>
+      JSON.stringify({
+        options,
+        url: sourceImageUrl,
+        file: file ? [file.name, file.size, file.lastModified] : null,
+      }),
+    [options, sourceImageUrl, file],
+  );
+  const rows = preview?.draft === draft ? preview.rows : [];
+  const setOption = <K extends keyof Options>(key: K, value: Options[K]) => {
+    fields.clear(key);
+    setOptions((prev) => ({ ...prev, [key]: value }));
+  };
 
-  const hasSource = Boolean(file) || sourceImageUrl.trim().length > 0;
-
-  // Mirrors the sliced-but-unsubmitted rows into the persistent right-hand
-  // live tree panel (App.tsx), spliced in right where they'd actually land
-  // under the chosen parent -- not just the disconnected stack below.
-  // Cleared on unmount so navigating away doesn't leave stale pending rows
-  // showing in the panel.
-  useEffect(() => {
-    setOverlay(previewRows.length > 0 ? { parentCid, rows: previewRows } : null);
-    return () => setOverlay(null);
-  }, [previewRows, parentCid, setOverlay]);
-
-  // Debounced live preview: re-runs the real slicing endpoint (not a
-  // reimplemented client-side approximation) shortly after any input that
-  // affects the sliced output changes, so what's shown here can never drift
-  // from what generation will actually produce.
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => {
-    if (!hasSource) {
-      setPreviewRows([]);
-      return;
-    }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setPreviewLoading(true);
-      apiFetchJson<{ rows: PreviewRow[] }>(CHANNEL_WALLPAPER_PREVIEW_URL, {
-        method: 'POST',
-        body: buildFormData({
-          file,
-          sourceImageUrl,
-          parentCid,
-          namePrefix,
-          spacerMode,
-          xOffset,
-          yOffset,
-          backgroundColor,
-          coverFitMode,
-        }),
+  const loadRuns = useCallback(async () => {
+    listRequest.current?.abort();
+    const controller = new AbortController();
+    listRequest.current = controller;
+    setRunsError("");
+    try {
+      const data = await apiFetchJson<{ runs: WallpaperRun[] }>(RUNS_URL, {
         getToken,
+        signal: controller.signal,
+      });
+      if (!Array.isArray(data.runs)) throw new Error("Invalid runs response");
+      if (!controller.signal.aborted) setRuns(data.runs);
+    } catch (err) {
+      if (!controller.signal.aborted)
+        setRunsError(describeApiError(err, "Recent operations could not be loaded."));
+    } finally {
+      if (!controller.signal.aborted) setRunsLoading(false);
+    }
+  }, [getToken]);
+  useEffect(() => {
+    void loadRuns();
+    return () => listRequest.current?.abort();
+  }, [loadRuns]);
+  const activeRuns = runs.some((run) => ["pending", "running", "undoing"].includes(run.status));
+  useEffect(() => {
+    if (!activeRuns && !busy) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void loadRuns();
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [activeRuns, busy, loadRuns]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setPreview(null);
+    setPreviewError("");
+    setPreviewLoading(hasSource && !issue);
+    if (!hasSource || issue) return () => controller.abort();
+    const timer = setTimeout(() => {
+      void apiFetchJson<{ rows: PreviewRow[] }>(CHANNEL_WALLPAPER_PREVIEW_URL, {
+        method: "POST",
+        body: formData(file, sourceImageUrl, options),
+        getToken,
+        signal: controller.signal,
         timeoutMs: UPLOAD_TIMEOUT_MS,
       })
-        .then((data) => setPreviewRows(data.rows))
-        .catch((err) => {
-          showToast(describeApiError(err, 'Preview could not be generated'), 'error');
+        .then((data) => {
+          if (!Array.isArray(data.rows)) throw new Error("Invalid preview response");
+          if (!controller.signal.aborted) {
+            clearFieldErrors();
+            setPreview({ draft, rows: data.rows });
+          }
         })
-        .finally(() => setPreviewLoading(false));
-    }, PREVIEW_DEBOUNCE_MS);
+        .catch((err) => {
+          if (!controller.signal.aborted && !receiveFields(err))
+            setPreviewError(describeApiError(err, "Preview could not be generated."));
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setPreviewLoading(false);
+        });
+    }, 500);
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      clearTimeout(timer);
+      controller.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file, sourceImageUrl, parentCid, spacerMode, xOffset, yOffset, backgroundColor, coverFitMode, hasSource]);
-
-  const handleDropzoneDrop = useCallback((e: React.DragEvent<HTMLLabelElement>) => {
-    e.preventDefault();
-    setDragOver(false);
-    const dropped = e.dataTransfer.files?.[0];
-    if (dropped) {
-      setFile(dropped);
-      setSourceImageUrl('');
-    }
-  }, []);
-
-  const handleSubmit = async () => {
-    if (!hasSource) {
-      showToast('Provide an image file or a source image URL first.', 'error');
-      return;
-    }
-    setSubmitting(true);
-    setResult(null);
+  }, [
+    draft,
+    file,
+    sourceImageUrl,
+    options,
+    hasSource,
+    issue,
+    getToken,
+    previewRetry,
+    clearFieldErrors,
+    receiveFields,
+  ]);
+  useEffect(() => {
+    setOverlay(
+      preview?.draft === draft && preview.rows.length > 0
+        ? { parentCid: options.parentCid, rows: preview.rows }
+        : null,
+    );
+    return () => setOverlay(null);
+  }, [preview, draft, options.parentCid, setOverlay]);
+  const keepRun = (run: WallpaperRun) => {
+    listRequest.current?.abort();
+    setRuns((prev) => [run, ...prev.filter((r) => r.runId !== run.runId)]);
+  };
+  const generate = async () => {
+    if (locked.current || !hasSource || issue || rows.length === 0 || previewLoading) return;
+    locked.current = true;
+    setBusy("generate");
+    setActionError("");
+    const body = formData(file, sourceImageUrl, options);
+    body.append("requestId", recoverRequest(draft));
     try {
-      const data = await apiFetchJson<GenerateResult>(CHANNEL_WALLPAPER_URL, {
-        method: 'POST',
-        body: buildFormData({
-          file,
-          sourceImageUrl,
-          parentCid,
-          namePrefix,
-          spacerMode,
-          xOffset,
-          yOffset,
-          backgroundColor,
-          coverFitMode,
-        }),
+      const run = await apiFetchJson<WallpaperRun>(CHANNEL_WALLPAPER_URL, {
+        method: "POST",
+        body,
         getToken,
         timeoutMs: GENERATE_TIMEOUT_MS,
       });
-      setResult(data);
-      setTreeRefreshKey((k) => k + 1);
-      // The just-created rows are real now, not pending -- clear the
-      // overlay so the persistent panel's own re-fetch (bumpRefresh) shows
-      // them once, from the live tree, instead of doubled up with the
-      // still-active "pending" overlay rows built from the same previewRows.
+      if (!mounted.current) {
+        bumpRefresh();
+        return;
+      }
+      keepRun(run);
+      try {
+        sessionStorage.removeItem("wallpaper-pending-request");
+      } catch {
+        /* optional persistence */
+      }
+      setPreview(null);
       setOverlay(null);
       bumpRefresh();
-      if (data.failedAt) {
-        showToast(
-          `Created ${data.rowCount} channel(s), then stopped: ${data.failedAt.error}`,
-          'error',
-        );
-      } else {
-        showToast(`Created ${data.rowCount} channel(s).`, 'success');
-      }
+      showToast(
+        run.status === "completed"
+          ? `Created ${run.rowCount} channel(s).`
+          : "The operation needs attention. Its results are saved below.",
+        run.status === "completed" ? "success" : "error",
+      );
     } catch (err) {
-      showToast(describeApiError(err, 'Channel wallpaper could not be generated'), 'error');
+      if (!mounted.current) return;
+      if (!receiveFields(err))
+        setActionError(
+          describeApiError(
+            err,
+            "Generation could not be confirmed. Refresh recent operations before retrying. Your existing results remain available.",
+          ),
+        );
+      await loadRuns();
     } finally {
-      setSubmitting(false);
+      locked.current = false;
+      if (mounted.current) setBusy(null);
     }
   };
-
-  const handleUndo = async () => {
-    if (!result || result.createdChannels.length === 0) return;
-    const confirmed = window.confirm(
-      `Delete the ${result.createdChannels.length} channel(s) just created?`,
-    );
-    if (!confirmed) return;
-
-    setUndoing(true);
+  const mutateRun = async (run: WallpaperRun, action: "resume" | "undo") => {
+    if (locked.current) return;
+    if (
+      action === "undo" &&
+      !window.confirm(
+        run.createdChannels.length
+          ? `Delete the ${run.createdChannels.length} channel(s) from this operation?`
+          : "Discard this incomplete operation? The server will check for any channels created by it before cleanup.",
+      )
+    )
+      return;
+    locked.current = true;
+    setBusy(`${action}:${run.runId}`);
+    setActionError("");
     try {
-      const cids = result.createdChannels.map((c) => c.cid);
-      const outcome = await apiFetchJson<{ deleted: string[]; failed: { cid: string; error: string }[] }>(
-        CHANNEL_WALLPAPER_UNDO_URL,
-        { method: 'POST', body: JSON.stringify({ cids }), headers: { 'Content-Type': 'application/json' }, getToken },
-      );
-      showToast(
-        outcome.failed.length > 0
-          ? `Deleted ${outcome.deleted.length}, ${outcome.failed.length} failed.`
-          : `Deleted ${outcome.deleted.length} channel(s).`,
-        outcome.failed.length > 0 ? 'error' : 'success',
-      );
-      setResult(null);
-      setTreeRefreshKey((k) => k + 1);
+      if (action === "resume") {
+        const resumed = await apiFetchJson<WallpaperRun>(
+          `${RUNS_URL}/${encodeURIComponent(run.runId)}/resume`,
+          { method: "POST", getToken, timeoutMs: GENERATE_TIMEOUT_MS },
+        );
+        if (!mounted.current) {
+          bumpRefresh();
+          return;
+        }
+        keepRun(resumed);
+      } else {
+        const outcome = await apiFetchJson<{
+          deleted: string[];
+          failed: { cid: string; error: string }[];
+          run?: WallpaperRun;
+        }>(CHANNEL_WALLPAPER_UNDO_URL, {
+          method: "POST",
+          body: JSON.stringify({ runId: run.runId }),
+          headers: { "Content-Type": "application/json" },
+          getToken,
+          timeoutMs: GENERATE_TIMEOUT_MS,
+        });
+        if (!mounted.current) {
+          bumpRefresh();
+          return;
+        }
+        if (outcome.run) keepRun(outcome.run);
+        else await loadRuns();
+        if (outcome.failed.length)
+          setActionError(outcome.failed.map((f) => `Channel #${f.cid}: ${f.error}`).join(" "));
+        showToast(
+          `Deleted ${outcome.deleted.length} channel(s).`,
+          outcome.failed.length ? "error" : "success",
+        );
+      }
       bumpRefresh();
     } catch (err) {
-      showToast(describeApiError(err, 'Undo failed'), 'error');
+      if (!mounted.current) return;
+      setActionError(
+        describeApiError(
+          err,
+          "The operation could not be completed. Its previous results remain available.",
+        ),
+      );
+      await loadRuns();
     } finally {
-      setUndoing(false);
+      locked.current = false;
+      setBusy(null);
     }
   };
+
+  const blocked = Object.keys(fieldErrors).length > 0;
 
   return (
     <div>
-      <div className="gallery-header">
-        <button type="button" className="btn btn-ghost" onClick={() => navigate('/')}>← Back</button>
-        <h2>Channel wallpaper generator</h2>
-      </div>
+      <PageHeader
+        eyebrow="Bulk operation"
+        icon="sparkles"
+        title="Channel wallpaper generator"
+        lead="Slice one large image into 500 × 44 rows and create a channel per row, so the artwork reads as a single wallpaper down the channel list. Every run can be undone."
+      />
 
-      <div className="card">
-        <h2 className="card-title">1. Source image</h2>
-        <label
-          className={`dropzone${dragOver ? ' dropzone-drag-over' : ''}`}
-          htmlFor="wallpaper-file-upload"
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragOver(true);
-          }}
-          onDragLeave={(e) => {
-            if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
-            setDragOver(false);
-          }}
-          onDrop={handleDropzoneDrop}
-        >
-          {file ? `Selected: ${file.name}` : 'Drag & drop the wallpaper image here, or click to browse'}
-          <input
-            type="file"
-            id="wallpaper-file-upload"
-            accept="image/*"
-            onChange={(e) => {
-              const chosen = e.target.files?.[0];
-              if (chosen) {
+      <div className="workbench workbench-wide">
+        <div className="workbench-main">
+          <Section
+            title="Source image"
+            step={1}
+            subtitle="One image is sliced top to bottom into banner-sized rows."
+          >
+            <UploadInput
+              id="wallpaper-file-upload"
+              resetKey={fileResetKey}
+              error={fieldErrors.file}
+              disabled={Boolean(busy)}
+              label={file ? `Selected: ${file.name}` : undefined}
+              onFile={(chosen) => {
+                fields.clear("file");
+                fields.clear("sourceImageUrl");
                 setFile(chosen);
-                setSourceImageUrl('');
-              }
-            }}
-          />
-        </label>
-        <div className="field">
-          <label className="label" htmlFor="wallpaper-source-url">Or load from a URL instead</label>
-          <input
-            className="input"
-            id="wallpaper-source-url"
-            type="url"
-            placeholder="https://example.com/wallpaper.png"
-            value={sourceImageUrl}
-            onChange={(e) => {
-              setSourceImageUrl(e.target.value);
-              if (e.target.value) setFile(null);
-            }}
-          />
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 className="card-title">2. Parent channel</h2>
-        <p style={{ marginTop: 0 }}>Click a channel below to nest the generated wallpaper under it, or leave "Top-level" selected.</p>
-        <ChannelTreePreview
-          selectable
-          selectedCid={parentCid}
-          onSelectParent={setParentCid}
-          refreshKey={treeRefreshKey}
-        />
-      </div>
-
-      <div className="card">
-        <h2 className="card-title">3. Options</h2>
-        <div className="field">
-          <label className="label" htmlFor="wallpaper-name-prefix">Channel name prefix</label>
-          <input
-            className="input"
-            id="wallpaper-name-prefix"
-            type="text"
-            value={namePrefix}
-            onChange={(e) => setNamePrefix(e.target.value)}
-          />
-        </div>
-        <div className="field">
-          <span className="label">Spacer mode</span>
-          <div className="actions-row">
-            <button
-              type="button"
-              className={spacerMode === 'flat' ? 'btn btn-primary' : 'btn btn-secondary'}
-              onClick={() => setSpacerMode('flat')}
-            >
-              Flat
-            </button>
-            <button
-              type="button"
-              className={spacerMode === 'nested-spacer' ? 'btn btn-primary' : 'btn btn-secondary'}
-              onClick={() => setSpacerMode('nested-spacer')}
-            >
-              Nested spacer
-            </button>
-          </div>
-        </div>
-        <button type="button" className="btn btn-ghost" onClick={() => setAdvancedOpen((v) => !v)}>
-          {advancedOpen ? '▾ Hide advanced options' : '▸ Advanced options'}
-        </button>
-        {advancedOpen && (
-          <>
-            <div className="input-row">
-              <div className="field">
-                <label className="label" htmlFor="wallpaper-x-offset">X offset (px)</label>
-                <input
-                  className="input"
-                  id="wallpaper-x-offset"
-                  type="number"
-                  value={xOffset}
-                  onChange={(e) => setXOffset(e.target.value)}
-                />
-              </div>
-              <div className="field">
-                <label className="label" htmlFor="wallpaper-y-offset">Y offset (px)</label>
-                <input
-                  className="input"
-                  id="wallpaper-y-offset"
-                  type="number"
-                  value={yOffset}
-                  onChange={(e) => setYOffset(e.target.value)}
-                />
-              </div>
-            </div>
+                setSourceImageUrl("");
+              }}
+            />
             <div className="field">
-              <label className="label" htmlFor="wallpaper-bg-color">Background color (#RRGGBBAA)</label>
+              <label htmlFor="wallpaper-source-url">Or load from a URL instead</label>
               <input
                 className="input"
-                id="wallpaper-bg-color"
-                type="text"
-                value={backgroundColor}
-                onChange={(e) => setBackgroundColor(e.target.value)}
+                id="wallpaper-source-url"
+                {...fieldProps("sourceImageUrl")}
+                type="url"
+                value={sourceImageUrl}
+                disabled={Boolean(busy)}
+                placeholder="https://example.com/wallpaper.png"
+                onChange={(e) => {
+                  fields.clear("sourceImageUrl");
+                  fields.clear("file");
+                  setFileResetKey((previous) => previous + 1);
+                  setSourceImageUrl(e.target.value);
+                  if (e.target.value) setFile(null);
+                }}
               />
+              {fieldError("sourceImageUrl")}
             </div>
-            <div className="field">
-              <label className="label">
-                <input
-                  type="checkbox"
-                  checked={coverFitMode}
-                  onChange={(e) => setCoverFitMode(e.target.checked)}
-                />
-                {' '}Cover-fit mode (widen the source so nested rows still show real content)
-              </label>
-            </div>
-          </>
-        )}
-      </div>
+          </Section>
 
-      <div className="card">
-        <h2 className="card-title">4. Preview</h2>
-        {previewLoading && <p className="loading-state">Slicing preview…</p>}
-        {!previewLoading && previewRows.length === 0 && (
-          <p className="empty-state">Add a source image to see a preview.</p>
-        )}
-        {!previewLoading && previewRows.length > 0 && (
-          <div className="wallpaper-preview-stack">
-            {previewRows.map((row, i) => (
-              <img
-                key={i}
-                src={row.imageDataUrl}
-                alt={row.isSpacer ? 'spacer row' : 'channel row'}
-                style={{ marginLeft: row.depth * 20 }}
-                className="wallpaper-preview-row"
-              />
-            ))}
-          </div>
-        )}
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={handleSubmit}
-          disabled={submitting || !hasSource}
-        >
-          {submitting ? 'Generating…' : 'Generate channels'}
-        </button>
-      </div>
-
-      {result && (
-        <div className="card">
-          <h2 className="card-title">Result</h2>
-          <p>Created {result.rowCount} channel(s).</p>
-          {result.failedAt && (
-            <p className="alert alert-error">
-              Stopped at "{result.failedAt.name}": {result.failedAt.error}
-            </p>
-          )}
-          <ul>
-            {result.createdChannels.map((c) => (
-              <li key={c.cid}>
-                {c.name} ({c.kind}, depth {c.depth})
-              </li>
-            ))}
-          </ul>
-          <button
-            type="button"
-            className="btn btn-danger"
-            onClick={handleUndo}
-            disabled={undoing}
+          <Section
+            title="Parent channel"
+            step={2}
+            subtitle="The generated channels are created below this channel, or at the top level."
           >
-            {undoing ? 'Undoing…' : 'Undo this generation'}
-          </button>
+            <div
+              id={FIELD_IDS.parentCid}
+              tabIndex={-1}
+              role="group"
+              aria-label="Parent channel"
+              {...fieldProps("parentCid")}
+            >
+              <ChannelTreePreview
+                selectable
+                selectedCid={options.parentCid}
+                onSelectParent={(value) => {
+                  if (!busy) setOption("parentCid", value);
+                }}
+                refreshKey={refreshKey}
+              />
+            </div>
+            {fieldError("parentCid")}
+          </Section>
+
+          <Section
+            title="Options"
+            step={3}
+            icon="sliders"
+            subtitle="Naming and layout of the channels that will be created."
+          >
+            <fieldset disabled={Boolean(busy)} className="plain-fieldset">
+              <div className="field-grid">
+                <div className="field">
+                  <label htmlFor="wallpaper-name-prefix">Channel name prefix</label>
+                  <input
+                    id="wallpaper-name-prefix"
+                    {...fieldProps("namePrefix")}
+                    className="input"
+                    value={options.namePrefix}
+                    maxLength={88}
+                    onChange={(e) => setOption("namePrefix", e.target.value)}
+                  />
+                  {fieldError("namePrefix")}
+                </div>
+                <div className="field">
+                  <label htmlFor={FIELD_IDS.spacerMode}>Spacer mode</label>
+                  <span className="select-wrap">
+                    <select
+                      className="input"
+                      id={FIELD_IDS.spacerMode}
+                      {...fieldProps("spacerMode")}
+                      value={options.spacerMode}
+                      onChange={(e) =>
+                        setOption("spacerMode", e.target.value as Options["spacerMode"])
+                      }
+                    >
+                      <option value="flat">Flat</option>
+                      <option value="nested-spacer">Nested spacer</option>
+                    </select>
+                  </span>
+                  {fieldError("spacerMode")}
+                </div>
+              </div>
+              <div className="advanced">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  aria-expanded={advancedOpen}
+                  aria-controls="wallpaper-advanced"
+                  onClick={() => setAdvancedOpen((v) => !v)}
+                >
+                  <Icon name={advancedOpen ? "up" : "down"} size={14} />
+                  Advanced options
+                </button>
+                {advancedOpen && (
+                  <div id="wallpaper-advanced" className="advanced-body">
+                    <div className="field-grid">
+                      {(["xOffset", "yOffset"] as const).map((key) => (
+                        <div className="field" key={key}>
+                          <label htmlFor={FIELD_IDS[key]}>
+                            {key === "xOffset" ? "X offset (px)" : "Y offset (px)"}
+                          </label>
+                          <input
+                            id={FIELD_IDS[key]}
+                            {...fieldProps(key)}
+                            className="input"
+                            type="number"
+                            step="1"
+                            min="-20000"
+                            max="20000"
+                            value={options[key]}
+                            onChange={(e) => setOption(key, e.target.value)}
+                          />
+                          {fieldError(key)}
+                        </div>
+                      ))}
+                      <div className="field">
+                        <label htmlFor={FIELD_IDS.backgroundColor}>
+                          Background color (#RRGGBBAA)
+                        </label>
+                        <input
+                          className="input"
+                          id={FIELD_IDS.backgroundColor}
+                          {...fieldProps("backgroundColor")}
+                          value={options.backgroundColor}
+                          onChange={(e) => setOption("backgroundColor", e.target.value)}
+                        />
+                        {fieldError("backgroundColor")}
+                      </div>
+                    </div>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        id={FIELD_IDS.coverFitMode}
+                        {...fieldProps("coverFitMode")}
+                        checked={options.coverFitMode}
+                        onChange={(e) => setOption("coverFitMode", e.target.checked)}
+                      />
+                      <span className="check-text">
+                        Cover-fit mode
+                        <span className="check-hint">
+                          Fills nested rows with image content instead of letterboxing them.
+                        </span>
+                      </span>
+                    </label>
+                    {fieldError("coverFitMode")}
+                  </div>
+                )}
+              </div>
+            </fieldset>
+          </Section>
         </div>
-      )}
+
+        <div className="workbench-side">
+          <Section
+            title="Preview"
+            step={4}
+            className="workbench-sticky"
+            subtitle="Exactly the rows that will be created, at their real proportions."
+            actions={
+              rows.length > 0 ? (
+                <span className="badge badge-neutral">{rows.length} rows</span>
+              ) : undefined
+            }
+            footer={
+              <button
+                type="button"
+                className="btn btn-primary btn-lg btn-block"
+                onClick={() => void generate()}
+                disabled={Boolean(busy) || previewLoading || rows.length === 0 || blocked}
+              >
+                {busy === "generate" ? (
+                  <span className="spinner" aria-hidden="true" />
+                ) : (
+                  <Icon name="sparkles" size={15} />
+                )}
+                {busy === "generate" ? "Generating…" : "Generate channels"}
+              </button>
+            }
+          >
+            {blocked && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm btn-block"
+                onClick={() => {
+                  if (ADVANCED_FIELDS.some((key) => fieldErrors[key])) setAdvancedOpen(true);
+                  fields.focusFirst(fieldErrors);
+                }}
+              >
+                <Icon name="alert" size={14} />
+                Review highlighted fields
+              </button>
+            )}
+            <RequestError message={previewError} retry={() => setPreviewRetry((v) => v + 1)} />
+            {previewLoading && <LoadingState label="Slicing preview…" />}
+            {!hasSource && (
+              <EmptyState
+                icon="image"
+                title="No source image yet"
+                description="Add a source image to see the rows that would be created."
+              />
+            )}
+            {!previewLoading && hasSource && !previewError && !issue && rows.length === 0 && (
+              <EmptyState
+                icon="refresh"
+                title="No current preview"
+                description="The last preview no longer matches these settings."
+                action={
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setPreviewRetry((v) => v + 1)}
+                  >
+                    Refresh preview
+                  </button>
+                }
+              />
+            )}
+            {rows.length > 0 && (
+              <div className="wallpaper-preview-stack checkerboard scroll-area">
+                {rows.map((row, i) => (
+                  <img
+                    key={i}
+                    src={row.imageDataUrl}
+                    alt={row.isSpacer ? "spacer row" : "channel row"}
+                    style={{ marginLeft: row.depth * 20 }}
+                    className="wallpaper-preview-row"
+                  />
+                ))}
+              </div>
+            )}
+          </Section>
+        </div>
+      </div>
+
+      <div className="page-sections page-sections-after">
+        <RequestError message={actionError} />
+        <Section
+          title="Recent operations"
+          icon="undo"
+          subtitle="Results stay available after leaving this page. Resume an incomplete generation, or undo one that finished."
+          actions={
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => void loadRuns()}
+            >
+              <Icon name="refresh" size={14} />
+              Refresh operations
+            </button>
+          }
+        >
+          <RequestError message={runsError} retry={() => void loadRuns()} />
+          {runsLoading && <LoadingState label="Loading operations…" />}
+          {!runsLoading && !runsError && runs.length === 0 && (
+            <EmptyState
+              icon="inbox"
+              title="No operations yet"
+              description="Generated runs appear here with their created channels."
+            />
+          )}
+          {runs.length > 0 && (
+            <ul className="run-list">
+              {runs.map((run) => {
+                const status = RUN_STATUS[run.status] ?? {
+                  label: run.status,
+                  badge: "badge-neutral",
+                };
+                return (
+                  <li className="run-card" key={run.runId}>
+                    <div className="run-card-head">
+                      <h3 className="run-card-title">
+                        {run.createdAt
+                          ? new Date(run.createdAt).toLocaleString()
+                          : `Operation ${run.runId.slice(0, 8)}`}
+                      </h3>
+                      <span className={`badge ${status.badge}`}>{status.label}</span>
+                    </div>
+                    <p role="status" className="hint">
+                      Status: {run.status}. {run.rowCount} channel(s) remaining.
+                    </p>
+                    {(run.error || run.failedAt) && (
+                      <RequestError
+                        message={run.error || `${run.failedAt?.name}: ${run.failedAt?.error}`}
+                      />
+                    )}
+                    {run.createdChannels.length > 0 && (
+                      <ul className="run-channels">
+                        {run.createdChannels.map((c) => (
+                          <li key={c.cid}>
+                            {c.name} (#{c.cid})
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="actions-row" style={{ marginTop: "var(--space-4)" }}>
+                      {["pending", "partial-failure"].includes(run.status) && (
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={Boolean(busy)}
+                          onClick={() => void mutateRun(run, "resume")}
+                        >
+                          <Icon name="refresh" size={14} />
+                          Resume generation
+                        </button>
+                      )}
+                      {!["running", "undoing", "undone"].includes(run.status) && (
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-sm"
+                          disabled={Boolean(busy)}
+                          onClick={() => void mutateRun(run, "undo")}
+                        >
+                          <Icon name="undo" size={14} />
+                          {run.createdChannels.length === 0
+                            ? "Discard operation"
+                            : run.status === "undo-partial"
+                              ? "Retry undo"
+                              : "Undo this generation"}
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Section>
+      </div>
     </div>
   );
-};
-
-export default ChannelWallpaperGenerator;
+}

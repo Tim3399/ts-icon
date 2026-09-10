@@ -4,13 +4,13 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import type { Request } from 'express';
-import { ROLES_KEY } from './roles.decorator';
-import { OIDC_CONFIG } from './auth.tokens';
-import type { OidcConfig } from '../../config';
-import { MetricsService } from '../metrics/metrics.service';
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import type { Request } from "express";
+import { ROLES_KEY } from "./roles.decorator";
+import { OIDC_CONFIG } from "./auth.tokens";
+import type { OidcConfig } from "../../config";
+import { MetricsService } from "../metrics/metrics.service";
 
 /**
  * Enforces `@Roles(...)` on a route, reading the Keycloak realm roles
@@ -39,10 +39,10 @@ export class RolesGuard implements CanActivate {
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>(
-      ROLES_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
     if (!requiredRoles || requiredRoles.length === 0) {
       return true;
     }

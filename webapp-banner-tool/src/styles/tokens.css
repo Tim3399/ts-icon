@@ -1,0 +1,246 @@
+/* Design tokens.
+   Every visual decision in this app resolves to one of the semantic tokens
+   below, so light/dark and future re-themes are a single-file change rather
+   than a sweep through component styles. Raw ramp values are private to this
+   file -- components only ever reference the semantic names. */
+
+:root {
+  /* Neutral ramp */
+  --gray-0: #ffffff;
+  --gray-25: #fbfcfd;
+  --gray-50: #f5f7fa;
+  --gray-100: #eceff4;
+  --gray-150: #e4e8ee;
+  --gray-200: #d9dee6;
+  --gray-300: #c3cad5;
+  --gray-400: #98a2b3;
+  --gray-500: #6d7787;
+  --gray-600: #515a68;
+  --gray-700: #3a424e;
+  --gray-800: #262c36;
+  --gray-850: #1c222b;
+  --gray-900: #141920;
+  --gray-950: #0c1016;
+
+  /* Accent ramp (indigo) */
+  --accent-50: #eef2ff;
+  --accent-100: #e0e7ff;
+  --accent-200: #c7d2fe;
+  --accent-300: #a5b4fc;
+  --accent-400: #818cf8;
+  --accent-500: #6366f1;
+  --accent-600: #4f52e0;
+  --accent-700: #4340c4;
+
+  /* Status ramps */
+  --green-100: #d7f5e3;
+  --green-500: #14a05c;
+  --green-600: #0f8a4f;
+  --green-700: #0b6f40;
+  --amber-100: #fdf0d2;
+  --amber-500: #d69410;
+  --amber-700: #96650a;
+  --red-100: #fde2e2;
+  --red-500: #e04a4a;
+  --red-600: #cf3838;
+  --red-700: #a52222;
+  --blue-100: #dcecfd;
+  --blue-500: #2f86e0;
+  --blue-700: #1c5fa5;
+
+  /* Surfaces and text */
+  color-scheme: light;
+  --bg: var(--gray-50);
+  --bg-pattern: rgb(0 0 0 / 3.5%);
+  --surface: var(--gray-0);
+  --surface-2: var(--gray-50);
+  --surface-3: var(--gray-100);
+  --surface-hover: var(--gray-100);
+  --surface-inset: var(--gray-100);
+  --surface-overlay: var(--gray-0);
+  --border: var(--gray-200);
+  --border-subtle: var(--gray-150);
+  --border-strong: var(--gray-300);
+  --text: var(--gray-900);
+  --text-muted: var(--gray-500);
+  --text-subtle: var(--gray-400);
+  --text-on-accent: #ffffff;
+
+  /* Intent */
+  --accent: var(--accent-500);
+  --accent-hover: var(--accent-600);
+  --accent-active: var(--accent-700);
+  --accent-text: var(--accent-700);
+  --accent-soft: var(--accent-50);
+  --accent-soft-border: var(--accent-200);
+  --success: var(--green-600);
+  --success-text: var(--green-700);
+  --success-soft: var(--green-100);
+  --warning: var(--amber-500);
+  --warning-text: var(--amber-700);
+  --warning-soft: var(--amber-100);
+  --danger: var(--red-600);
+  --danger-text: var(--red-700);
+  --danger-soft: var(--red-100);
+  --danger-border: #f5bcbc;
+  --info: var(--blue-500);
+  --info-text: var(--blue-700);
+  --info-soft: var(--blue-100);
+
+  /* Checkerboard behind transparent banner art */
+  --checker-a: #ffffff;
+  --checker-b: #e9edf3;
+
+  /* Radii */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 11px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-pill: 999px;
+
+  /* Elevation */
+  --shadow-xs: 0 1px 2px rgb(15 23 42 / 6%);
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 5%), 0 2px 6px rgb(15 23 42 / 5%);
+  --shadow-md: 0 2px 4px rgb(15 23 42 / 5%), 0 8px 20px rgb(15 23 42 / 8%);
+  --shadow-lg: 0 8px 16px rgb(15 23 42 / 8%), 0 24px 48px rgb(15 23 42 / 12%);
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 56px;
+
+  /* Typography */
+  --font-sans:
+    "Inter var", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  --font-mono:
+    ui-monospace, "SFMono-Regular", "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+
+  /* Layout */
+  --header-height: 60px;
+  --rail-width: 340px;
+  --content-max: 1120px;
+  --shell-max: 1680px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0, 0.1, 1);
+  --duration-fast: 110ms;
+  --duration: 170ms;
+
+  /* Focus */
+  --ring-color: var(--accent-500);
+  --ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--ring-color);
+}
+
+/* Dark theme. Declared twice on purpose: once for an explicit user choice
+   and once for "follow the system" (the default, which stamps no attribute
+   at all), so the header toggle wins in both directions. */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: var(--gray-950);
+    --bg-pattern: rgb(255 255 255 / 3%);
+    --surface: var(--gray-900);
+    --surface-2: var(--gray-850);
+    --surface-3: var(--gray-800);
+    --surface-hover: var(--gray-800);
+    --surface-inset: var(--gray-950);
+    --surface-overlay: var(--gray-850);
+    --border: #2b3340;
+    --border-subtle: #232a35;
+    --border-strong: #3a4453;
+    --text: #e9edf4;
+    --text-muted: #98a2b3;
+    --text-subtle: #6d7787;
+    --accent: var(--accent-400);
+    --accent-hover: var(--accent-300);
+    --accent-active: var(--accent-200);
+    --accent-text: var(--accent-300);
+    --accent-soft: #232948;
+    --accent-soft-border: #38407a;
+    --text-on-accent: #0c1016;
+    --success: #34c98a;
+    --success-text: #6ee7b7;
+    --success-soft: #10352a;
+    --warning: #e0a63a;
+    --warning-text: #fcd68b;
+    --warning-soft: #3a2c10;
+    --danger: #f07171;
+    --danger-text: #fda4a4;
+    --danger-soft: #3d1d1f;
+    --danger-border: #5e2b2e;
+    --info: #5aa5f0;
+    --info-text: #a5cdf7;
+    --info-soft: #12293f;
+    --checker-a: #1c222b;
+    --checker-b: #262c36;
+    --shadow-xs: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 35%), 0 2px 6px rgb(0 0 0 / 30%);
+    --shadow-md: 0 2px 4px rgb(0 0 0 / 35%), 0 8px 20px rgb(0 0 0 / 40%);
+    --shadow-lg: 0 8px 16px rgb(0 0 0 / 40%), 0 24px 48px rgb(0 0 0 / 50%);
+    --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--ring-color);
+    --ring-color: var(--accent-400);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: var(--gray-950);
+  --bg-pattern: rgb(255 255 255 / 3%);
+  --surface: var(--gray-900);
+  --surface-2: var(--gray-850);
+  --surface-3: var(--gray-800);
+  --surface-hover: var(--gray-800);
+  --surface-inset: var(--gray-950);
+  --surface-overlay: var(--gray-850);
+  --border: #2b3340;
+  --border-subtle: #232a35;
+  --border-strong: #3a4453;
+  --text: #e9edf4;
+  --text-muted: #98a2b3;
+  --text-subtle: #6d7787;
+  --accent: var(--accent-400);
+  --accent-hover: var(--accent-300);
+  --accent-active: var(--accent-200);
+  --accent-text: var(--accent-300);
+  --accent-soft: #232948;
+  --accent-soft-border: #38407a;
+  --text-on-accent: #0c1016;
+  --success: #34c98a;
+  --success-text: #6ee7b7;
+  --success-soft: #10352a;
+  --warning: #e0a63a;
+  --warning-text: #fcd68b;
+  --warning-soft: #3a2c10;
+  --danger: #f07171;
+  --danger-text: #fda4a4;
+  --danger-soft: #3d1d1f;
+  --danger-border: #5e2b2e;
+  --info: #5aa5f0;
+  --info-text: #a5cdf7;
+  --info-soft: #12293f;
+  --checker-a: #1c222b;
+  --checker-b: #262c36;
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 35%), 0 2px 6px rgb(0 0 0 / 30%);
+  --shadow-md: 0 2px 4px rgb(0 0 0 / 35%), 0 8px 20px rgb(0 0 0 / 40%);
+  --shadow-lg: 0 8px 16px rgb(0 0 0 / 40%), 0 24px 48px rgb(0 0 0 / 50%);
+  --ring-color: var(--accent-400);
+  --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--ring-color);
+}

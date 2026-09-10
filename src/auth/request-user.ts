@@ -1,4 +1,4 @@
-import type { JWTPayload } from 'jose';
+import type { JWTPayload } from "jose";
 
 /**
  * The shape attached to `req.user` once JwtAuthGuard has verified a token.
@@ -23,13 +23,9 @@ interface KeycloakRealmAccessClaim {
  * reads its own roles from this same path.
  */
 export function extractRoles(payload: JWTPayload): string[] {
-  const realmAccess = payload.realm_access as
-    | KeycloakRealmAccessClaim
-    | undefined;
+  const realmAccess = payload.realm_access as KeycloakRealmAccessClaim | undefined;
   const roles = realmAccess?.roles;
-  return Array.isArray(roles)
-    ? roles.filter((r): r is string => typeof r === 'string')
-    : [];
+  return Array.isArray(roles) ? roles.filter((r): r is string => typeof r === "string") : [];
 }
 
 /**
@@ -41,7 +37,7 @@ export function extractRoles(payload: JWTPayload): string[] {
  */
 export function toRequestUser(payload: JWTPayload): RequestUser {
   return {
-    sub: payload.sub ?? '',
+    sub: payload.sub ?? "",
     roles: extractRoles(payload),
   };
 }

@@ -1,16 +1,16 @@
-import { ForbiddenException, type ExecutionContext } from '@nestjs/common';
-import type { Reflector } from '@nestjs/core';
-import type { Request } from 'express';
-import { RolesGuard } from './roles.guard';
-import type { RequestUser } from './request-user';
-import type { OidcConfig } from '../../config';
-import type { MetricsService } from '../metrics/metrics.service';
+import { ForbiddenException, type ExecutionContext } from "@nestjs/common";
+import type { Reflector } from "@nestjs/core";
+import type { Request } from "express";
+import { RolesGuard } from "./roles.guard";
+import type { RequestUser } from "./request-user";
+import type { OidcConfig } from "../../config";
+import type { MetricsService } from "../metrics/metrics.service";
 
 const oidcConfig: OidcConfig = {
-  issuerUrl: 'https://auth.example.com/realms/test',
-  audience: 'ts3img',
-  adminRole: 'ts-icon-admin',
-  editorRole: 'ts-icon-editor',
+  issuerUrl: "https://auth.example.com/realms/test",
+  audience: "ts3img",
+  adminRole: "ts-icon-admin",
+  editorRole: "ts-icon-editor",
 };
 
 function createMetricsService(): MetricsService {
@@ -46,54 +46,54 @@ function createContext(user: RequestUser | undefined): ExecutionContext {
   } as unknown as ExecutionContext;
 }
 
-describe('RolesGuard', () => {
-  it('allows the request through when the route requires no roles', () => {
+describe("RolesGuard", () => {
+  it("allows the request through when the route requires no roles", () => {
     const guard = new RolesGuard(
       createReflectorStub(undefined),
       oidcConfig,
       createMetricsService(),
     );
-    const context = createContext({ sub: 'u1', roles: [] });
+    const context = createContext({ sub: "u1", roles: [] });
 
     expect(guard.canActivate(context)).toBe(true);
   });
 
-  it('allows a user who has the required role', () => {
+  it("allows a user who has the required role", () => {
     const guard = new RolesGuard(
-      createReflectorStub(['ts-icon-editor']),
+      createReflectorStub(["ts-icon-editor"]),
       oidcConfig,
       createMetricsService(),
     );
-    const context = createContext({ sub: 'u1', roles: ['ts-icon-editor'] });
+    const context = createContext({ sub: "u1", roles: ["ts-icon-editor"] });
 
     expect(guard.canActivate(context)).toBe(true);
   });
 
-  it('rejects with 403 when the user lacks the required role', () => {
+  it("rejects with 403 when the user lacks the required role", () => {
     const guard = new RolesGuard(
-      createReflectorStub(['ts-icon-admin']),
+      createReflectorStub(["ts-icon-admin"]),
       oidcConfig,
       createMetricsService(),
     );
-    const context = createContext({ sub: 'u1', roles: ['ts-icon-editor'] });
+    const context = createContext({ sub: "u1", roles: ["ts-icon-editor"] });
 
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
-  it('rejects with 403 when the user has no roles at all', () => {
+  it("rejects with 403 when the user has no roles at all", () => {
     const guard = new RolesGuard(
-      createReflectorStub(['ts-icon-editor']),
+      createReflectorStub(["ts-icon-editor"]),
       oidcConfig,
       createMetricsService(),
     );
-    const context = createContext({ sub: 'u1', roles: [] });
+    const context = createContext({ sub: "u1", roles: [] });
 
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
-  it('treats a missing req.user as forbidden rather than throwing an unhandled error', () => {
+  it("treats a missing req.user as forbidden rather than throwing an unhandled error", () => {
     const guard = new RolesGuard(
-      createReflectorStub(['ts-icon-editor']),
+      createReflectorStub(["ts-icon-editor"]),
       oidcConfig,
       createMetricsService(),
     );
@@ -102,60 +102,52 @@ describe('RolesGuard', () => {
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
-  it('lets the admin role satisfy an editor-gated route (role hierarchy)', () => {
+  it("lets the admin role satisfy an editor-gated route (role hierarchy)", () => {
     const guard = new RolesGuard(
-      createReflectorStub(['ts-icon-editor']),
+      createReflectorStub(["ts-icon-editor"]),
       oidcConfig,
       createMetricsService(),
     );
-    const context = createContext({ sub: 'u1', roles: ['ts-icon-admin'] });
+    const context = createContext({ sub: "u1", roles: ["ts-icon-admin"] });
 
     expect(guard.canActivate(context)).toBe(true);
   });
 
-  it('does not let the editor role satisfy an admin-gated route', () => {
+  it("does not let the editor role satisfy an admin-gated route", () => {
     const guard = new RolesGuard(
-      createReflectorStub(['ts-icon-admin']),
+      createReflectorStub(["ts-icon-admin"]),
       oidcConfig,
       createMetricsService(),
     );
-    const context = createContext({ sub: 'u1', roles: ['ts-icon-editor'] });
+    const context = createContext({ sub: "u1", roles: ["ts-icon-editor"] });
 
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
-  it('allows the request when at least one of several required roles matches', () => {
+  it("allows the request when at least one of several required roles matches", () => {
     const guard = new RolesGuard(
-      createReflectorStub(['ts-icon-admin', 'ts-icon-editor']),
+      createReflectorStub(["ts-icon-admin", "ts-icon-editor"]),
       oidcConfig,
       createMetricsService(),
     );
-    const context = createContext({ sub: 'u1', roles: ['ts-icon-editor'] });
+    const context = createContext({ sub: "u1", roles: ["ts-icon-editor"] });
 
     expect(guard.canActivate(context)).toBe(true);
   });
 
-  it('increments the authorization-failure counter when the user lacks the required role', () => {
+  it("increments the authorization-failure counter when the user lacks the required role", () => {
     const { metrics, inc } = createMetricsStub();
-    const guard = new RolesGuard(
-      createReflectorStub(['ts-icon-admin']),
-      oidcConfig,
-      metrics,
-    );
-    const context = createContext({ sub: 'u1', roles: ['ts-icon-editor'] });
+    const guard = new RolesGuard(createReflectorStub(["ts-icon-admin"]), oidcConfig, metrics);
+    const context = createContext({ sub: "u1", roles: ["ts-icon-editor"] });
 
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
     expect(inc).toHaveBeenCalledTimes(1);
   });
 
-  it('does not increment the authorization-failure counter for an allowed request', () => {
+  it("does not increment the authorization-failure counter for an allowed request", () => {
     const { metrics, inc } = createMetricsStub();
-    const guard = new RolesGuard(
-      createReflectorStub(['ts-icon-editor']),
-      oidcConfig,
-      metrics,
-    );
-    const context = createContext({ sub: 'u1', roles: ['ts-icon-editor'] });
+    const guard = new RolesGuard(createReflectorStub(["ts-icon-editor"]), oidcConfig, metrics);
+    const context = createContext({ sub: "u1", roles: ["ts-icon-editor"] });
 
     expect(guard.canActivate(context)).toBe(true);
     expect(inc).not.toHaveBeenCalled();

@@ -1,5 +1,12 @@
-const PUBLIC_API_URL = import.meta.env.VITE_PUBLIC_API_URL || "http://localhost:3000";
-const ADMIN_API_URL = import.meta.env.VITE_ADMIN_API_URL || "http://localhost:3001";
+const HOSTNAME = typeof window !== "undefined" ? window.location.hostname : "";
+const IS_LOCALHOST = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(HOSTNAME);
+const cleanBase = (value: string) => value.replace(/\/+$/, "");
+const PUBLIC_API_URL = cleanBase(
+  import.meta.env.VITE_PUBLIC_API_URL ?? (IS_LOCALHOST ? "http://localhost:3000" : ""),
+);
+const ADMIN_API_URL = cleanBase(
+  import.meta.env.VITE_ADMIN_API_URL ?? (IS_LOCALHOST ? "http://localhost:3001" : "/admin-api"),
+);
 
 export const API_URL = `${ADMIN_API_URL}/images-local/`;
 export const VIEW_IMAGE_URL = `${PUBLIC_API_URL}/images/`;
@@ -17,11 +24,9 @@ export const CHANNEL_WALLPAPER_UNDO_URL = `${ADMIN_API_URL}/images-local/channel
 // Keycloak can only be turned off when actually running on localhost (local
 // development without a Keycloak instance at hand). On any other hostname,
 // VITE_KEYCLOAK_ENABLED is ignored and authentication is always required.
-const HOSTNAME = typeof window !== 'undefined' ? window.location.hostname : '';
-const IS_LOCALHOST = HOSTNAME === 'localhost' || HOSTNAME === '127.0.0.1' || HOSTNAME === '::1';
 
 export const KEYCLOAK_ENABLED = IS_LOCALHOST
-  ? import.meta.env.VITE_KEYCLOAK_ENABLED !== 'false'
+  ? import.meta.env.VITE_KEYCLOAK_ENABLED !== "false"
   : true;
 export const KEYCLOAK_URL = import.meta.env.VITE_KEYCLOAK_URL || "http://localhost:8080";
 export const KEYCLOAK_REALM = import.meta.env.VITE_KEYCLOAK_REALM || "ts-icon";

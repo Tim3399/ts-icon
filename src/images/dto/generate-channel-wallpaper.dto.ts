@@ -1,5 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
 import {
   IsIn,
   IsInt,
@@ -7,14 +7,17 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
+  Min,
+  Max,
   Matches,
   MaxLength,
-} from 'class-validator';
-import { MAX_CHANNEL_NAME_LENGTH } from './channel-name-validation.pipe';
+} from "class-validator";
+import { MAX_CHANNEL_NAME_LENGTH } from "./channel-name-validation.pipe";
 
 const MAX_URL_LENGTH = 2048;
 
-export type WallpaperSpacerMode = 'flat' | 'nested-spacer';
+export type WallpaperSpacerMode = "flat" | "nested-spacer";
 
 /**
  * Body for `POST images-local/channel-wallpaper` and its `/preview`
@@ -28,27 +31,32 @@ export type WallpaperSpacerMode = 'flat' | 'nested-spacer';
  */
 export class GenerateChannelWallpaperDto {
   @ApiPropertyOptional({
-    description:
-      'cid to parent the generated channels under; omitted/empty means top-level',
+    description: "Idempotency key; required for generation, omitted for preview",
+  })
+  @IsOptional()
+  @IsUUID()
+  requestId?: string;
+  @ApiPropertyOptional({
+    description: "cid to parent the generated channels under; omitted/empty means top-level",
   })
   @IsOptional()
   @IsString()
   @MaxLength(64)
   parentCid?: string;
 
-  @ApiProperty({ example: 'wallpaper-row', maxLength: MAX_CHANNEL_NAME_LENGTH })
+  @ApiProperty({ example: "wallpaper-row", maxLength: MAX_CHANNEL_NAME_LENGTH })
   @IsString()
   @IsNotEmpty()
-  @MaxLength(MAX_CHANNEL_NAME_LENGTH)
+  @MaxLength(MAX_CHANNEL_NAME_LENGTH - 12)
+  @Matches(/\S/, { message: "namePrefix must contain a visible character" })
   namePrefix!: string;
 
-  @ApiProperty({ enum: ['flat', 'nested-spacer'] })
-  @IsIn(['flat', 'nested-spacer'])
+  @ApiProperty({ enum: ["flat", "nested-spacer"] })
+  @IsIn(["flat", "nested-spacer"])
   spacerMode!: WallpaperSpacerMode;
 
   @ApiPropertyOptional({
-    description:
-      'Alternative to uploading a file: fetch the source image from this URL instead.',
+    description: "Alternative to uploading a file: fetch the source image from this URL instead.",
     maxLength: MAX_URL_LENGTH,
   })
   @IsOptional()
@@ -60,17 +68,21 @@ export class GenerateChannelWallpaperDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  @Min(-20000)
+  @Max(20000)
   xOffset?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  @Min(-20000)
+  @Max(20000)
   yOffset?: number;
 
   @ApiPropertyOptional({
-    description: '#RRGGBB or #RRGGBBAA hex string; default fully transparent.',
-    example: '#00000000',
+    description: "#RRGGBB or #RRGGBBAA hex string; default fully transparent.",
+    example: "#00000000",
   })
   @IsOptional()
   @IsString()
@@ -80,9 +92,9 @@ export class GenerateChannelWallpaperDto {
   @ApiPropertyOptional({
     description:
       "'true' (default) or 'false' -- kept as a string, not a boolean, deliberately (see class doc).",
-    enum: ['true', 'false'],
+    enum: ["true", "false"],
   })
   @IsOptional()
-  @IsIn(['true', 'false'])
-  coverFitMode?: 'true' | 'false';
+  @IsIn(["true", "false"])
+  coverFitMode?: "true" | "false";
 }

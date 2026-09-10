@@ -1,128 +1,130 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { SPACER_BASE_IMAGE_URL } from '../config';
-import { useAuth } from '../auth/AuthProvider';
-import { apiFetch, apiFetchBlob, ApiError, describeApiError, UPLOAD_TIMEOUT_MS } from '../api/client';
-import { useToast } from './Toast';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { SPACER_BASE_IMAGE_URL } from "../config";
+import { useAuth } from "../auth/AuthContext";
+import {
+  apiFetch,
+  apiFetchBlob,
+  ApiError,
+  describeApiError,
+  UPLOAD_TIMEOUT_MS,
+} from "../api/client";
+import { useToast } from "./ToastContext";
+import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
+import UploadInput from "./UploadInput";
+import RequestError from "./RequestError";
+import Section from "./ui/Section";
+import BannerFrame from "./ui/BannerFrame";
+import { uploadFieldError } from "../hooks/useFieldErrors";
 
-// Shown on both the banner-URLs admin page and the channel gallery, since
-// spacer channels (and the image they fall back to) are relevant in both
-// places -- rather than duplicating this whole block of state/handlers, it's
-// factored out into its own self-contained component with no props.
-const SpacerBaseImageManager: React.FC = () => {
+export default function SpacerBaseImageManager({
+  onChanged,
+}: {
+  onChanged?: () => void | Promise<void>;
+}) {
   const { getToken } = useAuth();
   const { showToast } = useToast();
-
-  // Fetched through apiFetchBlob rather than a plain <img src>, since
-  // /images-local is JWT-gated and a plain <img> tag can't attach an
-  // Authorization header.
+  const { bumpRefresh } = usePreviewOverlay();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
-  const objectUrlRef = useRef<string | null>(null);
-
+  const [error, setError] = useState("");
+  const [fileError, setFileError] = useState("");
+  const objectUrl = useRef<string | null>(null);
+  const request = useRef<AbortController | null>(null);
+  const locked = useRef(false);
   const loadImage = useCallback(async () => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
     setLoading(true);
+    setError("");
     try {
-      const blob = await apiFetchBlob(SPACER_BASE_IMAGE_URL, { getToken });
-      const objectUrl = URL.createObjectURL(blob);
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = objectUrl;
-      setImageUrl(objectUrl);
+      const blob = await apiFetchBlob(SPACER_BASE_IMAGE_URL, {
+        getToken,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      const url = URL.createObjectURL(blob);
+      if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+      objectUrl.current = url;
+      setImageUrl(url);
     } catch (err) {
+      if (controller.signal.aborted) return;
       if (err instanceof ApiError && err.status === 404) {
+        if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+        objectUrl.current = null;
         setImageUrl(null);
       } else {
-        showToast(describeApiError(err, 'Spacer base image could not be loaded'), 'error');
+        const message = describeApiError(err, "Spacer base image could not be loaded");
+        setError(message);
+        showToast(message, "error");
       }
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [getToken, showToast]);
-
   useEffect(() => {
-    loadImage();
+    void loadImage();
     return () => {
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+      request.current?.abort();
+      if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
     };
   }, [loadImage]);
-
-  const handleImageChange = async (file: File) => {
+  const upload = async (file: File) => {
+    if (locked.current) return;
+    locked.current = true;
     setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file, 'spacer-base.png');
+    setError("");
+    setFileError("");
+    const body = new FormData();
+    body.append("file", file);
     try {
       await apiFetch(SPACER_BASE_IMAGE_URL, {
-        method: 'POST',
-        body: formData,
+        method: "POST",
+        body,
         getToken,
         timeoutMs: UPLOAD_TIMEOUT_MS,
       });
-      showToast('Spacer base image updated!', 'success');
+      showToast("Spacer base image updated!", "success");
       await loadImage();
+      await onChanged?.();
+      bumpRefresh();
     } catch (err) {
-      showToast(describeApiError(err, 'Spacer base image could not be updated'), 'error');
+      const issue = uploadFieldError(err);
+      if (issue) setFileError(issue);
+      else {
+        const message = describeApiError(err, "Spacer base image could not be updated");
+        setError(message);
+        showToast(message, "error");
+      }
     } finally {
+      locked.current = false;
       setUploading(false);
     }
   };
-
-  const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
-    e.preventDefault();
-    if (!dragOver) setDragOver(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
-    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
-    setDragOver(false);
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleImageChange(file);
-  };
-
   return (
-    <div className="card">
-      <h2 className="card-title">Spacer base image</h2>
-      <p style={{ marginTop: 0 }}>
-        Shown for any channel whose name contains "spacer", unless that channel has its own image set.
-      </p>
-      <div className="field">
-        <div className="channel-card-image" style={{ maxWidth: 220 }}>
-          {loading ? (
-            <span className="placeholder">Loading…</span>
-          ) : imageUrl ? (
-            <img src={imageUrl} alt="Spacer base" />
-          ) : (
-            <span className="placeholder">No spacer base image set</span>
-          )}
+    <Section
+      title="Spacer base image"
+      icon="layers"
+      subtitle="Used for every spacer channel that has no image of its own."
+    >
+      <div className="spacer-base">
+        <BannerFrame
+          src={imageUrl}
+          alt="Spacer base"
+          placeholder={loading ? "Loading…" : "No spacer base image set"}
+        />
+        <div className="spacer-base-upload">
+          <UploadInput
+            id="spacer-base-image-upload"
+            error={fileError}
+            disabled={uploading}
+            label={uploading ? "Uploading…" : undefined}
+            onFile={(file) => void upload(file)}
+          />
         </div>
       </div>
-      <div className="field">
-        <label
-          className={`dropzone${dragOver ? ' dropzone-drag-over' : ''}`}
-          htmlFor="spacer-base-image-upload"
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          {uploading ? 'Uploading…' : 'Drag & drop an image here, or click to browse'}
-          <input
-            type="file"
-            id="spacer-base-image-upload"
-            accept="image/*"
-            disabled={uploading}
-            onChange={(e) => {
-              if (e.target.files?.[0]) handleImageChange(e.target.files[0]);
-            }}
-          />
-        </label>
-      </div>
-    </div>
+      <RequestError message={error} retry={() => void loadImage()} />
+    </Section>
   );
-};
-
-export default SpacerBaseImageManager;
+}

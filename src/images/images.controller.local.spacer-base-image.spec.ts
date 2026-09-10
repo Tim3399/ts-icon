@@ -1,21 +1,21 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
-import request from 'supertest';
-import type { Server } from 'http';
-import sharp from 'sharp';
-import { ImagesModuleLocal } from './images.module.local';
-import { PrismaModule } from '../prisma/prisma.module';
-import { PrismaService } from '../prisma/prisma.service';
+import { Test, TestingModule } from "@nestjs/testing";
+import { INestApplication } from "@nestjs/common";
+import request from "supertest";
+import type { Server } from "http";
+import sharp from "sharp";
+import { ImagesModuleLocal } from "./images.module.local";
+import { PrismaModule } from "../prisma/prisma.module";
+import { PrismaService } from "../prisma/prisma.service";
+import { ImagesService, computeContentHash } from "./images.service";
 
-const TEST_PUBLIC_BASE_URL = 'https://ts-icon.example.test';
+const TEST_PUBLIC_BASE_URL = "https://ts-icon.example.test";
 
 // getPublicBaseUrl() is read once, at construction time, by
 // ImagesLocalController's publicBaseUrl field -- see the equivalent mock in
 // images.controller.local.spec.ts for why this can't just be a
 // process.env assignment in this file.
-jest.mock('../../config', () => {
-  const actual =
-    jest.requireActual<typeof import('../../config')>('../../config');
+jest.mock("../../config", () => {
+  const actual = jest.requireActual<typeof import("../../config")>("../../config");
   return {
     ...actual,
     getPublicBaseUrl: jest.fn(() => TEST_PUBLIC_BASE_URL),
@@ -36,7 +36,7 @@ jest.mock('../../config', () => {
  * images.controller.public.spec.ts's existing pattern for module-level
  * e2e-style tests.
  */
-describe('ImagesLocalController spacer-base-image routes (e2e)', () => {
+describe("ImagesLocalController spacer-base-image routes (e2e)", () => {
   let app: INestApplication;
   let storedRow: {
     image: Uint8Array;
@@ -87,6 +87,20 @@ describe('ImagesLocalController spacer-base-image routes (e2e)', () => {
     })
       .overrideProvider(PrismaService)
       .useValue(mockPrismaService)
+      .overrideProvider(ImagesService)
+      .useValue({
+        saveImage: (_name: string, image: Buffer, mimeType: string) => {
+          storedRow = {
+            image,
+            mimeType,
+            contentHash: computeContentHash(image),
+            size: image.length,
+          };
+          return Promise.resolve();
+        },
+        getImage: () =>
+          Promise.resolve(storedRow ? { ...storedRow, image: Buffer.from(storedRow.image) } : null),
+      })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -97,34 +111,42 @@ describe('ImagesLocalController spacer-base-image routes (e2e)', () => {
     await app.close();
   });
 
-  it('routes POST to uploadSpacerBaseImage, not the per-channel upload wildcard', async () => {
+  it("routes POST to uploadSpacerBaseImage, not the per-channel upload wildcard", async () => {
     const res = await request(app.getHttpServer() as Server)
-      .post('/images-local/spacer-base-image')
-      .attach('file', testPngBytes, 'base.png');
+      .post("/images-local/spacer-base-image")
+      .attach("file", testPngBytes, "base.png");
 
     // uploadImage's success message is "Image saved successfully" (a
     // different string) -- getting *this* exact message back is what
     // proves uploadSpacerBaseImage actually ran, not the wildcard handler
     // silently accepting "spacer-base-image" as a channel name instead.
-    expect(res.body).toEqual({ message: 'Spacer base image set successfully' });
+    expect(res.body).toEqual({ message: "Spacer base image set successfully" });
   });
 
-  it('GET returns 404 before any base image has been set', async () => {
+  it("routes wallpaper generation to its controller before the channel-name wildcard", async () => {
+    const response = await request(app.getHttpServer() as Server)
+      .post("/images-local/channel-wallpaper")
+      .attach("file", testPngBytes, "wallpaper.png")
+      .expect(400);
+    expect((response.body as { message: string }).message).toContain("requestId");
+  });
+
+  it("GET returns 404 before any base image has been set", async () => {
     await request(app.getHttpServer() as Server)
-      .get('/images-local/spacer-base-image')
+      .get("/images-local/spacer-base-image")
       .expect(404);
   });
 
-  it('GET returns the uploaded image after POST has set it', async () => {
+  it("GET returns the uploaded image after POST has set it", async () => {
     await request(app.getHttpServer() as Server)
-      .post('/images-local/spacer-base-image')
-      .attach('file', testPngBytes, 'base.png')
+      .post("/images-local/spacer-base-image")
+      .attach("file", testPngBytes, "base.png")
       .expect(201);
 
     const res = await request(app.getHttpServer() as Server)
-      .get('/images-local/spacer-base-image')
+      .get("/images-local/spacer-base-image")
       .expect(200);
 
-    expect(res.headers['content-type']).toContain('image/png');
+    expect(res.headers["content-type"]).toContain("image/png");
   });
 });

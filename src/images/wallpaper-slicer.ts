@@ -1,10 +1,11 @@
-import sharp, { type OutputInfo } from 'sharp';
+import sharp, { type OutputInfo } from "sharp";
+import { wallpaperProcessingGate } from "./image-processing-gate";
 import {
   TARGET_WIDTH,
   TARGET_HEIGHT,
   InvalidImageError,
   ImageTooLargeError,
-} from './image-processing';
+} from "./image-processing";
 
 // The horizontal pixel shift applied per nesting-depth level, so a deeply
 // nested channel's banner slice is drawn from further right in the source
@@ -31,9 +32,10 @@ export const MAX_WALLPAPER_ROWS = 300;
 // while still bounded, so a decompression-bomb-shaped file can't force an
 // unbounded decode.
 const MAX_SOURCE_DIMENSION_PX = 20_000;
-const MAX_SOURCE_PIXELS = 60_000_000;
+const MAX_SOURCE_PIXELS = 25_000_000;
+export const MAX_OUTPUT_PIXELS = 8_000_000;
 
-const ACCEPTED_FORMATS = new Set(['png', 'jpeg', 'webp', 'gif']);
+const ACCEPTED_FORMATS = new Set(["png", "jpeg", "webp", "gif"]);
 
 export interface WallpaperRow {
   depth: number;
@@ -57,12 +59,12 @@ export interface WallpaperRow {
  */
 export function buildAlternatingRowPlan(
   maxRows: number,
-  mode: 'flat' | 'nested-spacer',
+  mode: "flat" | "nested-spacer",
 ): WallpaperRow[] {
   const rows: WallpaperRow[] = [];
   for (let i = 0; i < maxRows; i++) {
     const isSpacer = i % 2 === 1;
-    const depth = mode === 'nested-spacer' && isSpacer ? 1 : 0;
+    const depth = mode === "nested-spacer" && isSpacer ? 1 : 0;
     rows.push({ depth, isSpacer });
   }
   return rows;
@@ -114,21 +116,27 @@ export async function sliceWallpaper(
   candidateRows: WallpaperRow[],
   options: WallpaperSliceOptions = {},
 ): Promise<WallpaperSlice[]> {
+  return wallpaperProcessingGate.run(() => renderWallpaper(input, candidateRows, options));
+}
+
+async function renderWallpaper(
+  input: Buffer,
+  candidateRows: WallpaperRow[],
+  options: WallpaperSliceOptions,
+): Promise<WallpaperSlice[]> {
   let metadata;
   try {
     metadata = await sharp(input).metadata();
   } catch {
-    throw new InvalidImageError('The file could not be decoded as an image');
+    throw new InvalidImageError("The file could not be decoded as an image");
   }
 
   const { format, width, height } = metadata;
   if (!format || !ACCEPTED_FORMATS.has(format)) {
-    throw new InvalidImageError(
-      `Unsupported or unrecognized image format: ${format ?? 'unknown'}`,
-    );
+    throw new InvalidImageError(`Unsupported or unrecognized image format: ${format ?? "unknown"}`);
   }
   if (!width || !height) {
-    throw new InvalidImageError('Image is missing width/height metadata');
+    throw new InvalidImageError("Image is missing width/height metadata");
   }
   if (
     width > MAX_SOURCE_DIMENSION_PX ||
@@ -161,6 +169,28 @@ export async function sliceWallpaper(
   const targetWidth = coverFitMode
     ? TARGET_WIDTH + maxDepth * CHANNEL_DEPTH_OFFSET_PX
     : TARGET_WIDTH;
+  const rotated =
+    metadata.orientation !== undefined && metadata.orientation >= 5 && metadata.orientation <= 8;
+  const orientedWidth = rotated ? height : width;
+  const orientedHeight = rotated ? width : height;
+  const outputHeight = Math.round((orientedHeight * targetWidth) / orientedWidth);
+  if (
+    !Number.isSafeInteger(targetWidth) ||
+    !Number.isSafeInteger(outputHeight) ||
+    targetWidth * outputHeight > MAX_OUTPUT_PIXELS ||
+    outputHeight < 1
+  ) {
+    throw new ImageTooLargeError("The scaled wallpaper exceeds the 8-megapixel output budget");
+  }
+  if (
+    candidateRows.length > MAX_WALLPAPER_ROWS ||
+    !Number.isSafeInteger(xOffset) ||
+    !Number.isSafeInteger(yOffset) ||
+    Math.abs(xOffset) > 20_000 ||
+    Math.abs(yOffset) > 20_000
+  ) {
+    throw new ImageTooLargeError("Wallpaper row count or offsets exceed the supported limits");
+  }
 
   let resized: { data: Buffer; info: OutputInfo };
   try {
@@ -168,10 +198,19 @@ export async function sliceWallpaper(
       .rotate()
       .resize({ width: targetWidth })
       .ensureAlpha()
-      .png()
+      .extract({
+        left: 0,
+        top: 0,
+        width: targetWidth,
+        height: Math.min(
+          outputHeight,
+          Math.max(1, candidateRows.length * TARGET_HEIGHT + Math.max(0, yOffset)),
+        ),
+      })
+      .raw()
       .toBuffer({ resolveWithObject: true });
   } catch {
-    throw new InvalidImageError('The image could not be processed');
+    throw new InvalidImageError("The image could not be processed");
   }
 
   const resizedHeight = resized.info.height;
@@ -219,13 +258,20 @@ export async function sliceWallpaper(
     });
 
     if (extractWidth > 0 && extractHeight > 0) {
-      const extracted = await sharp(resized.data)
+      const extracted = await sharp(resized.data, {
+        raw: {
+          width: resized.info.width,
+          height: resized.info.height,
+          channels: 4,
+        },
+      })
         .extract({
           left: clampedX,
           top: clampedY,
           width: extractWidth,
           height: extractHeight,
         })
+        .png()
         .toBuffer();
       canvas = canvas.composite([
         {

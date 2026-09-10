@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, type JWTVerifyGetKey } from 'jose';
+import { createRemoteJWKSet, type JWTVerifyGetKey } from "jose";
 
 /**
  * Builds a JWKS key resolver for verifying tokens issued by the given
@@ -22,8 +22,6 @@ import { createRemoteJWKSet, type JWTVerifyGetKey } from 'jose';
  * already construct.
  */
 export function createJwksKeyGetter(issuerUrl: string): JWTVerifyGetKey {
-  const jwksUrl = new URL(
-    `${issuerUrl.replace(/\/+$/, '')}/protocol/openid-connect/certs`,
-  );
+  const jwksUrl = new URL(`${issuerUrl.replace(/\/+$/, "")}/protocol/openid-connect/certs`);
   return createRemoteJWKSet(jwksUrl);
 }

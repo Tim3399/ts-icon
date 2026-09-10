@@ -1,27 +1,10 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import keycloak from './keycloak';
-import { KEYCLOAK_ENABLED } from '../config';
-import { ToastProvider } from '../components/Toast';
+import React, { useEffect, useState, useCallback } from "react";
+import keycloak from "./keycloak";
+import { KEYCLOAK_ENABLED } from "../config";
+import { ToastProvider } from "../components/Toast";
 
-interface AuthContextType {
-  authenticated: boolean;
-  token: string | undefined;
-  username: string | undefined;
-  roles: string[];
-  logout: () => void;
-  getToken: () => Promise<string | undefined>;
-}
-
-const AuthContext = createContext<AuthContextType>({
-  authenticated: false,
-  token: undefined,
-  username: undefined,
-  roles: [],
-  logout: () => {},
-  getToken: async () => undefined,
-});
-
-export const useAuth = () => useContext(AuthContext);
+import { AuthContext } from "./AuthContext";
+import { ApiError } from "../api/client";
 
 interface AuthProviderProps {
   children: React.ReactNode;
@@ -47,9 +30,9 @@ let keycloakInitPromise: Promise<boolean> | null = null;
 function initializeKeycloakOnce(): Promise<boolean> {
   if (!keycloakInitPromise) {
     keycloakInitPromise = keycloak.init({
-      onLoad: 'login-required',
+      onLoad: "login-required",
       checkLoginIframe: false,
-      pkceMethod: 'S256',
+      pkceMethod: "S256",
     });
   }
   return keycloakInitPromise;
@@ -58,6 +41,20 @@ function initializeKeycloakOnce(): Promise<boolean> {
 const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [authenticated, setAuthenticated] = useState(!KEYCLOAK_ENABLED);
   const [loading, setLoading] = useState(KEYCLOAK_ENABLED);
+  const [snapshot, setSnapshot] = useState(() => ({
+    token: keycloak.token,
+    username: keycloak.tokenParsed?.preferred_username,
+    roles: keycloak.tokenParsed?.realm_access?.roles ?? [],
+  }));
+  const syncSnapshot = useCallback(
+    () =>
+      setSnapshot({
+        token: keycloak.token,
+        username: keycloak.tokenParsed?.preferred_username,
+        roles: [...(keycloak.tokenParsed?.realm_access?.roles ?? [])],
+      }),
+    [],
+  );
 
   useEffect(() => {
     if (!KEYCLOAK_ENABLED) return;
@@ -69,21 +66,26 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       .then((auth) => {
         if (cancelled) return;
         setAuthenticated(auth);
+        syncSnapshot();
         setLoading(false);
 
         // Automatic token refresh
         refreshIntervalId = setInterval(() => {
           keycloak
             .updateToken(60)
+            .then(() => {
+              if (!cancelled) syncSnapshot();
+            })
             .catch(() => {
-              console.warn('Token refresh failed, login required again');
+              if (cancelled) return;
+              console.warn("Token refresh failed, login required again");
               keycloak.login();
             });
         }, 30000);
       })
       .catch((err) => {
         if (cancelled) return;
-        console.error('Keycloak initialization failed:', err);
+        console.error("Keycloak initialization failed:", err);
         setLoading(false);
       });
 
@@ -93,7 +95,7 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         clearInterval(refreshIntervalId);
       }
     };
-  }, []);
+  }, [syncSnapshot]);
 
   const logout = useCallback(() => {
     if (KEYCLOAK_ENABLED) {
@@ -105,17 +107,25 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!KEYCLOAK_ENABLED) return undefined;
     try {
       await keycloak.updateToken(30);
+      syncSnapshot();
       return keycloak.token;
     } catch {
-      keycloak.login();
-      return undefined;
+      void keycloak.login();
+      throw new ApiError("Your session expired. Sign in again.", "unauthorized");
     }
-  }, []);
+  }, [syncSnapshot]);
 
   if (loading) {
     return (
       <ToastProvider>
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            height: "100vh",
+          }}
+        >
           <p>Authenticating...</p>
         </div>
       </ToastProvider>
@@ -125,24 +135,29 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   if (!authenticated) {
     return (
       <ToastProvider>
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            height: "100vh",
+          }}
+        >
           <p>Login failed. Please reload the page.</p>
         </div>
       </ToastProvider>
     );
   }
 
-  const roles: string[] = KEYCLOAK_ENABLED
-    ? keycloak.tokenParsed?.realm_access?.roles ?? []
-    : [];
+  const roles: string[] = KEYCLOAK_ENABLED ? snapshot.roles : [];
 
   return (
     <ToastProvider>
       <AuthContext.Provider
         value={{
           authenticated,
-          token: KEYCLOAK_ENABLED ? keycloak.token : undefined,
-          username: KEYCLOAK_ENABLED ? keycloak.tokenParsed?.preferred_username : 'local',
+          token: KEYCLOAK_ENABLED ? snapshot.token : undefined,
+          username: KEYCLOAK_ENABLED ? snapshot.username : "local",
           roles,
           logout,
           getToken,

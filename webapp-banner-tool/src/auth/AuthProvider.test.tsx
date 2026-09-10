@@ -1,7 +1,7 @@
-import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import AuthProvider from './AuthProvider';
+import React from "react";
+import { describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import AuthProvider from "./AuthProvider";
 
 // Regression test for a real bug: React StrictMode double-invokes effects in
 // development (mount, cleanup, mount again, synchronously before any promise
@@ -17,9 +17,7 @@ const { initMock } = vi.hoisted(() => {
   let didInitialize = false;
   const initMock = vi.fn(() => {
     if (didInitialize) {
-      return Promise.reject(
-        new Error("A 'Keycloak' instance can only be initialized once.")
-      );
+      return Promise.reject(new Error("A 'Keycloak' instance can only be initialized once."));
     }
     didInitialize = true;
     return Promise.resolve(true);
@@ -33,14 +31,14 @@ const { initMock } = vi.hoisted(() => {
 // `config.ts`). Mocking `../config` directly means this test always
 // exercises the real init path regardless of whatever a developer's local
 // `.env` happens to be set to.
-vi.mock('../config', () => ({
+vi.mock("../config", () => ({
   KEYCLOAK_ENABLED: true,
-  KEYCLOAK_CLIENT_ID: 'test-client',
-  KEYCLOAK_URL: 'https://example.test',
-  KEYCLOAK_REALM: 'test-realm',
+  KEYCLOAK_CLIENT_ID: "test-client",
+  KEYCLOAK_URL: "https://example.test",
+  KEYCLOAK_REALM: "test-realm",
 }));
 
-vi.mock('keycloak-js', () => ({
+vi.mock("keycloak-js", () => ({
   // `keycloak.ts` calls `new Keycloak(...)`, so the mock must be usable as a
   // constructor. An arrow function can't be invoked with `new`; a plain
   // `function` that returns an object works because `new` on a function
@@ -51,24 +49,53 @@ vi.mock('keycloak-js', () => ({
       updateToken: vi.fn().mockResolvedValue(true),
       login: vi.fn(),
       logout: vi.fn(),
-      token: 'fake-token',
-      tokenParsed: { preferred_username: 'tester', realm_access: { roles: [] } },
+      token: "fake-token",
+      tokenParsed: { preferred_username: "tester", realm_access: { roles: [] } },
     };
   }),
 }));
 
-describe('AuthProvider under React.StrictMode', () => {
-  it('calls keycloak.init() only once despite StrictMode double-invoking the effect', async () => {
+describe("AuthProvider under React.StrictMode", () => {
+  it("calls keycloak.init() only once despite StrictMode double-invoking the effect", async () => {
     render(
       <React.StrictMode>
         <AuthProvider>
           <div>authenticated content</div>
         </AuthProvider>
-      </React.StrictMode>
+      </React.StrictMode>,
     );
 
-    await waitFor(() => screen.getByText('authenticated content'));
+    await waitFor(() => screen.getByText("authenticated content"));
 
     expect(initMock).toHaveBeenCalledTimes(1);
   });
+});
+
+import { useAuth } from "./AuthContext";
+import keycloak from "./keycloak";
+function RoleConsumer() {
+  const { roles, getToken } = useAuth();
+  return (
+    <>
+      <p>Roles: {roles.join(",")}</p>
+      <button onClick={() => void getToken()}>Refresh token</button>
+    </>
+  );
+}
+it("synchronizes new and removed roles into the context after a token refresh", async () => {
+  render(
+    <AuthProvider>
+      <RoleConsumer />
+    </AuthProvider>,
+  );
+  await screen.findByText("Roles:");
+  keycloak.tokenParsed = {
+    preferred_username: "tester",
+    realm_access: { roles: ["ts-icon-admin"] },
+  };
+  fireEvent.click(screen.getByRole("button", { name: "Refresh token" }));
+  await screen.findByText("Roles: ts-icon-admin");
+  keycloak.tokenParsed = { preferred_username: "tester", realm_access: { roles: [] } };
+  fireEvent.click(screen.getByRole("button", { name: "Refresh token" }));
+  await waitFor(() => expect(screen.getByText("Roles:")).toBeInTheDocument());
 });

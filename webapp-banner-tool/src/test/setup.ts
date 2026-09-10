@@ -8,9 +8,9 @@
 //   tests automatically; without this, DOM nodes from one test can leak
 //   into the next and cause `getByText`/`getByRole` queries to match
 //   duplicates.
-import '@testing-library/jest-dom/vitest';
-import { afterEach } from 'vitest';
-import { cleanup } from '@testing-library/react';
+import "@testing-library/jest-dom/vitest";
+import { afterEach } from "vitest";
+import { cleanup } from "@testing-library/react";
 
 afterEach(() => {
   cleanup();

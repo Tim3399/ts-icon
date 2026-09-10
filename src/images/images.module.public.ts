@@ -1,8 +1,8 @@
-import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { ImagesPublicController } from './images.controller.public';
-import { ImagesService } from './images.service';
+import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { ImagesPublicController } from "./images.controller.public";
+import { ImagesService } from "./images.service";
 
 @Module({
   imports: [
@@ -25,8 +25,8 @@ import { ImagesService } from './images.service';
     // still bounding actual abuse far below what a real scraping pattern
     // would look like.
     ThrottlerModule.forRoot([
-      { name: 'burst', ttl: 2000, limit: 150 },
-      { name: 'per-minute', ttl: 60000, limit: 600 },
+      { name: "burst", ttl: 2000, limit: 150 },
+      { name: "per-minute", ttl: 60000, limit: 600 },
     ]),
   ],
   controllers: [ImagesPublicController],

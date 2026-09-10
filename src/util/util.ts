@@ -1,11 +1,11 @@
 export function normalizeChannelName(name: string): string {
   return name
     .toLowerCase()
-    .replace(/[äÄ]/g, 'a')
-    .replace(/[öÖ]/g, 'o')
-    .replace(/[üÜ]/g, 'u')
-    .replace(/\s+/g, '-') // Whitespace → hyphen
-    .replace(/[^a-z0-9-]/g, ''); // Removes everything except lowercase letters, digits and hyphens
+    .replace(/[äÄ]/g, "a")
+    .replace(/[öÖ]/g, "o")
+    .replace(/[üÜ]/g, "u")
+    .replace(/\s+/g, "-") // Whitespace → hyphen
+    .replace(/[^a-z0-9-]/g, ""); // Removes everything except lowercase letters, digits and hyphens
 }
 
 /**
@@ -31,4 +31,4 @@ export function isSpacerChannelName(name: string): boolean {
  * needing a separate "is this the sentinel" check anywhere a real
  * channelName is handled.
  */
-export const SPACER_BASE_IMAGE_CHANNEL_NAME = '__spacer_base_image__';
+export const SPACER_BASE_IMAGE_CHANNEL_NAME = "__spacer_base_image__";

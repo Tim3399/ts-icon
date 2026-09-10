@@ -1,5 +1,6 @@
 model ChannelImage {
-  channelName       String   @id
+  id                String   @id @default(uuid())
+  channelName       String
   // Stable TeamSpeak channel ID. Nullable because existing rows predate this
   // column and haven't been backfilled yet (see scripts/backfill-channel-ids.ts).
   // Unique so a given TeamSpeak channel can only ever be tied to one row.
@@ -19,6 +20,55 @@ model ChannelImage {
   lastEditorSubject String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  aliases           ChannelImageAlias[]
+
+  @@index([channelName])
+}
+
+model ChannelImageAlias {
+  alias   String
+  imageId String
+  image   ChannelImage @relation(fields: [imageId], references: [id], onDelete: Cascade)
+
+  @@id([alias, imageId])
+}
+
+model ChannelReference {
+  cid      String @id
+  name     String
+  isSpacer Boolean
+}
+
+model WallpaperRun {
+  id           String @id @default(uuid())
+  requestId    String @unique
+  requestHash  String
+  parentCid    String?
+  createdBy    String?
+  status       String @default("pending")
+  error        String?
+  leaseToken   String?
+  leaseUntil   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  rows         WallpaperRunRow[]
+}
+
+model WallpaperRunRow {
+  runId        String
+  position     Int
+  name         String
+  depth        Int
+  isSpacer     Boolean
+  image        Bytes?
+  cid          String?
+  parentCid    String?
+  status       String @default("pending")
+  error        String?
+  run          WallpaperRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@id([runId, position])
+  @@index([cid])
 }
 
 datasource db {

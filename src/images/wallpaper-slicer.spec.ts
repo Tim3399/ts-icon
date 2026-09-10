@@ -1,17 +1,17 @@
-import sharp from 'sharp';
+import sharp from "sharp";
 import {
   sliceWallpaper,
   buildAlternatingRowPlan,
   CHANNEL_DEPTH_OFFSET_PX,
   MAX_WALLPAPER_ROWS,
   type WallpaperRow,
-} from './wallpaper-slicer';
+} from "./wallpaper-slicer";
 import {
   InvalidImageError,
   ImageTooLargeError,
   TARGET_WIDTH,
   TARGET_HEIGHT,
-} from './image-processing';
+} from "./image-processing";
 
 // Builds a source image made of N horizontal, TARGET_HEIGHT-tall bands, each
 // a distinct solid color -- lets pixel assertions confirm exactly which
@@ -48,9 +48,7 @@ async function stripedImage(
 }
 
 async function pixelAt(image: Buffer, x: number, y: number) {
-  const { data, info } = await sharp(image)
-    .raw()
-    .toBuffer({ resolveWithObject: true });
+  const { data, info } = await sharp(image).raw().toBuffer({ resolveWithObject: true });
   const idx = (y * info.width + x) * info.channels;
   return {
     r: data[idx],
@@ -65,27 +63,20 @@ const GREEN = { r: 0, g: 255, b: 0 };
 const BLUE = { r: 0, g: 0, b: 255 };
 const YELLOW = { r: 255, g: 255, b: 0 };
 
-describe('buildAlternatingRowPlan', () => {
-  it('produces exactly maxRows rows', () => {
-    expect(buildAlternatingRowPlan(5, 'flat')).toHaveLength(5);
-    expect(buildAlternatingRowPlan(0, 'flat')).toHaveLength(0);
+describe("buildAlternatingRowPlan", () => {
+  it("produces exactly maxRows rows", () => {
+    expect(buildAlternatingRowPlan(5, "flat")).toHaveLength(5);
+    expect(buildAlternatingRowPlan(0, "flat")).toHaveLength(0);
   });
 
-  it('flat mode: every row (art and spacer) is at depth 0', () => {
-    const rows = buildAlternatingRowPlan(6, 'flat');
+  it("flat mode: every row (art and spacer) is at depth 0", () => {
+    const rows = buildAlternatingRowPlan(6, "flat");
     expect(rows.every((r) => r.depth === 0)).toBe(true);
-    expect(rows.map((r) => r.isSpacer)).toEqual([
-      false,
-      true,
-      false,
-      true,
-      false,
-      true,
-    ]);
+    expect(rows.map((r) => r.isSpacer)).toEqual([false, true, false, true, false, true]);
   });
 
-  it('nested-spacer mode: art rows stay at depth 0, spacers are at depth 1', () => {
-    const rows = buildAlternatingRowPlan(4, 'nested-spacer');
+  it("nested-spacer mode: art rows stay at depth 0, spacers are at depth 1", () => {
+    const rows = buildAlternatingRowPlan(4, "nested-spacer");
     expect(rows).toEqual<WallpaperRow[]>([
       { depth: 0, isSpacer: false },
       { depth: 1, isSpacer: true },
@@ -94,14 +85,34 @@ describe('buildAlternatingRowPlan', () => {
     ]);
   });
 
-  it('MAX_WALLPAPER_ROWS is a positive, finite safety ceiling', () => {
+  it("MAX_WALLPAPER_ROWS is a positive, finite safety ceiling", () => {
     expect(MAX_WALLPAPER_ROWS).toBeGreaterThan(0);
     expect(Number.isFinite(MAX_WALLPAPER_ROWS)).toBe(true);
   });
 });
 
-describe('sliceWallpaper', () => {
-  it('truncates to exactly the rows that fit, never padding a partial trailing row', async () => {
+describe("sliceWallpaper", () => {
+  it("rejects a tiny but extremely narrow image before allocating its enlarged output", async () => {
+    const input = await sharp({
+      create: { width: 1, height: 20_000, channels: 3, background: RED },
+    })
+      .png()
+      .toBuffer();
+    await expect(
+      sliceWallpaper(input, buildAlternatingRowPlan(300, "flat")),
+    ).rejects.toBeInstanceOf(ImageTooLargeError);
+  });
+
+  it("includes EXIF rotation in the output pixel budget", async () => {
+    const input = await sharp({ create: { width: 1500, height: 10, channels: 3, background: RED } })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+    await expect(
+      sliceWallpaper(input, buildAlternatingRowPlan(300, "flat")),
+    ).rejects.toBeInstanceOf(ImageTooLargeError);
+  });
+  it("truncates to exactly the rows that fit, never padding a partial trailing row", async () => {
     // 3 full bands + a 20px partial band that doesn't make a 4th full row.
     const input = await stripedImage(TARGET_WIDTH, [RED, GREEN, BLUE]);
     const shortImage = await sharp(input)
@@ -109,29 +120,26 @@ describe('sliceWallpaper', () => {
       .png()
       .toBuffer();
 
-    const candidateRows = buildAlternatingRowPlan(10, 'flat');
+    const candidateRows = buildAlternatingRowPlan(10, "flat");
     const slices = await sliceWallpaper(shortImage, candidateRows);
 
     expect(slices).toHaveLength(3);
   });
 
-  it('produces zero rows for an image shorter than a single row', async () => {
+  it("produces zero rows for an image shorter than a single row", async () => {
     const input = await stripedImage(TARGET_WIDTH, [RED]);
     const tinyImage = await sharp(input)
       .resize({ width: TARGET_WIDTH, height: 10 })
       .png()
       .toBuffer();
 
-    const slices = await sliceWallpaper(
-      tinyImage,
-      buildAlternatingRowPlan(5, 'flat'),
-    );
+    const slices = await sliceWallpaper(tinyImage, buildAlternatingRowPlan(5, "flat"));
     expect(slices).toHaveLength(0);
   });
 
-  it('each output row samples the correct band of the source (flat mode, no depth offset)', async () => {
+  it("each output row samples the correct band of the source (flat mode, no depth offset)", async () => {
     const input = await stripedImage(TARGET_WIDTH, [RED, GREEN, BLUE, YELLOW]);
-    const rows = buildAlternatingRowPlan(4, 'flat');
+    const rows = buildAlternatingRowPlan(4, "flat");
 
     const slices = await sliceWallpaper(input, rows, { coverFitMode: false });
 
@@ -143,7 +151,7 @@ describe('sliceWallpaper', () => {
     }
   });
 
-  it('applies the CHANNEL_DEPTH_OFFSET_PX horizontal shift for a nested (depth > 0) row', async () => {
+  it("applies the CHANNEL_DEPTH_OFFSET_PX horizontal shift for a nested (depth > 0) row", async () => {
     // Each band's left CHANNEL_DEPTH_OFFSET_PX columns are RED, the rest
     // GREEN, so a depth-1 row (shifted right by the offset) should sample
     // GREEN starting from column 0, while a depth-0 row would still see the
@@ -200,7 +208,7 @@ describe('sliceWallpaper', () => {
     expect(depth1Px).toEqual({ ...GREEN, a: 255 });
   });
 
-  it('fills with the given background color where a nested row runs past the source edge', async () => {
+  it("fills with the given background color where a nested row runs past the source edge", async () => {
     // No coverFitMode pre-resize (targetWidth stays 500 even for a depth-1
     // row), so the depth-offset x-shift pushes the requested window right
     // past the source's actual width -- the uncovered strip on the right
@@ -246,7 +254,7 @@ describe('sliceWallpaper', () => {
     expect(rightEdgePx.a).toBeLessThan(136);
   });
 
-  it('coverFitMode pre-resizes the whole image so a nested row has real content instead of running off the edge', async () => {
+  it("coverFitMode pre-resizes the whole image so a nested row has real content instead of running off the edge", async () => {
     // Same setup as the background-fill test, but with coverFitMode (the
     // default) -- the source is resized wider first specifically so a
     // depth-1 row's window still lands on real image content.
@@ -260,35 +268,29 @@ describe('sliceWallpaper', () => {
     expect(rightEdgePx).toEqual({ ...BLUE, a: 255 });
   });
 
-  it('rejects a corrupt/non-image buffer with InvalidImageError', async () => {
-    const notAnImage = Buffer.from(
-      'definitely not an image, padded out further with text',
-    );
+  it("rejects a corrupt/non-image buffer with InvalidImageError", async () => {
+    const notAnImage = Buffer.from("definitely not an image, padded out further with text");
     await expect(
-      sliceWallpaper(notAnImage, buildAlternatingRowPlan(3, 'flat')),
+      sliceWallpaper(notAnImage, buildAlternatingRowPlan(3, "flat")),
     ).rejects.toBeInstanceOf(InvalidImageError);
   });
 
-  it('rejects an oversized source image with ImageTooLargeError', async () => {
+  it("rejects an oversized source image with ImageTooLargeError", async () => {
     const huge = await sharp({
       create: { width: 25000, height: 40, channels: 3, background: RED },
     })
       .png()
       .toBuffer();
-    await expect(
-      sliceWallpaper(huge, buildAlternatingRowPlan(3, 'flat')),
-    ).rejects.toBeInstanceOf(ImageTooLargeError);
+    await expect(sliceWallpaper(huge, buildAlternatingRowPlan(3, "flat"))).rejects.toBeInstanceOf(
+      ImageTooLargeError,
+    );
   });
 
-  it('produces output rows at the canonical TARGET_WIDTH x TARGET_HEIGHT size', async () => {
+  it("produces output rows at the canonical TARGET_WIDTH x TARGET_HEIGHT size", async () => {
     const input = await stripedImage(TARGET_WIDTH, [RED, GREEN]);
-    const slices = await sliceWallpaper(
-      input,
-      buildAlternatingRowPlan(2, 'flat'),
-      {
-        coverFitMode: false,
-      },
-    );
+    const slices = await sliceWallpaper(input, buildAlternatingRowPlan(2, "flat"), {
+      coverFitMode: false,
+    });
     for (const slice of slices) {
       const meta = await sharp(slice.image).metadata();
       expect(meta.width).toBe(TARGET_WIDTH);

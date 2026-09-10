@@ -1,5 +1,5 @@
 # --- Build Stage ---
-FROM node:22-alpine AS builder
+FROM node:22.23.2-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS builder
 
 WORKDIR /app
 
@@ -35,7 +35,7 @@ RUN npm run build
 # nginx-unprivileged (maintained by the same org as the official nginx
 # image) runs as a non-root user out of the box and listens on 8080 instead
 # of 80, rather than needing a hand-rolled non-root nginx setup.
-FROM nginxinc/nginx-unprivileged:alpine AS runner
+FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:442753882674b49ae2c1de83ed67896131c0777f56df5005e356e62bc3f7e7ce AS runner
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf

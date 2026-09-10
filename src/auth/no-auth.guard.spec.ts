@@ -1,6 +1,6 @@
-import { ForbiddenException, type ExecutionContext } from '@nestjs/common';
-import type { Request } from 'express';
-import { NoAuthGuard } from './no-auth.guard';
+import { ForbiddenException, type ExecutionContext } from "@nestjs/common";
+import type { Request } from "express";
+import { NoAuthGuard } from "./no-auth.guard";
 
 function createContext(ip: string | undefined): {
   context: ExecutionContext;
@@ -13,42 +13,41 @@ function createContext(ip: string | undefined): {
   return { context, request };
 }
 
-describe('NoAuthGuard', () => {
-  it('allows a request from loopback and attaches a synthetic user', () => {
-    const { context, request } = createContext('127.0.0.1');
+describe("NoAuthGuard", () => {
+  it("rejects an external request forwarded by a loopback proxy", () => {
+    const { context, request } = createContext("127.0.0.1");
+    request.headers = { "x-forwarded-for": "8.8.8.8" };
+    expect(() => new NoAuthGuard().canActivate(context)).toThrow(ForbiddenException);
+  });
+  it("allows a request from loopback and attaches a synthetic user", () => {
+    const { context, request } = createContext("127.0.0.1");
 
     expect(new NoAuthGuard().canActivate(context)).toBe(true);
-    expect(request.user).toEqual({ sub: 'auth-disabled', roles: [] });
+    expect(request.user).toEqual({ sub: "auth-disabled", roles: [] });
   });
 
-  it('allows a request from a private-range address', () => {
-    const { context } = createContext('192.168.1.50');
+  it("rejects a request from a private-range address", () => {
+    const { context } = createContext("192.168.1.50");
 
-    expect(new NoAuthGuard().canActivate(context)).toBe(true);
+    expect(() => new NoAuthGuard().canActivate(context)).toThrow(ForbiddenException);
   });
 
-  it('rejects a request from a public address with a 403', () => {
-    const { context } = createContext('8.8.8.8');
+  it("rejects a request from a public address with a 403", () => {
+    const { context } = createContext("8.8.8.8");
 
-    expect(() => new NoAuthGuard().canActivate(context)).toThrow(
-      ForbiddenException,
-    );
+    expect(() => new NoAuthGuard().canActivate(context)).toThrow(ForbiddenException);
   });
 
-  it('rejects a request with no discernible IP at all', () => {
+  it("rejects a request with no discernible IP at all", () => {
     const { context } = createContext(undefined);
 
-    expect(() => new NoAuthGuard().canActivate(context)).toThrow(
-      ForbiddenException,
-    );
+    expect(() => new NoAuthGuard().canActivate(context)).toThrow(ForbiddenException);
   });
 
-  it('does not attach a user when rejecting a non-private-address request', () => {
-    const { context, request } = createContext('8.8.8.8');
+  it("does not attach a user when rejecting a non-private-address request", () => {
+    const { context, request } = createContext("8.8.8.8");
 
-    expect(() => new NoAuthGuard().canActivate(context)).toThrow(
-      ForbiddenException,
-    );
+    expect(() => new NoAuthGuard().canActivate(context)).toThrow(ForbiddenException);
     expect(request.user).toBeUndefined();
   });
 });

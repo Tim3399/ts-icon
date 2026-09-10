@@ -5,29 +5,30 @@ import {
   Logger,
   NestInterceptor,
   SetMetadata,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import type { Request } from 'express';
-import type { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
-import { normalizeChannelName } from '../util/util';
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import type { Request } from "express";
+import type { Observable } from "rxjs";
+import { tap } from "rxjs/operators";
+import { normalizeChannelName } from "../util/util";
 
-export const AUDIT_ACTION_KEY = 'auditAction';
+export const AUDIT_ACTION_KEY = "auditAction";
 
 /**
  * Marks a route as a mutating admin action that should produce an audit log
  * entry once it completes successfully. Read by AuditLoggingInterceptor,
  * which is attached only to the specific routes that need it.
  */
-export const AuditAction = (action: string) =>
-  SetMetadata(AUDIT_ACTION_KEY, action);
+export const AuditAction = (action: string) => SetMetadata(AUDIT_ACTION_KEY, action);
 
 interface AuditableRequestBody {
   channelName?: unknown;
+  runId?: unknown;
+  channelId?: unknown;
 }
 
-const UNKNOWN_CHANNEL = 'unknown';
-const UNKNOWN_SUBJECT = 'unknown';
+const UNKNOWN_CHANNEL = "unknown";
+const UNKNOWN_SUBJECT = "unknown";
 
 /**
  * Writes a structured audit log entry after a mutating admin action
@@ -46,15 +47,12 @@ const UNKNOWN_SUBJECT = 'unknown';
  */
 @Injectable()
 export class AuditLoggingInterceptor implements NestInterceptor {
-  private readonly logger = new Logger('AuditLog');
+  private readonly logger = new Logger("AuditLog");
 
   constructor(private readonly reflector: Reflector) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const action = this.reflector.get<string | undefined>(
-      AUDIT_ACTION_KEY,
-      context.getHandler(),
-    );
+    const action = this.reflector.get<string | undefined>(AUDIT_ACTION_KEY, context.getHandler());
     if (!action) {
       return next.handle();
     }
@@ -64,12 +62,29 @@ export class AuditLoggingInterceptor implements NestInterceptor {
     const subject = request.user?.sub || UNKNOWN_SUBJECT;
 
     return next.handle().pipe(
-      tap(() => {
+      tap((result: unknown) => {
+        const body = request.body as AuditableRequestBody | undefined;
+        const outcome =
+          result && typeof result === "object"
+            ? (result as {
+                runId?: unknown;
+                status?: unknown;
+                deleted?: unknown[];
+                failed?: unknown[];
+              })
+            : undefined;
+        const runId = outcome?.runId ?? request.params?.runId ?? body?.runId;
+        const cid = request.params?.cid ?? body?.channelId;
         this.logger.log({
           action,
           subject,
           channelName,
           timestamp: new Date().toISOString(),
+          ...(typeof runId === "string" ? { runId } : {}),
+          ...(typeof cid === "string" ? { cid } : {}),
+          ...(typeof outcome?.status === "string" ? { status: outcome.status } : {}),
+          ...(Array.isArray(outcome?.deleted) ? { deletedCount: outcome.deleted.length } : {}),
+          ...(Array.isArray(outcome?.failed) ? { failedCount: outcome.failed.length } : {}),
         });
       }),
     );
@@ -84,12 +99,12 @@ export class AuditLoggingInterceptor implements NestInterceptor {
    */
   private extractChannelName(request: Request): string {
     const paramName = request.params?.channelName;
-    if (typeof paramName === 'string' && paramName.length > 0) {
+    if (typeof paramName === "string" && paramName.length > 0) {
       return normalizeChannelName(paramName);
     }
 
     const body = request.body as AuditableRequestBody | undefined;
-    if (typeof body?.channelName === 'string' && body.channelName.length > 0) {
+    if (typeof body?.channelName === "string" && body.channelName.length > 0) {
       return normalizeChannelName(body.channelName);
     }
 

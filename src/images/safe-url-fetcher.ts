@@ -1,34 +1,25 @@
-import axios from 'axios';
-import { URL } from 'url';
+import axios from "axios";
 import {
   SsrfValidationError,
   assertSafeUrlShape,
   resolveSafeAddresses,
   createPinnedHttpsAgent,
-} from './ssrf-guard';
+} from "./ssrf-guard";
 
 export { SsrfValidationError };
 
-/**
- * A URL passed every SSRF check but the fetch itself still failed for an
- * ordinary reason (network error, timeout, non-2xx response, response body
- * too large, response wasn't actually an image, too many redirects). Kept
- * distinct from SsrfValidationError so callers can tell "this URL is not
- * allowed" apart from "this URL is allowed but couldn't be fetched right
- * now" without leaking fetch internals to the client.
- */
 export class FetchFailedError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'FetchFailedError';
+    this.name = "FetchFailedError";
   }
 }
 
 export interface SafeImageFetchOptions {
   timeoutMs?: number;
   maxBytes?: number;
+  signal?: AbortSignal;
 }
-
 export interface SafeImageFetchResult {
   buffer: Buffer;
   contentType: string;
@@ -36,87 +27,115 @@ export interface SafeImageFetchResult {
 
 const DEFAULT_TIMEOUT_MS = 5000;
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
-
-// Many real-world image hosts/CDNs 301/302 at least once (e.g. bare domain
-// -> CDN edge, HTTP -> HTTPS canonicalization on their side). Redirects are
-// therefore followed, but manually and capped, so every hop goes through
-// the exact same URL-shape + DNS + IP-range validation as the original
-// request -- never Axios/Node's built-in redirect following, which would
-// connect straight through without any of these checks.
 const MAX_REDIRECTS = 3;
+const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
-function getHeader(headers: unknown, name: string): string | undefined {
-  if (!headers || typeof headers !== 'object') return undefined;
-  const value = (headers as Record<string, unknown>)[name];
-  return typeof value === 'string' ? value : undefined;
+/** Stops waiting for non-abortable DNS too; late resolution/rejection is consumed. */
+export function waitForResolution<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new FetchFailedError("Image download timed out or was cancelled"));
+    if (signal.aborted) {
+      void pending.catch(() => undefined);
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    pending
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener("abort", onAbort))
+      .catch(() => undefined);
+  });
 }
 
-/**
- * Fetches an image from an external, caller-supplied URL with SSRF
- * protections applied on every hop:
- *  - https:// only, no embedded credentials, default port only
- *  - hostname resolved and IP-filtered before connecting (loopback,
- *    private, link-local, multicast, reserved, and cloud metadata ranges
- *    rejected)
- *  - the connection is pinned to the already-validated address rather than
- *    letting the HTTP stack re-resolve DNS itself
- *  - redirects are not auto-followed; each hop is re-validated from
- *    scratch, up to a hard cap
- *  - a bounded total request timeout
- *  - a hard cutoff on response size enforced against actual bytes
- *    received, not a trusted Content-Length header
- */
+function getHeader(headers: unknown, name: string): string | undefined {
+  if (!headers || typeof headers !== "object") return undefined;
+  const value = (headers as Record<string, unknown>)[name];
+  return typeof value === "string" ? value : undefined;
+}
+
+/** One deadline covers DNS, all redirect hops and the complete response body. */
 export async function fetchImageSafely(
   rawUrl: string,
   options: SafeImageFetchOptions = {},
 ): Promise<SafeImageFetchResult> {
-  const timeout = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const maxContentLength = options.maxBytes ?? DEFAULT_MAX_BYTES;
-
-  let currentUrl = rawUrl;
-
-  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const parsed = assertSafeUrlShape(currentUrl);
-    const safeAddresses = await resolveSafeAddresses(parsed.hostname);
-    const agent = createPinnedHttpsAgent(safeAddresses);
-
-    let response;
-    try {
-      response = await axios.get<ArrayBuffer>(parsed.toString(), {
-        responseType: 'arraybuffer',
-        timeout,
-        maxContentLength,
-        maxRedirects: 0,
-        httpsAgent: agent,
-        validateStatus: (status) =>
-          (status >= 200 && status < 300) || (status >= 300 && status < 400),
-      });
-    } catch {
-      throw new FetchFailedError('Image could not be loaded');
-    }
-
-    if (response.status >= 300 && response.status < 400) {
-      if (hop === MAX_REDIRECTS) {
-        throw new FetchFailedError('Too many redirects');
-      }
-      const location = getHeader(response.headers, 'location');
-      if (!location) {
-        throw new FetchFailedError(
-          'Redirect response is missing a Location header',
-        );
-      }
-      // Location headers may be relative; resolve against the current hop's URL.
-      currentUrl = new URL(location, parsed).toString();
-      continue;
-    }
-
-    const contentType = getHeader(response.headers, 'content-type');
-    if (!contentType?.startsWith('image/')) {
-      throw new FetchFailedError('The given URL does not return an image');
-    }
-
-    return { buffer: Buffer.from(response.data), contentType };
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
+  if (
+    !Number.isFinite(timeoutMs) ||
+    timeoutMs <= 0 ||
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes <= 0
+  ) {
+    throw new FetchFailedError("Invalid download limits");
   }
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  const timer = setTimeout(cancel, timeoutMs);
+  options.signal?.addEventListener("abort", cancel, { once: true });
+  if (options.signal?.aborted) cancel();
+  const deadline = Date.now() + timeoutMs;
 
-  throw new FetchFailedError('Too many redirects');
+  try {
+    let currentUrl = rawUrl;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      if (controller.signal.aborted)
+        throw new FetchFailedError("Image download timed out or was cancelled");
+      const parsed = assertSafeUrlShape(currentUrl);
+      const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
+      const safeAddresses = await waitForResolution(
+        resolveSafeAddresses(hostname),
+        controller.signal,
+      );
+      const agent = createPinnedHttpsAgent(safeAddresses);
+      try {
+        const response = await axios.get<ArrayBuffer>(parsed.toString(), {
+          responseType: "arraybuffer",
+          proxy: false,
+          signal: controller.signal,
+          timeout: Math.max(1, deadline - Date.now()),
+          maxContentLength: maxBytes,
+          maxBodyLength: maxBytes,
+          maxRedirects: 0,
+          httpsAgent: agent,
+          validateStatus: (status) => status >= 200 && status < 400,
+        });
+        if (response.status >= 300) {
+          if (hop === MAX_REDIRECTS) throw new FetchFailedError("Too many redirects");
+          const location = getHeader(response.headers, "location");
+          if (!location)
+            throw new FetchFailedError("Redirect response is missing a Location header");
+          try {
+            currentUrl = new URL(location, parsed).toString();
+          } catch {
+            throw new FetchFailedError("Invalid image redirect");
+          }
+          continue;
+        }
+        const contentType = getHeader(response.headers, "content-type")
+          ?.split(";")[0]
+          .trim()
+          .toLowerCase();
+        if (!contentType || !IMAGE_TYPES.has(contentType)) {
+          throw new FetchFailedError("The given URL must return a PNG, JPEG, WebP or GIF image");
+        }
+        if (controller.signal.aborted)
+          throw new FetchFailedError("Image download timed out or was cancelled");
+        return { buffer: Buffer.from(response.data), contentType };
+      } finally {
+        agent.destroy();
+      }
+    }
+    throw new FetchFailedError("Too many redirects");
+  } catch (error) {
+    if (error instanceof SsrfValidationError || error instanceof FetchFailedError) throw error;
+    // Axios errors retain URLs, proxy configuration and headers. Never expose them to logs/callers.
+    throw new FetchFailedError(
+      controller.signal.aborted
+        ? "Image download timed out or was cancelled"
+        : "Image could not be loaded",
+    );
+  } finally {
+    clearTimeout(timer);
+    options.signal?.removeEventListener("abort", cancel);
+  }
 }
