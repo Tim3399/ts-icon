@@ -68,6 +68,8 @@ Outside production, `/swagger` provides OAuth2/PKCE and Bearer authorization for
 
 Select channels by their CID; the UI shows names and parent context. The gallery supports upload, deletion, search and image-state filters. Crop controls work with keyboard and touch, and preserve the selected content when the preview size changes. Saved-image previews refresh immediately.
 
+Banner URL status recognizes both stable channel-ID URLs and existing name-based PNG URLs that match the channel. Bulk assignment preserves these managed URLs; explicitly setting one channel always assigns its stable channel-ID URL.
+
 Wallpaper preview/generation is admin-only. Each generation has a persistent run ID and idempotency key. The UI can reload operation history, resume partial work and retry partial undo. Undo is limited to that operation's channels and refuses unsafe deletion of changed/occupied channels.
 
 | API                                                             | Access                                                   |

@@ -66,7 +66,7 @@ Default SQLite data is `prisma/dev.db`; `DATABASE_URL` accepts an absolute file 
 
 ## Version and release
 
-Root `package.json` is the existing product-version authority (currently 0.9.0); frontend manifest and both lockfile root entries must agree. Retain this single-language, two-package convention rather than introducing another source. Before 1.0, explicitly document breaking API/configuration changes in release notes. Stable three-part versions are the adopted target; prerelease policy remains undeclared even though the CI helper accepts suffixes.
+Root `package.json` is the existing product-version authority (currently 0.9.1); frontend manifest and both lockfile root entries must agree. Retain this single-language, two-package convention rather than introducing another source. Before 1.0, explicitly document breaking API/configuration changes in release notes. Stable three-part versions are the adopted target; prerelease policy remains undeclared even though the CI helper accepts suffixes.
 
 Build output is ignored. The frontend currently has no embedded product version/source revision/mode diagnostic; it cannot prove served bundle freshness. A local transactional updater with downgrade validation and rollback is pending. `scripts/release-version.cjs` is restricted to the main-branch GitHub Actions job and can tag/push; it must never be used for local version preparation.
 

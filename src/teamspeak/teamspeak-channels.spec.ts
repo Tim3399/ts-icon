@@ -73,17 +73,17 @@ describe("fetchLiveChannels", () => {
       mockedConnect.mockResolvedValueOnce({
         on: jest.fn(),
         quit: jest.fn(),
-        channelList: () => pending,
+        execute: () => pending,
       } as never);
       const first = firstService.fetchLiveChannels();
       await Promise.resolve();
       mockedConnect.mockResolvedValueOnce({
         on: jest.fn(),
         quit: jest.fn(),
-        channelList: () => Promise.resolve([{ cid: "2", name: "Second" }]),
+        execute: () => Promise.resolve([{ cid: "2", channelName: "Second" }]),
       } as never);
       expect((await secondService.fetchLiveChannels())[0].cid).toBe("2");
-      release([{ cid: "1", name: "First" }]);
+      release([{ cid: "1", channelName: "First" }]);
       expect((await first)[0].cid).toBe("1");
       firstService.invalidateCache();
       expect((await secondService.fetchLiveChannels())[0].cid).toBe("2");
@@ -101,7 +101,7 @@ describe("fetchLiveChannels", () => {
     mockedConnect.mockResolvedValueOnce({
       on: jest.fn(),
       quit: jest.fn(),
-      channelList: () => old,
+      execute: () => old,
     } as never);
     const first = service.fetchLiveChannels();
     await Promise.resolve();
@@ -109,10 +109,10 @@ describe("fetchLiveChannels", () => {
     mockedConnect.mockResolvedValueOnce({
       on: jest.fn(),
       quit: jest.fn(),
-      channelList: () => Promise.resolve([{ cid: "1", name: "New" }]),
+      execute: () => Promise.resolve([{ cid: "1", channelName: "New" }]),
     } as never);
     expect((await service.fetchLiveChannels())[0].name).toBe("New");
-    release([{ cid: "1", name: "Old" }]);
+    release([{ cid: "1", channelName: "Old" }]);
     await first;
     expect((await service.fetchLiveChannels())[0].name).toBe("New");
     expect(mockedConnect).toHaveBeenCalledTimes(2);
@@ -121,13 +121,13 @@ describe("fetchLiveChannels", () => {
     const quit = jest.fn().mockResolvedValue(undefined);
     const fakeTeamSpeak = {
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([
+      execute: jest.fn().mockResolvedValue([
         {
           cid: "1",
-          name: "General",
-          bannerGfxUrl: "https://example.test/images/general",
+          channelName: "General",
+          channelBannerGfxUrl: "https://example.test/images/general",
         },
-        { cid: "2", name: "Music" },
+        { cid: "2", channelName: "Music" },
       ]),
       quit,
     };
@@ -145,6 +145,7 @@ describe("fetchLiveChannels", () => {
       { cid: "2", name: "Music", bannerGfxUrl: null, pid: null },
     ]);
     expect(quit).toHaveBeenCalledTimes(1);
+    expect(fakeTeamSpeak.execute).toHaveBeenCalledWith("channellist", ["-banners"]);
   });
 
   it("propagates a connection failure rather than swallowing it", async () => {
@@ -156,7 +157,7 @@ describe("fetchLiveChannels", () => {
   it("returns an empty array when no channels exist", async () => {
     const fakeTeamSpeak = {
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([]),
+      execute: jest.fn().mockResolvedValue([]),
       quit: jest.fn().mockResolvedValue(undefined),
     };
     mockedConnect.mockResolvedValue(fakeTeamSpeak as never);
@@ -182,7 +183,7 @@ describe("fetchLiveChannels", () => {
 
     const fakeTeamSpeak = {
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([{ cid: "1", name: "General" }]),
+      execute: jest.fn().mockResolvedValue([{ cid: "1", channelName: "General" }]),
       quit: jest.fn().mockResolvedValue(undefined),
     };
     resolveConnect(fakeTeamSpeak);
@@ -197,7 +198,7 @@ describe("fetchLiveChannels", () => {
   it("returns the cached result for a second call within the TTL, without reconnecting", async () => {
     const fakeTeamSpeak = {
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([{ cid: "1", name: "General" }]),
+      execute: jest.fn().mockResolvedValue([{ cid: "1", channelName: "General" }]),
       quit: jest.fn().mockResolvedValue(undefined),
     };
     mockedConnect.mockResolvedValue(fakeTeamSpeak as never);
@@ -212,7 +213,7 @@ describe("fetchLiveChannels", () => {
   it("starts a fresh connection once the cache TTL has expired", async () => {
     const fakeTeamSpeak = {
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([]),
+      execute: jest.fn().mockResolvedValue([]),
       quit: jest.fn().mockResolvedValue(undefined),
     };
     mockedConnect.mockResolvedValue(fakeTeamSpeak as never);
@@ -236,7 +237,7 @@ describe("fetchLiveChannels", () => {
 
     const fakeTeamSpeak = {
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([]),
+      execute: jest.fn().mockResolvedValue([]),
       quit: jest.fn().mockResolvedValue(undefined),
     };
     mockedConnect.mockResolvedValueOnce(fakeTeamSpeak as never);
@@ -263,6 +264,30 @@ describe("expectedBannerUrl", () => {
 });
 
 describe("isManagedByUs", () => {
+  it("recognizes a working legacy PNG URL for the channel's normalized name", () => {
+    expect(
+      isManagedByUs(
+        {
+          cid: "42",
+          name: "Röhre 1",
+          bannerGfxUrl: `${PUBLIC_BASE_URL}/images/rohre-1.png`,
+          pid: null,
+        },
+        PUBLIC_BASE_URL,
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    `${PUBLIC_BASE_URL}/images/by-id/2.png`,
+    `${PUBLIC_BASE_URL}/images/other.png`,
+    "https://other.example/images/general.png",
+  ])("rejects a URL for another channel or host: %s", (bannerGfxUrl) => {
+    expect(
+      isManagedByUs({ cid: "1", name: "General", bannerGfxUrl, pid: null }, PUBLIC_BASE_URL),
+    ).toBe(false);
+  });
+
   it("returns true when the channel banner already matches the expected URL", () => {
     const channel: LiveChannel = {
       cid: "1",
@@ -405,9 +430,9 @@ describe("setChannelBannerUrl", () => {
     // successful update.
     mockedConnect.mockResolvedValueOnce({
       on: jest.fn(),
-      channelList: jest
+      execute: jest
         .fn()
-        .mockResolvedValue([{ cid: "42", name: "general", bannerGfxUrl: null }]),
+        .mockResolvedValue([{ cid: "42", channelName: "general", channelBannerGfxUrl: null }]),
       quit: jest.fn().mockResolvedValue(undefined),
     } as never);
     const cachedBefore = await service.fetchLiveChannels();
@@ -422,11 +447,11 @@ describe("setChannelBannerUrl", () => {
 
     mockedConnect.mockResolvedValueOnce({
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([
+      execute: jest.fn().mockResolvedValue([
         {
           cid: "42",
-          name: "general",
-          bannerGfxUrl: `${PUBLIC_BASE_URL}/images/general`,
+          channelName: "general",
+          channelBannerGfxUrl: `${PUBLIC_BASE_URL}/images/general`,
         },
       ]),
       quit: jest.fn().mockResolvedValue(undefined),
@@ -447,10 +472,10 @@ describe("applyBannerUrlsForAllChannels", () => {
     mockedConnect.mockResolvedValueOnce({
       on: jest.fn(),
       quit: jest.fn(),
-      channelList: () =>
+      execute: () =>
         Promise.resolve([
-          { cid: "1", name: "A" },
-          { cid: "2", name: "B" },
+          { cid: "1", channelName: "A" },
+          { cid: "2", channelName: "B" },
         ]),
       channelEdit,
     } as never);
@@ -462,17 +487,22 @@ describe("applyBannerUrlsForAllChannels", () => {
     const channelEdit = jest.fn().mockResolvedValue([]);
     const fakeTeamSpeak = {
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([
+      execute: jest.fn().mockResolvedValue([
         {
           cid: "1",
-          name: "General",
-          bannerGfxUrl: `${PUBLIC_BASE_URL}/images/by-id/1.png`,
+          channelName: "General",
+          channelBannerGfxUrl: `${PUBLIC_BASE_URL}/images/by-id/1.png`,
         },
-        { cid: "2", name: "Music", bannerGfxUrl: null },
+        { cid: "2", channelName: "Music", channelBannerGfxUrl: null },
         {
           cid: "3",
-          name: "Röhre",
-          bannerGfxUrl: "https://elsewhere.test/x.png",
+          channelName: "Röhre",
+          channelBannerGfxUrl: "https://elsewhere.test/x.png",
+        },
+        {
+          cid: "4",
+          channelName: "[spacer20]",
+          channelBannerGfxUrl: `${PUBLIC_BASE_URL}/images/spacer20.png`,
         },
       ]),
       channelEdit,
@@ -482,7 +512,7 @@ describe("applyBannerUrlsForAllChannels", () => {
 
     const result = await service.applyBannerUrlsForAllChannels(PUBLIC_BASE_URL);
 
-    expect(result.alreadyManaged).toEqual(["General"]);
+    expect(result.alreadyManaged).toEqual(["General", "[spacer20]"]);
     expect(result.updated).toEqual(["Music", "Röhre"]);
     expect(channelEdit).toHaveBeenCalledTimes(2);
     expect(channelEdit).toHaveBeenCalledWith("2", {
@@ -496,9 +526,9 @@ describe("applyBannerUrlsForAllChannels", () => {
   it("uses a single connection for the whole batch", async () => {
     const fakeTeamSpeak = {
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([
-        { cid: "1", name: "A", bannerGfxUrl: null },
-        { cid: "2", name: "B", bannerGfxUrl: null },
+      execute: jest.fn().mockResolvedValue([
+        { cid: "1", channelName: "A", channelBannerGfxUrl: null },
+        { cid: "2", channelName: "B", channelBannerGfxUrl: null },
       ]),
       channelEdit: jest.fn().mockResolvedValue([]),
       quit: jest.fn().mockResolvedValue(undefined),
@@ -513,7 +543,7 @@ describe("applyBannerUrlsForAllChannels", () => {
   it("returns empty arrays when there are no live channels", async () => {
     const fakeTeamSpeak = {
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([]),
+      execute: jest.fn().mockResolvedValue([]),
       channelEdit: jest.fn(),
       quit: jest.fn().mockResolvedValue(undefined),
     };
@@ -527,7 +557,9 @@ describe("applyBannerUrlsForAllChannels", () => {
   it("invalidates the live-channels cache, so a refresh right after reflects the newly-applied banner URLs", async () => {
     mockedConnect.mockResolvedValueOnce({
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([{ cid: "1", name: "general", bannerGfxUrl: null }]),
+      execute: jest
+        .fn()
+        .mockResolvedValue([{ cid: "1", channelName: "general", channelBannerGfxUrl: null }]),
       quit: jest.fn().mockResolvedValue(undefined),
     } as never);
     const cachedBefore = await service.fetchLiveChannels();
@@ -535,7 +567,9 @@ describe("applyBannerUrlsForAllChannels", () => {
 
     mockedConnect.mockResolvedValueOnce({
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([{ cid: "1", name: "general", bannerGfxUrl: null }]),
+      execute: jest
+        .fn()
+        .mockResolvedValue([{ cid: "1", channelName: "general", channelBannerGfxUrl: null }]),
       channelEdit: jest.fn().mockResolvedValue([]),
       quit: jest.fn().mockResolvedValue(undefined),
     } as never);
@@ -543,11 +577,11 @@ describe("applyBannerUrlsForAllChannels", () => {
 
     mockedConnect.mockResolvedValueOnce({
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([
+      execute: jest.fn().mockResolvedValue([
         {
           cid: "1",
-          name: "general",
-          bannerGfxUrl: `${PUBLIC_BASE_URL}/images/general`,
+          channelName: "general",
+          channelBannerGfxUrl: `${PUBLIC_BASE_URL}/images/general`,
         },
       ]),
       quit: jest.fn().mockResolvedValue(undefined),

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { TeamSpeak, QueryProtocol } from "ts3-nodejs-library";
+import type { ChannelList } from "ts3-nodejs-library/lib/types/ResponseTypes";
 import {
   TS_HOST,
   TS_QUERY_PORT,
@@ -47,21 +48,22 @@ export async function withTeamSpeakConnection<T>(fn: (ts3: TeamSpeak) => Promise
 
 function toLiveChannel(c: {
   cid: string;
-  name: string;
-  bannerGfxUrl?: string;
+  channelName: string;
+  channelBannerGfxUrl?: string;
   pid?: string;
 }): LiveChannel {
   return {
     cid: c.cid,
-    name: c.name,
-    bannerGfxUrl: c.bannerGfxUrl || null,
+    name: c.channelName,
+    bannerGfxUrl: c.channelBannerGfxUrl || null,
     pid: c.pid && c.pid !== "0" ? c.pid : null,
   };
 }
 
-/** Lists on a caller-owned connection; channelList already requests banner properties. */
+/** The library's channelList uses -banner; the server requires -banners. */
 export async function listChannelsOnConnection(ts3: TeamSpeak): Promise<LiveChannel[]> {
-  return (await ts3.channelList()).map(toLiveChannel);
+  const channels = await ts3.execute<ChannelList>("channellist", ["-banners"]);
+  return channels.map(toLiveChannel);
 }
 
 export interface ApplyBannerUrlsResult {
@@ -182,5 +184,9 @@ export function expectedBannerUrlForId(cid: string, publicBaseUrl: string): stri
   return `${publicBaseUrl}/images/by-id/${encodeURIComponent(cid)}.png`;
 }
 export function isManagedByUs(channel: LiveChannel, publicBaseUrl: string): boolean {
-  return channel.bannerGfxUrl === expectedBannerUrlForId(channel.cid, publicBaseUrl);
+  return (
+    channel.bannerGfxUrl === expectedBannerUrlForId(channel.cid, publicBaseUrl) ||
+    (normalizeChannelName(channel.name) !== "" &&
+      channel.bannerGfxUrl === expectedBannerUrl(channel.name, publicBaseUrl))
+  );
 }

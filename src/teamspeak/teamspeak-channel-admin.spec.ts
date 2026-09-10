@@ -134,7 +134,9 @@ describe("deleteManagedChannels", () => {
   it("invalidates the live-channels cache once finished", async () => {
     mockedConnect.mockResolvedValueOnce({
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([{ cid: "1", name: "General", bannerGfxUrl: null }]),
+      execute: jest
+        .fn()
+        .mockResolvedValue([{ cid: "1", channelName: "General", channelBannerGfxUrl: null }]),
       quit: jest.fn().mockResolvedValue(undefined),
     } as never);
     const cachedBefore = await channels.fetchLiveChannels();
@@ -149,7 +151,7 @@ describe("deleteManagedChannels", () => {
 
     mockedConnect.mockResolvedValueOnce({
       on: jest.fn(),
-      channelList: jest.fn().mockResolvedValue([]),
+      execute: jest.fn().mockResolvedValue([]),
       quit: jest.fn().mockResolvedValue(undefined),
     } as never);
     const refreshed = await channels.fetchLiveChannels();
