@@ -2,7 +2,10 @@
 FROM node:22.23.2-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+# Native SQLite modules can fall back to compilation when prebuilt downloads fail.
+RUN apk add --no-cache --virtual .native-build-deps python3 make g++ \
+    && npm ci \
+    && apk del .native-build-deps
 COPY . .
 RUN npm run db:generate && npm run build
 
@@ -17,8 +20,10 @@ RUN apk add --no-cache tini
 COPY package*.json ./
 # Root dev declarations otherwise keep optional Prisma peers installed despite
 # --omit. The unchanged lockfile still supplies all exact production versions.
-RUN node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json')); delete p.devDependencies; fs.writeFileSync('package.json',JSON.stringify(p))" \
+RUN apk add --no-cache --virtual .native-build-deps python3 make g++ \
+    && node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json')); delete p.devDependencies; fs.writeFileSync('package.json',JSON.stringify(p))" \
     && PRISMA_SKIP_POSTINSTALL_GENERATE=true npm ci --omit=dev --omit=peer \
+    && apk del .native-build-deps \
     && npm cache clean --force \
     && node -e "if(require('fs').existsSync('node_modules/prisma')) throw Error('Prisma CLI leaked into runtime')" \
     && chown -R node:node /app
