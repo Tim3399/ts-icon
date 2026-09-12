@@ -81,6 +81,8 @@
   padding: 3px;
   overflow-x: auto;
   scrollbar-width: none;
+  /* Keeps a tabbed-to link clear of the faded edge below. */
+  scroll-padding: var(--space-5);
   background: var(--surface-inset);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
@@ -344,6 +346,11 @@
   .app-nav {
     order: 3;
     flex-basis: 100%;
+    /* At this width the bar always overflows, so a soft trailing edge is the
+       affordance that says the row scrolls. Purely visual -- every link stays
+       in the DOM and in the tab order, unlike a collapsed menu. */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
   }
 
   .brand-tagline {

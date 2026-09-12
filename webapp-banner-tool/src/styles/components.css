@@ -1407,3 +1407,179 @@ textarea.input {
   font-size: var(--text-sm);
   margin: 0 0 var(--space-5);
 }
+
+/* ---------------------------------------------------------------------------
+   Field-level validation
+--------------------------------------------------------------------------- */
+
+/* Attached to its control rather than shown as a full-width alert: a red box
+   per field drowned out the form it was meant to correct. */
+
+.field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--danger-text);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.field-error > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   Loading placeholders
+--------------------------------------------------------------------------- */
+
+/* Deliberately not `.channel-card`: placeholders must never be counted as
+   real channels by anything selecting on that class. */
+
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+/* ---------------------------------------------------------------------------
+   Exact-output crop preview
+--------------------------------------------------------------------------- */
+
+/* Cropper.js mirrors the live selection in here by writing inline width and
+   height onto this element and a transform onto the image it injects. Both
+   need the plain block/overflow-hidden box it expects -- the centering the
+   shared `.banner-frame` applies would fight that transform -- so this
+   overrides it while keeping the checkerboard and the 500x44 ratio that
+   apply before any image is loaded. */
+
+.crop-output {
+  display: block;
+  overflow: hidden;
+  max-width: 500px;
+}
+
+.crop-output img {
+  max-width: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Spacer base image
+--------------------------------------------------------------------------- */
+
+.spacer-base {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.spacer-base-upload .field + .field,
+.spacer-base-upload > .field {
+  margin-top: 0;
+}
+
+@media (min-width: 720px) {
+  .spacer-base {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Advanced options disclosure
+--------------------------------------------------------------------------- */
+
+.advanced {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.advanced-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+/* ---------------------------------------------------------------------------
+   Banner URL list
+--------------------------------------------------------------------------- */
+
+.url-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.url-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+.url-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.url-row-main {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.url-row-name {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.url-row-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+}
+
+.url-text {
+  margin-top: var(--space-2);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------------------
+   Small helpers
+--------------------------------------------------------------------------- */
+
+.channel-tree-notice {
+  padding: var(--space-3);
+}
+
+.page-sections-after {
+  margin-top: var(--space-4);
+}
+
+/* Collapses a button's text label on narrow headers. Safe because every
+   control using it also carries an aria-label, so the accessible name does
+   not disappear along with the visible text. */
+
+@media (max-width: 767px) {
+  .hide-sm {
+    display: none;
+  }
+}

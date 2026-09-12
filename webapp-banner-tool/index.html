@@ -4,7 +4,23 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Manage TeamSpeak channel banner images." />
+    <meta name="color-scheme" content="light dark" />
     <title>TS-Icon</title>
+    <script>
+      // Applies a stored appearance choice before the first paint, so a user
+      // on the dark theme never sees a flash of the light one while the
+      // bundle loads. The key matches THEME_STORAGE_KEY in src/theme/theme.ts;
+      // "system" stores nothing on <html> on purpose, leaving the
+      // prefers-color-scheme media query in charge.
+      try {
+        var theme = localStorage.getItem("ts-icon-theme");
+        if (theme === "light" || theme === "dark")
+          document.documentElement.setAttribute("data-theme", theme);
+      } catch (error) {
+        /* Storage can be blocked; the media query still applies. */
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -118,15 +118,13 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   if (loading) {
     return (
       <ToastProvider>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            height: "100vh",
-          }}
-        >
-          <p>Authenticating...</p>
+        <div className="splash">
+          <p className="splash-brand">
+            <img src="/icon.svg" alt="" width={28} height={28} />
+            TS-Icon
+          </p>
+          <span className="spinner spinner-lg" aria-hidden="true" />
+          <p role="status">Authenticating…</p>
         </div>
       </ToastProvider>
     );
@@ -135,15 +133,15 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   if (!authenticated) {
     return (
       <ToastProvider>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            height: "100vh",
-          }}
-        >
-          <p>Login failed. Please reload the page.</p>
+        <div className="splash">
+          <p className="splash-brand">
+            <img src="/icon.svg" alt="" width={28} height={28} />
+            TS-Icon
+          </p>
+          <p role="alert">Login failed. Please reload the page.</p>
+          <button type="button" className="btn btn-primary" onClick={() => location.reload()}>
+            Reload the page
+          </button>
         </div>
       </ToastProvider>
     );
