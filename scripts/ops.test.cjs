@@ -48,6 +48,34 @@ test("paired release checks both candidates before promotion and can retry a par
   assert.deepEqual(repeated, ["backend:latest", "frontend:latest"]);
 });
 
+test("a mislabelled image blocks promotion and recording of the whole pair", () => {
+  const candidates = ["backend", "frontend"].map((name) => ({
+    name,
+    repository: name,
+    reference: `${name}:sha-a`,
+    tags: [`${name}:latest`],
+  }));
+  const promoted = [];
+  const recorded = [];
+  // The frontend carries the wrong version label, as published 0.10.0 images
+  // did. Neither alias may move, and no manifest may claim the pair shipped.
+  assert.throws(
+    () =>
+      promotePair(
+        candidates,
+        () => "digest",
+        (images) => recorded.push(images),
+        (tag) => promoted.push(tag),
+        (image) => {
+          if (image.name === "frontend") throw new Error("frontend version is latest");
+        },
+      ),
+    /frontend version is latest/,
+  );
+  assert.deepEqual(promoted, []);
+  assert.deepEqual(recorded, []);
+});
+
 test("release retry repairs both images without moving an older version tag", () => {
   assert.equal(publishVersionTag("commit-a", null), true);
   assert.equal(publishVersionTag("commit-a", "commit-a"), true);

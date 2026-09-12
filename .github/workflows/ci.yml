@@ -166,10 +166,18 @@ jobs:
       - name: Reuse immutable SHA candidates from an earlier attempt
         id: candidates
         run: node scripts/release-images.cjs inspect
+      # The explicit version label is required: metadata-action otherwise
+      # derives org.opencontainers.image.version from the highest-priority
+      # tag, which is the `latest` alias here, so published images carried
+      # `version=latest` instead of the product version. The promote step
+      # re-reads both labels off the resolved digests and refuses to move any
+      # alias if they disagree.
       - uses: docker/metadata-action@v5
         id: backend-meta
         with:
           images: ghcr.io/${{ github.repository_owner }}/ts-icon-backend
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
           tags: |
             type=raw,value=latest
             type=raw,value=main
@@ -179,6 +187,8 @@ jobs:
         id: frontend-meta
         with:
           images: ghcr.io/${{ github.repository_owner }}/ts-icon-frontend
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
           tags: |
             type=raw,value=latest
             type=raw,value=main

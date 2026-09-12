@@ -94,6 +94,14 @@ Release order:
 
 Registry tag promotion across two images is not atomic. Deploy the backend/frontend digest pair from a single **successful** release artifact; this is the coherent deployment unit. `latest`/`main` tags are convenience aliases and may temporarily differ if a promotion fails. Rerun the failed release to repair aliases and finish the pair. No workflow deploys to a host automatically.
 
+### OCI version labels
+
+The infrastructure deployment verification for 0.10.0 (commit `583cae1e269b18e145851a53e55881e3c6d8e602`) reported `org.opencontainers.image.version=latest` on both published images, despite the correct package version and source revision. The user accepted this metadata exception for that deployment. Runtime health and unchanged database/TeamSpeak content were verified; infrastructure evidence is recorded in `stacks/ts-icon/README.md` in the b825-server-infrastructure repository.
+
+The cause was `docker/metadata-action` deriving the version label from the highest-priority tag, which is the `latest` alias. Corrected in 0.11.0: both image builds now pass an explicit `org.opencontainers.image.version` from the resolved product version, and `scripts/release-images.cjs promote` re-reads the version and revision labels from each resolved digest and aborts before recording the manifest or moving any alias if either disagrees with the release. A mislabelled image therefore fails the release instead of becoming `latest`.
+
+The 0.10.0 tags, digests and SHA candidates are preserved as published; the correction ships as a new version rather than replacing those artifacts. Verify the labels on the first 0.11.0 pair, since the label wiring itself only takes effect in a real publishing run.
+
 ## Dependencies and formatting
 
 The lockfiles are committed and CI uses `npm ci`. The final checks on 2026-09-09 reported zero advisories for both complete npm dependency graphs and both production graphs. The backend remains on Nest 11 and Prisma 7; the frontend uses Router 7 and Vite 7. Major upgrades without a concrete need are avoided.
