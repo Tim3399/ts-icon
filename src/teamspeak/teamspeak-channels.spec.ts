@@ -1,5 +1,7 @@
 import { TeamSpeak } from "ts3-nodejs-library";
 import { Test } from "@nestjs/testing";
+import type { ChannelList } from "ts3-nodejs-library/lib/types/ResponseTypes";
+import { resetMockTeamSpeakState } from "./mock-teamspeak";
 import {
   TeamSpeakChannelsService,
   expectedBannerUrl,
@@ -590,5 +592,47 @@ describe("applyBannerUrlsForAllChannels", () => {
 
     expect(mockedConnect).toHaveBeenCalledTimes(3);
     expect(refreshed[0].bannerGfxUrl).toBe(`${PUBLIC_BASE_URL}/images/general`);
+  });
+});
+
+describe("withTeamSpeakConnection (TS_MOCK_MODE)", () => {
+  const ORIGINAL_ENV = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+    resetMockTeamSpeakState();
+  });
+
+  it("uses the in-memory mock instead of a real connection when TS_MOCK_MODE is active", async () => {
+    process.env.TS_MOCK_MODE = "true";
+    process.env.NODE_ENV = "development";
+
+    const channels = await withTeamSpeakConnection((ts3) =>
+      ts3.execute<ChannelList>("channellist", ["-banners"]),
+    );
+
+    expect(mockedConnect).not.toHaveBeenCalled();
+    expect(TeamSpeak).not.toHaveBeenCalled();
+    expect(channels.length).toBeGreaterThan(0);
+  });
+
+  it("keeps mock state across connections", async () => {
+    process.env.TS_MOCK_MODE = "true";
+    process.env.NODE_ENV = "development";
+
+    await withTeamSpeakConnection((ts3) => ts3.channelEdit("1", { channelBannerGfxUrl: "u" }));
+    const channels = await service.fetchLiveChannels();
+
+    expect(channels.find((c) => c.cid === "1")?.bannerGfxUrl).toBe("u");
+  });
+
+  it("uses a real connection when TS_MOCK_MODE is inactive", async () => {
+    delete process.env.TS_MOCK_MODE;
+    mockedConnect.mockResolvedValueOnce({ quit: jest.fn().mockResolvedValue(undefined) } as never);
+
+    await withTeamSpeakConnection(() => Promise.resolve());
+
+    expect(TeamSpeak).toHaveBeenCalledTimes(1);
+    expect(mockedConnect).toHaveBeenCalledTimes(1);
   });
 });

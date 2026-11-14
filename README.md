@@ -30,6 +30,15 @@ Open [the local UI](http://localhost:5173). The public API runs on port 3000 and
 
 With authentication disabled, the admin listener and guard accept **loopback only**. This mode is rejected under `NODE_ENV=production`. It does not grant LAN access. The frontend independently allows its no-login setting only on a localhost origin.
 
+### Mock TeamSpeak
+
+`TS_MOCK_MODE=true` runs the admin API against an in-memory fake TeamSpeak server with a small seeded channel tree, so no real TeamSpeak instance or `TS_USERNAME`/`TS_USERPASSWORD` is needed. State resets on process restart. The mode is refused when `NODE_ENV=production`. `docker-compose.dev.yml` (own Compose project `ts-icon-dev`, volume `dev-db-data`) starts the whole app with the mock and authentication disabled:
+
+```sh
+docker compose -f docker-compose.dev.yml run --rm migrate   # once, on a fresh volume
+docker compose -f docker-compose.dev.yml up --build        # frontend on http://localhost:8090
+```
+
 ## Docker Compose
 
 Compose includes **frontend, public API, admin API and database migration**, with schema readiness checks and a persistent SQLite volume. It requires real Keycloak settings and HTTPS public URLs in production.

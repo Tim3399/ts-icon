@@ -85,6 +85,19 @@ export function isAuthDisabled(): boolean {
   return disabled;
 }
 
+/**
+ * TS_MOCK_MODE runs the 'local' app against an in-memory fake TeamSpeak server
+ * (src/teamspeak/mock-teamspeak.ts). Checked on every call and refused in production,
+ * like isAuthDisabled(): serving fake channels to real users is worse than not starting.
+ */
+export function isTsMockMode(): boolean {
+  const enabled = process.env.TS_MOCK_MODE === "true";
+  if (enabled && process.env.NODE_ENV === "production") {
+    throw new Error("TS_MOCK_MODE=true is not allowed when NODE_ENV=production");
+  }
+  return enabled;
+}
+
 export function getPublicBaseUrl(): string {
   const value = process.env.PUBLIC_BASE_URL;
   if (!value) throw new Error("PUBLIC_BASE_URL must be set");

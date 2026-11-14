@@ -1,0 +1,93 @@
+# Mock/dev deployment -- runs the whole app (backend + frontend) against an
+# in-memory fake TeamSpeak server and with authentication disabled, so changes
+# can be tested end to end without a real TeamSpeak instance, TS_USERNAME/
+# TS_USERPASSWORD or a Keycloak realm.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml run --rm migrate   # once, before first start
+#   docker compose -f docker-compose.dev.yml up --build
+#   open http://localhost:8090
+#
+# `name:` pins this to its own Compose project (own network, container and
+# volume names), so it can run next to the real docker-compose.yml stack: the
+# host ports (3900/3901/8090) and the `dev-db-data` volume do not clash with
+# its 3000/3001 and db-data.
+#
+# NEVER point this at a real TeamSpeak server or a real Keycloak realm:
+# TS_MOCK_MODE=true and AUTH_DISABLED=true fail fast at startup if
+# NODE_ENV=production, so this file cannot become a real deployment.
+name: ts-icon-dev
+
+services:
+  public:
+    build: .
+    image: tsicon-dev-public
+    command: npm run start:public
+    restart: unless-stopped
+    ports:
+      - "3900:3000"
+    environment:
+      - NODE_ENV=development
+      - IMG_WEB_PORT=3000
+      - DATABASE_URL=file:/data/dev.db
+    volumes:
+      - dev-db-data:/data
+
+  local:
+    build: .
+    image: tsicon-dev-local
+    command: npm run start:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3901:3001"
+    environment:
+      - NODE_ENV=development
+      - IMG_API_PORT=3001
+      - DATABASE_URL=file:/data/dev.db
+      # See src/teamspeak/mock-teamspeak.ts: an in-memory fake channel tree
+      # instead of a ServerQuery connection. No TS_USERNAME/TS_USERPASSWORD.
+      - TS_MOCK_MODE=true
+      # No Keycloak/OIDC config needed; the admin guard still only accepts
+      # loopback callers.
+      - AUTH_DISABLED=true
+      - PUBLIC_BASE_URL=http://localhost:8090
+      - CORS_ORIGINS=http://localhost:8090
+    volumes:
+      - dev-db-data:/data
+    depends_on:
+      - public
+
+  frontend:
+    build:
+      context: ./webapp-banner-tool
+      args:
+        # The frontend's nginx proxies /admin-api/* to local:3001 and
+        # /images/* to public:3000, so the browser only talks to localhost:8090.
+        VITE_ADMIN_API_URL: /admin-api
+        VITE_PUBLIC_API_URL: ""
+        # Honored only when the browser hostname is localhost/127.0.0.1/::1.
+        VITE_KEYCLOAK_ENABLED: "false"
+    image: tsicon-dev-frontend
+    restart: unless-stopped
+    ports:
+      - "8090:8080"
+    depends_on:
+      - public
+      - local
+
+  # One-off schema setup for the dev-only database volume; run once before the
+  # first `up` against a fresh volume.
+  migrate:
+    build:
+      context: .
+      target: tools
+    image: tsicon-dev-migrate
+    profiles: ["tools"]
+    command: sh -c "npm run db:migrate && chown -R node:node /data"
+    environment:
+      - DATABASE_URL=file:/data/dev.db
+    volumes:
+      - dev-db-data:/data
+
+volumes:
+  dev-db-data:
