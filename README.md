@@ -32,12 +32,7 @@ With authentication disabled, the admin listener and guard accept **loopback onl
 
 ### Mock TeamSpeak
 
-`TS_MOCK_MODE=true` runs the admin API against an in-memory fake TeamSpeak server with a small seeded channel tree, so no real TeamSpeak instance or `TS_USERNAME`/`TS_USERPASSWORD` is needed. State resets on process restart. The mode is refused when `NODE_ENV=production`. `docker-compose.dev.yml` (own Compose project `ts-icon-dev`, volume `dev-db-data`) starts the whole app with the mock and authentication disabled:
-
-```sh
-docker compose -f docker-compose.dev.yml run --rm migrate   # once, on a fresh volume
-docker compose -f docker-compose.dev.yml up --build        # frontend on http://localhost:8090
-```
+`TS_MOCK_MODE=true` runs the admin API against an in-memory fake TeamSpeak server with a small seeded channel tree, so no real TeamSpeak instance or `TS_USERNAME`/`TS_USERPASSWORD` is needed. State resets on process restart. The mode is refused when `NODE_ENV=production`. For a fully offline local setup combine it with the no-auth settings above (`AUTH_DISABLED=true`, `VITE_KEYCLOAK_ENABLED=false`) and start `npm run dev` or `npm run dev:local`.
 
 ## Docker Compose
 
