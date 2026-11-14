@@ -16,6 +16,8 @@
       "!!**/coverage",
       "!!**/generated",
       "!!**/docs/standards",
+      "!!team",
+      "!!.claude",
       "!!**/package-lock.json",
       "!!**/playwright-report",
       "!!**/test-results"

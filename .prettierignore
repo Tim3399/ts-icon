@@ -18,3 +18,8 @@ webapp-banner-tool/dist/
 webapp-banner-tool/coverage/
 webapp-banner-tool/playwright-report/
 webapp-banner-tool/test-results/
+# Managed by agent-team (package and generated files); `agent-team update` owns their format.
+team/
+.claude/
+AGENTS.md
+CLAUDE.md

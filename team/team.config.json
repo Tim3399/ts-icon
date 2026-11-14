@@ -1,0 +1,36 @@
+{
+    "kbRoot": "C:/Users/timra/git/agent-team/ts-icon-project/ts-icon-kb",
+    "targets": ["claude"],
+    "devPool": 6,
+    "claude": {
+        "model": "opus",
+        "effortLevel": "medium"
+    },
+    "codex": {
+        "model": "gpt-6.1-sol",
+        "effort": "medium",
+        "reviewModel": "gpt-6.1-sol",
+        "webSearch": "cached",
+        "maxThreads": 4
+    },
+    "project": {
+        "name": "ts-icon",
+        "testCommand": "npm test -- --runInBand"
+    },
+    "release": {
+        "verify": [
+            ["npm", "test"],
+            ["npx", "--yes", "@tim/agent-team@0.4.2", "check-format"],
+            ["npx", "--yes", "@tim/agent-team@0.4.2", "check-changelog"]
+        ],
+        "versionFiles": [
+            {
+                "path": "package.json",
+                "type": "json",
+                "key": "version"
+            }
+        ],
+        "changelog": "CHANGELOG.md",
+        "tagPrefix": "v"
+    }
+}
