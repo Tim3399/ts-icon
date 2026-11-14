@@ -12,6 +12,7 @@ import {
   getTeamSpeakCredentials,
   getOidcConfig,
   isAuthDisabled,
+  isTsMockMode,
   getTrustedProxies,
 } from "../config";
 import { version } from "../package.json";
@@ -23,7 +24,14 @@ import { inputValidation } from "./http/input-validation";
 
 async function bootstrap() {
   validateDatabaseConfig();
-  getTeamSpeakCredentials();
+  if (isTsMockMode()) {
+    Logger.warn(
+      "TS_MOCK_MODE=true: using an in-memory mock TeamSpeak server; TS_USERNAME/TS_USERPASSWORD are not required. Never set this in production.",
+      "Bootstrap",
+    );
+  } else {
+    getTeamSpeakCredentials();
+  }
   const authDisabled = isAuthDisabled();
   const oidc = authDisabled ? undefined : getOidcConfig();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {

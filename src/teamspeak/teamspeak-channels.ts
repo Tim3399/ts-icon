@@ -7,9 +7,11 @@ import {
   TS_SERVER_PORT,
   TS_PROTOCOL,
   getTeamSpeakCredentials,
+  isTsMockMode,
 } from "../../config";
 import type { TsProtocol } from "../../config";
 import { normalizeChannelName } from "../util/util";
+import { createMockTeamSpeak } from "./mock-teamspeak";
 import { runTeamSpeakOperation } from "./teamspeak-transport";
 
 const PROTOCOL_MAP: Record<TsProtocol, (typeof QueryProtocol)[keyof typeof QueryProtocol]> = {
@@ -30,6 +32,10 @@ export interface LiveChannel {
 
 /** Opens one bounded connection and closes it on success, failure or timeout. */
 export async function withTeamSpeakConnection<T>(fn: (ts3: TeamSpeak) => Promise<T>): Promise<T> {
+  if (isTsMockMode()) {
+    logger.warn("[TeamSpeak] TS_MOCK_MODE=true: using the in-memory mock, not a real connection.");
+    return runTeamSpeakOperation(createMockTeamSpeak(), fn);
+  }
   const { username, password } = getTeamSpeakCredentials();
   const ts3 = new TeamSpeak({
     host: TS_HOST,
