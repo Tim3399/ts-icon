@@ -4,14 +4,19 @@ import { channelBannerEndpoint } from "../api/channels";
 import type { Channel } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { apiFetch, apiFetchJson, describeApiError } from "../api/client";
-import { useToast } from "./ToastContext";
+import {
+  EmptyState,
+  Icon,
+  LoadingState,
+  PageHeader,
+  RequestError,
+  Section,
+  Skeleton,
+  useToast,
+} from "../design";
 import SpacerBaseImageManager from "./SpacerBaseImageManager";
 import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
-import RequestError from "./RequestError";
-import Icon from "./ui/Icon";
-import PageHeader from "./ui/PageHeader";
-import Section from "./ui/Section";
-import { EmptyState, LoadingState, Skeleton } from "./ui/States";
+import "./BannerUrlManager.css";
 
 export default function BannerUrlManager() {
   const [channels, setChannels] = useState<Channel[]>([]);

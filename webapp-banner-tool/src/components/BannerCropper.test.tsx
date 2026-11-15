@@ -29,7 +29,10 @@ const {
   cropperBehavior: { autoReady: true },
 }));
 vi.mock("../auth/AuthContext", () => ({ useAuth: () => ({ getToken }) }));
-vi.mock("./ToastContext", () => ({ useToast: () => ({ showToast }) }));
+vi.mock("../design", async () => ({
+  ...(await vi.importActual("../design")),
+  useToast: () => ({ showToast }),
+}));
 vi.mock("../preview/PreviewOverlayContext", () => ({ usePreviewOverlay: () => ({ bumpRefresh }) }));
 vi.mock("../api/client", async () => ({
   ...(await vi.importActual("../api/client")),

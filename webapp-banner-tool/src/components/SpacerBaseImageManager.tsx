@@ -8,13 +8,10 @@ import {
   describeApiError,
   UPLOAD_TIMEOUT_MS,
 } from "../api/client";
-import { useToast } from "./ToastContext";
+import { BannerFrame, RequestError, Section, UploadInput, useToast } from "../design";
 import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
-import UploadInput from "./UploadInput";
-import RequestError from "./RequestError";
-import Section from "./ui/Section";
-import BannerFrame from "./ui/BannerFrame";
 import { uploadFieldError } from "../hooks/useFieldErrors";
+import "./SpacerBaseImageManager.css";
 
 export default function SpacerBaseImageManager({
   onChanged,

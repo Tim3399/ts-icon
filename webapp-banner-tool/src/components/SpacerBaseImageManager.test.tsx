@@ -18,7 +18,8 @@ vi.mock("../auth/AuthContext", () => ({
   useAuth: () => ({ getToken: getTokenMock }),
 }));
 
-vi.mock("./ToastContext", () => ({
+vi.mock("../design", async () => ({
+  ...(await vi.importActual("../design")),
   useToast: () => ({ showToast: showToastMock }),
 }));
 
@@ -99,11 +100,11 @@ describe("SpacerBaseImageManager", () => {
     ) as HTMLElement;
 
     fireEvent.dragOver(dropzone, { dataTransfer: { files: [] } });
-    expect(dropzone).toHaveClass("dropzone-drag-over");
+    expect(dropzone).toHaveClass("ds-dropzone-drag-over");
 
     const file = new File(["bytes"], "base.png", { type: "image/png" });
     fireEvent.drop(dropzone, { dataTransfer: { files: [file] } });
 
-    await waitFor(() => expect(dropzone).not.toHaveClass("dropzone-drag-over"));
+    await waitFor(() => expect(dropzone).not.toHaveClass("ds-dropzone-drag-over"));
   });
 });

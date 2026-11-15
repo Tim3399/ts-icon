@@ -1,0 +1,103 @@
+/* Button and LinkButton. Pill shape from the TeamSpeak client (R-1 2.2);
+   roles and the 44 px hit area from the HIG (R-1 1.6). */
+
+.ds-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--size-hit-target);
+  min-width: var(--size-hit-target);
+  padding: var(--space-2) var(--space-5);
+  border: var(--size-hairline) solid transparent;
+  border-radius: var(--radius-pill);
+  font-family: inherit;
+  font-size: var(--font-body-size);
+  line-height: var(--font-body-line);
+  font-weight: var(--font-weight-control);
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--motion-fast) var(--motion-easing),
+    border-color var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing);
+}
+
+.ds-button:disabled,
+.ds-button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.ds-button-glyph {
+  flex: none;
+}
+
+.ds-button-small {
+  padding: var(--space-1) var(--space-4);
+  font-size: var(--font-subheadline-size);
+  line-height: var(--font-subheadline-line);
+}
+
+.ds-button-icon-only {
+  padding: var(--space-0);
+}
+
+/* Prominent: the accent-filled primary action (one per screen). */
+.ds-button-prominent {
+  background-color: var(--color-accent-fill);
+  color: var(--color-on-accent-fill);
+}
+
+.ds-button-prominent:hover:not(:disabled) {
+  background-color: var(--color-accent-fill-hover);
+}
+
+.ds-button-prominent:active:not(:disabled) {
+  background-color: var(--color-accent-fill-pressed);
+}
+
+/* Bordered: the default for secondary actions. */
+.ds-button-bordered {
+  background-color: var(--color-control-bg);
+  border-color: var(--color-separator);
+  color: var(--color-link);
+}
+
+.ds-button-bordered:hover:not(:disabled) {
+  background-image: linear-gradient(var(--color-fill-hover), var(--color-fill-hover));
+}
+
+.ds-button-bordered:active:not(:disabled) {
+  background-image: linear-gradient(var(--color-fill-pressed), var(--color-fill-pressed));
+}
+
+/* Plain: toolbar and inline actions without a bezel. */
+.ds-button-plain {
+  background-color: transparent;
+  color: var(--color-label);
+}
+
+.ds-button-plain:hover:not(:disabled) {
+  background-color: var(--color-fill-hover);
+}
+
+.ds-button-plain:active:not(:disabled) {
+  background-color: var(--color-fill-pressed);
+}
+
+/* Destructive: system red role, never combined with prominent. */
+.ds-button-destructive {
+  background-color: var(--color-destructive-fill);
+  color: var(--color-on-destructive-fill);
+}
+
+.ds-button-destructive:hover:not(:disabled) {
+  background-image: linear-gradient(var(--color-fill-hover), var(--color-fill-hover));
+}
+
+.ds-button-destructive:active:not(:disabled) {
+  background-image: linear-gradient(var(--color-fill-pressed), var(--color-fill-pressed));
+}

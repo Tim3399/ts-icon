@@ -1,0 +1,62 @@
+/* Geometry tokens: spacing, radius, sizes, elevation and layers. Screens and
+   design components use these names only; no raw lengths in their CSS
+   (README, "Rules for CSS outside the foundations"). */
+
+:root {
+  /* Spacing: a 4 px grid. HIG asks for consistent spacing (R-1 1.1) and about
+     12 pt around bezelled controls (R-1 1.8), which is --space-3. */
+  --space-0: 0;
+  --space-half: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 56px;
+  --space-10: 64px;
+
+  /* Radius by role. Pills and rounded cards follow the TeamSpeak 6 shape
+     language (R-1 2.2: row pills about 12 px, cards 12-16 px, pill buttons). */
+  --radius-small: 6px;
+  --radius-control: 10px;
+  --radius-row: 12px;
+  --radius-card: 14px;
+  --radius-panel: 16px;
+  --radius-pill: 999px;
+
+  /* Sizes */
+  --size-hit-target: 44px; /* HIG iOS minimum hit region (R-1 1.6, 1.8), D-3 */
+  --size-icon-small: 14px;
+  --size-icon: 17px;
+  --size-icon-large: 22px;
+  --size-hairline: 1px;
+  --size-focus-ring: 2px;
+  --size-sidebar: 264px;
+  --size-panel: 340px;
+  --size-content-max: 1120px;
+  --size-toolbar: 56px;
+  --size-avatar: 30px;
+  --size-spinner: 16px;
+  --size-spinner-large: 28px;
+  --size-banner-ratio: 500 / 44;
+  --size-checker: 12px;
+  --size-channel-indent: 20px;
+  --size-grid-small: 160px;
+  --size-grid-medium: 240px;
+  --size-grid-large: 320px;
+
+  /* Elevation */
+  --shadow-raised: 0 1px 2px var(--color-shadow);
+  --shadow-overlay: 0 8px 28px var(--color-shadow);
+  --shadow-focus-ring: 0 0 0 var(--size-focus-ring) var(--color-focus);
+
+  /* Stacking layers */
+  --layer-sticky: 10;
+  --layer-drawer: 40;
+  --layer-scrim: 39;
+  --layer-toast: 60;
+  --layer-skip-link: 80;
+}

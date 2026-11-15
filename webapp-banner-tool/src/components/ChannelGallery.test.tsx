@@ -11,7 +11,10 @@ const { fetchMock, jsonMock, getToken, showToast, bumpRefresh } = vi.hoisted(() 
   bumpRefresh: vi.fn(),
 }));
 vi.mock("../auth/AuthContext", () => ({ useAuth: () => ({ getToken }) }));
-vi.mock("./ToastContext", () => ({ useToast: () => ({ showToast }) }));
+vi.mock("../design", async () => ({
+  ...(await vi.importActual("../design")),
+  useToast: () => ({ showToast }),
+}));
 vi.mock("./SpacerBaseImageManager", () => ({ default: () => null }));
 vi.mock("../preview/PreviewOverlayContext", () => ({ usePreviewOverlay: () => ({ bumpRefresh }) }));
 vi.mock("../api/client", async () => ({

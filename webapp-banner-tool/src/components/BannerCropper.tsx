@@ -6,17 +6,20 @@ import { useAuth } from "../auth/AuthContext";
 import { apiFetch, apiFetchBlob, describeApiError, UPLOAD_TIMEOUT_MS } from "../api/client";
 import { channelImageEndpoint, channelImageUrl } from "../api/channels";
 import { useChannels } from "../hooks/useChannels";
-import { useToast } from "./ToastContext";
+import {
+  BannerFrame,
+  EmptyState,
+  FieldError,
+  Icon,
+  PageHeader,
+  RequestError,
+  Section,
+  UploadInput,
+  useToast,
+} from "../design";
 import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
-import UploadInput from "./UploadInput";
-import RequestError from "./RequestError";
-import FieldError from "./FieldError";
-import Icon from "./ui/Icon";
-import PageHeader from "./ui/PageHeader";
-import Section from "./ui/Section";
-import BannerFrame from "./ui/BannerFrame";
-import { EmptyState } from "./ui/States";
 import { fieldAttributes, uploadFieldError, useFieldErrors } from "../hooks/useFieldErrors";
+import "./BannerCropper.css";
 
 const FIELD_IDS = { cid: "banner-channel", file: "file-upload", url: "imageUrl" };
 const TARGET_WIDTH = 500,

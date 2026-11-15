@@ -7,17 +7,21 @@ import {
 import { useAuth } from "../auth/AuthContext";
 import { ApiError, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from "../api/client";
 import type { PreviewRow, WallpaperRun } from "../api/types";
-import { useToast } from "./ToastContext";
+import {
+  EmptyState,
+  FieldError,
+  Icon,
+  LoadingState,
+  PageHeader,
+  RequestError,
+  Section,
+  UploadInput,
+  useToast,
+} from "../design";
 import ChannelTreePreview from "./ChannelTreePreview";
 import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
-import UploadInput from "./UploadInput";
-import RequestError from "./RequestError";
-import FieldError from "./FieldError";
-import Icon from "./ui/Icon";
-import PageHeader from "./ui/PageHeader";
-import Section from "./ui/Section";
-import { EmptyState, LoadingState } from "./ui/States";
 import { fieldAttributes, useFieldErrors, type FieldMessages } from "../hooks/useFieldErrors";
+import "./ChannelWallpaperGenerator.css";
 
 const RUNS_URL = `${CHANNEL_WALLPAPER_URL}/runs`;
 const GENERATE_TIMEOUT_MS = 120_000;

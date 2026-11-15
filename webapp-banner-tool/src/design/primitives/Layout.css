@@ -1,0 +1,107 @@
+/* Stack, Cluster and Grid: screens lay out with these instead of raw
+   spacing in their own CSS. */
+
+.ds-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ds-stack-row {
+  flex-direction: row;
+}
+
+.ds-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.ds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--ds-grid-min)), 1fr));
+}
+
+.ds-grid[data-min="small"] {
+  --ds-grid-min: var(--size-grid-small);
+}
+
+.ds-grid[data-min="medium"] {
+  --ds-grid-min: var(--size-grid-medium);
+}
+
+.ds-grid[data-min="large"] {
+  --ds-grid-min: var(--size-grid-large);
+}
+
+:is(.ds-stack, .ds-cluster)[data-align="start"] {
+  align-items: flex-start;
+}
+
+:is(.ds-stack, .ds-cluster)[data-align="center"] {
+  align-items: center;
+}
+
+:is(.ds-stack, .ds-cluster)[data-align="end"] {
+  align-items: flex-end;
+}
+
+:is(.ds-stack, .ds-cluster)[data-align="stretch"] {
+  align-items: stretch;
+}
+
+:is(.ds-stack, .ds-cluster)[data-align="baseline"] {
+  align-items: baseline;
+}
+
+.ds-cluster[data-justify="start"] {
+  justify-content: flex-start;
+}
+
+.ds-cluster[data-justify="end"] {
+  justify-content: flex-end;
+}
+
+.ds-cluster[data-justify="between"] {
+  justify-content: space-between;
+}
+
+:is(.ds-stack, .ds-cluster, .ds-grid)[data-gap="0"] {
+  gap: var(--space-0);
+}
+
+:is(.ds-stack, .ds-cluster, .ds-grid)[data-gap="1"] {
+  gap: var(--space-1);
+}
+
+:is(.ds-stack, .ds-cluster, .ds-grid)[data-gap="2"] {
+  gap: var(--space-2);
+}
+
+:is(.ds-stack, .ds-cluster, .ds-grid)[data-gap="3"] {
+  gap: var(--space-3);
+}
+
+:is(.ds-stack, .ds-cluster, .ds-grid)[data-gap="4"] {
+  gap: var(--space-4);
+}
+
+:is(.ds-stack, .ds-cluster, .ds-grid)[data-gap="5"] {
+  gap: var(--space-5);
+}
+
+:is(.ds-stack, .ds-cluster, .ds-grid)[data-gap="6"] {
+  gap: var(--space-6);
+}
+
+:is(.ds-stack, .ds-cluster, .ds-grid)[data-gap="7"] {
+  gap: var(--space-7);
+}
+
+:is(.ds-stack, .ds-cluster, .ds-grid)[data-gap="8"] {
+  gap: var(--space-8);
+}
+
+:is(.ds-stack, .ds-cluster, .ds-grid)[data-gap="9"] {
+  gap: var(--space-9);
+}

@@ -41,7 +41,7 @@ function applyToDocument() {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   // "system" deliberately stamps no attribute, so the media query in
-  // tokens.css is what decides -- including when the OS switches at runtime.
+  // design/colors.css is what decides -- including when the OS switches at runtime.
   if (preference === "system") root.removeAttribute("data-theme");
   else root.setAttribute("data-theme", preference);
 }

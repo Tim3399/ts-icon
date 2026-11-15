@@ -1,0 +1,95 @@
+/* Screen styles of ChannelWallpaperGenerator, moved unchanged from src/styles in D-142-1.
+   Owned and restyled by its T-142 part; uses only design-system tokens
+   once restyled (src/design/README.md). */
+
+/* ---------------------------------------------------------------------------
+   Wallpaper generator
+--------------------------------------------------------------------------- */
+.wallpaper-preview-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.wallpaper-preview-row {
+  width: 100%;
+  max-width: 500px;
+  aspect-ratio: 500 / 44;
+  height: auto;
+  image-rendering: pixelated;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 12%);
+}
+
+.run-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.run-card {
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+
+.run-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.run-card-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.run-channels {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.run-channels li {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--surface-3);
+  border: 1px solid var(--border-subtle);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* ---------------------------------------------------------------------------
+   Advanced options disclosure
+--------------------------------------------------------------------------- */
+.advanced {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.advanced-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.page-sections-after {
+  margin-top: var(--space-4);
+}

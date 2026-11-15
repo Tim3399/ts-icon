@@ -12,7 +12,8 @@ vi.mock("../auth/AuthContext", () => ({
   useAuth: () => ({ getToken: getTokenMock }),
 }));
 
-vi.mock("./ToastContext", () => ({
+vi.mock("../design", async () => ({
+  ...(await vi.importActual("../design")),
   useToast: () => ({ showToast: showToastMock }),
 }));
 

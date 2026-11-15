@@ -1,0 +1,21 @@
+/* Motion. HIG asks for brief, purposeful and optional motion and for Reduce
+   Motion support (R-1 1.7, 1.8); the TeamSpeak website uses 0.2-0.25 s
+   (R-1 2.1). Under Reduce Motion every duration drops to 0.01 ms, and
+   base.css additionally caps any transition or animation that does not use
+   these tokens. */
+
+:root {
+  --motion-fast: 120ms;
+  --motion-standard: 200ms;
+  --motion-slow: 260ms;
+  --motion-easing: cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0.01ms;
+    --motion-standard: 0.01ms;
+    --motion-slow: 0.01ms;
+  }
+}

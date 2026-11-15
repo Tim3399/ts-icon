@@ -1,0 +1,72 @@
+/* UploadInput: a drop zone label over a real, focusable file input. */
+
+.ds-dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: calc(var(--size-hit-target) * 2);
+  padding: var(--space-5) var(--space-4);
+  border: var(--size-focus-ring) dashed var(--color-separator);
+  border-radius: var(--radius-card);
+  background-color: var(--color-control-bg);
+  color: var(--color-label-secondary);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--motion-easing),
+    background-color var(--motion-fast) var(--motion-easing);
+}
+
+.ds-dropzone:hover,
+.ds-dropzone-drag-over {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-bg);
+}
+
+.ds-dropzone-icon {
+  color: var(--color-accent);
+}
+
+.ds-dropzone-label {
+  color: var(--color-label);
+  font-size: var(--font-subheadline-size);
+  line-height: var(--font-subheadline-line);
+  font-weight: var(--font-weight-medium);
+}
+
+.ds-dropzone-meta {
+  font-size: var(--font-footnote-size);
+  line-height: var(--font-footnote-line);
+}
+
+/* The input covers the label but ignores the pointer, so it stays a real
+   keyboard target while drops land on the label exactly once. */
+.ds-dropzone-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ds-dropzone-input:disabled {
+  cursor: not-allowed;
+}
+
+.ds-dropzone:focus-within {
+  outline: var(--size-focus-ring) solid var(--color-focus);
+  outline-offset: var(--size-focus-ring);
+}
+
+.ds-dropzone-compact {
+  min-height: var(--size-hit-target);
+  padding: var(--space-3);
+}
+
+.ds-dropzone-compact .ds-dropzone-meta {
+  display: none;
+}
