@@ -33,3 +33,10 @@ export function bannerBlob(canvas: HTMLCanvasElement) {
     ),
   );
 }
+
+/** H for a W at the locked 500 : 44 ratio (T-142-F3 R6), in source pixels. */
+export const heightForWidth = (width: number) => Math.round((width * BANNER_HEIGHT) / BANNER_WIDTH);
+
+/** W for an H at the locked 500 : 44 ratio. */
+export const widthForHeight = (height: number) =>
+  Math.round((height * BANNER_WIDTH) / BANNER_HEIGHT);

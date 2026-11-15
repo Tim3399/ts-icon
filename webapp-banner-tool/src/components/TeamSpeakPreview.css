@@ -1,18 +1,19 @@
-/* TeamSpeakPreview: the selected channel's banner in a TeamSpeak 6
-   channel-tree mock at the TS6 client size (T-142-F1 item 14, addendum 4).
-   The rows are ChannelTreeRow; this file gives them the client's tree column
-   (--color-ts-tree-bg, theme-independent) at the depth-0 pill width from
-   teamspeakGeometry.ts, and shows the exact saved pixels below at 1:1. */
+/* TeamSpeakPreview: the whole channel tree in a TeamSpeak 6 client mock at
+   the TS6 client size (T-142-F3 item 7, D-10). The rows are ChannelTreeRow;
+   this file gives them the client's tree column (--color-ts-tree-bg,
+   theme-independent). The tree is 456 px wide (set inline from
+   teamspeakGeometry.ts); with the 16 px padding the row area is 488 px (R2).
+   It is never scaled: a narrower column scrolls it sideways (item 12). */
 
 .ts-preview-stack {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  min-width: 0;
 }
 
 .ts-preview {
   margin: 0;
-  padding: var(--space-2) var(--space-3);
   border: var(--size-hairline) solid var(--color-ts-divider);
   border-radius: var(--radius-card);
   background-color: var(--color-ts-tree-bg);
@@ -20,9 +21,12 @@
   overflow: hidden;
 }
 
-/* Width: the client's depth-0 pill width, set inline from
-   teamspeakGeometry.ts; deeper rows indent inside it, so all right edges
-   line up. */
+.ts-preview-scroll {
+  padding: var(--space-2) var(--space-4);
+  overflow-x: auto;
+  scrollbar-color: var(--color-ts-divider) transparent;
+}
+
 .ts-preview-tree {
   margin: 0;
   padding: 0;
@@ -31,24 +35,6 @@
 
 .ts-preview-note {
   color: var(--color-label-secondary);
-  font-size: var(--font-footnote-size);
-  line-height: var(--font-footnote-line);
-}
-
-.ts-preview-saved {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-/* 1:1: the image's own 500 x 44 pixels, scaled only when the column is narrower. */
-.ts-preview-saved-image {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  border-radius: var(--radius-small);
-}
-
-.ts-preview-empty {
-  padding: var(--space-6) var(--space-4);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
 }

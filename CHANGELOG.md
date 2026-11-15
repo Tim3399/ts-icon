@@ -6,9 +6,11 @@
 
 - The Banner editor accepts an image pasted from the clipboard (Ctrl+V or ⌘V: image data or an image URL) and dropped anywhere on the page (T-142).
 - The Banner editor shows a live TeamSpeak preview of the cropped banner in a channel-tree mock with the TeamSpeak 6 row geometry, plus the exact 500 × 44 saved image (T-142).
+- The Banner editor compares the channel's current banner with the new crop (before/after) and sets the crop by numbers: X, Y, W and H in source pixels, with W and H locked to 500 : 44 (T-142).
+- `GET channels` also returns `size` (bytes) and `updatedAt` for channels with an image, for the Studio inspectors (T-142).
 - `TS_MOCK_MODE=true` runs the `local` app against an in-memory fake TeamSpeak server (refused under `NODE_ENV=production`) (T-141).
 - Agent team from agent-team 0.4.2 (roles, hooks, knowledge base `ts-icon-kb`); old Codex delegation rules removed from `AGENTS.md` (T-141).
 
 ### Changed
 
-- The admin UI is redesigned on a layered design system (`webapp-banner-tool/src/design`) with an Apple HIG and GitHub Primer structure: grouped list sections, one page header with toolbar actions, colour only for highlights (the one primary action, selection, focus, links and status glyphs), TeamSpeak navy and blue in light and dark themes, macOS metrics from 1024 px and iOS metrics below, a source-list sidebar and an account menu with the theme choice and logout; design decisions in `docs/design/DESIGN.md` (T-142).
+- The admin UI is redesigned as a "Studio" workspace (concept D2) on a layered design system (`webapp-banner-tool/src/design`): a top bar with the workspace switcher, canvas tools and an account menu with the theme choice and logout; the Banner editor with the live channel tree as a layer panel, a dot-grid canvas with the crop, the TeamSpeak preview in a dock and an inspector; tables with an inspector on the other pages; light first with a derived dark theme, colour only for highlights, TeamSpeak colours only in TeamSpeak previews, macOS metrics from 1024 px and iOS metrics below; design decisions in `docs/design/DESIGN.md` (T-142).

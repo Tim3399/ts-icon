@@ -20,17 +20,21 @@ test("real Cropper exports 500×44 PNG and preserves selected content after resi
   const save = page.getByRole("button", { name: "Crop & send image" });
   await expect(save).toBeEnabled();
   await page.getByRole("button", { name: "Zoom in", exact: true }).click();
-  const down = page.getByRole("button", { name: "Move down", exact: true });
-  await down.focus();
-  await page.keyboard.press("Space");
+  // Keyboard movement: the Y field nudges the crop (the move buttons became the
+  // X / Y / W / H fields of the D2 inspector, D-142F-33).
+  await page.getByRole("textbox", { name: "Y", exact: true }).focus();
+  await page.keyboard.press("ArrowDown");
   await save.click();
   await expect.poll(() => api.uploads.length).toBe(1);
   expect(api.uploads[0].cid).toBe("43");
   expect(api.uploads[0].png.readUInt32BE(16)).toBe(500);
   expect(api.uploads[0].png.readUInt32BE(20)).toBe(44);
   await expect(page.getByAltText("Saved banner for General")).toBeVisible();
-  await page.getByRole("button", { name: "Enlarge view" }).click();
-  await expect(page.locator(".preview-box")).toHaveClass(/preview-box-enlarged/);
+  // A resize of the stage re-initializes the cropper (the "Enlarge view" button
+  // is gone in the D2 editor, D-142F-33); the selection must survive it.
+  const viewport = page.viewportSize()!;
+  await page.setViewportSize({ width: viewport.width - 40, height: viewport.height - 40 });
+  await expect(page.locator(".preview-box .cropper-crop-box")).toBeVisible();
   await page.evaluate(
     () =>
       new Promise<void>((resolve) =>
@@ -52,7 +56,7 @@ const SCREEN_VERBS = DESTRUCTIVE_VERBS;
 test("empty state keeps hit targets and the prominent rule", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
-  await expect(page.getByText("Add an image above, or paste one")).toBeVisible();
+  await expect(page.getByText("Drop an image here, or click to browse")).toBeVisible();
   await expectHitTargets(page);
   await expectProminentRule(page, SCREEN_VERBS);
   await expect(page.locator('[data-variant="prominent"]:visible')).toHaveText("Crop & send image");
@@ -62,13 +66,14 @@ test("empty state keeps hit targets and the prominent rule", async ({ page }) =>
 test("error state keeps hit targets and the prominent rule", async ({ page }) => {
   await mockApi(page, { state: "error" });
   await page.goto("/");
-  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+  // The channel list error sits in the layer panel since D-142F-33.
+  await expect(page.locator("#studio-layers").getByRole("alert")).toContainText(
     "The server could not finish this action.",
   );
   await expectHitTargets(page);
   await expectProminentRule(page, SCREEN_VERBS);
   await page.getByRole("textbox", { name: "Image URL" }).fill("http://example.com/banner.png");
-  await page.getByRole("button", { name: "Load", exact: true }).click();
+  await page.getByRole("button", { name: "Load URL", exact: true }).click();
   await expect(page.getByText("Enter a complete HTTPS image URL.")).toBeVisible();
   await expectHitTargets(page);
   await expectProminentRule(page, SCREEN_VERBS);
@@ -175,7 +180,9 @@ test.describe("focus after save", () => {
     const save = page.getByRole("button", { name: "Crop & send image" });
     await expect(save).toBeEnabled();
     await save.focus();
+    const scrollY = await page.evaluate(() => window.scrollY);
     await page.keyboard.press("Enter");
+    return scrollY;
   }
   const active = (page: Page) =>
     page.evaluate(() => {
@@ -186,9 +193,12 @@ test.describe("focus after save", () => {
   test("moves to the channel select after a successful save", async ({ page }) => {
     const api = await mockApi(page);
     await page.goto("/");
-    await loadAndSave(page);
+    const before = await loadAndSave(page);
     await expect.poll(() => api.uploads.length).toBe(1);
     await expect.poll(() => active(page)).toBe("select#banner-channel");
+    // R6: the page does not jump away from the dock.
+    const after = await page.evaluate(() => window.scrollY);
+    expect(Math.abs(after - before)).toBeLessThanOrEqual(1);
   });
 
   test("moves to the error message after a failed save", async ({ page }) => {
@@ -254,23 +264,25 @@ test.describe("TeamSpeak preview", () => {
       (await pills.nth(0).boundingBox())!,
       (await pills.nth(1).boundingBox())!,
     ];
-    const scaled = page.getByText("Scaled down to fit this screen");
-    if (page.viewportSize()!.width >= 600) {
-      expect(Math.abs(selected.width - TS6.width)).toBeLessThanOrEqual(1);
-      expect(Math.abs(selected.height - TS6.height)).toBeLessThanOrEqual(1);
-      expect(Math.abs(selected.width - child.width - TS6.indent)).toBeLessThanOrEqual(1);
-      expect(Math.abs(child.y - selected.y - TS6.pitch)).toBeLessThanOrEqual(1);
-      await expect(scaled).toBeHidden();
-    } else {
-      expect(selected.width).toBeLessThan(TS6.width);
-      expect(selected.width / selected.height).toBeCloseTo(TS6.width / TS6.height, 0);
-      await expect(scaled).toBeVisible();
-    }
+    // Never scaled (T-142-F3 item 12): the TS6 size in every project; a column
+    // narrower than the tree scrolls it sideways and says so.
+    expect(Math.abs(selected.width - TS6.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(selected.height - TS6.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(selected.width - child.width - TS6.indent)).toBeLessThanOrEqual(1);
+    expect(Math.abs(child.y - selected.y - TS6.pitch)).toBeLessThanOrEqual(1);
+    const fontSize = await preview
+      .locator(".channel-tree-name")
+      .first()
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(fontSize).toBeGreaterThanOrEqual(11);
+    const note = page.getByText("scroll sideways to see them whole");
+    if (page.viewportSize()!.width < 560) await expect(note).toBeVisible();
+    else await expect(note).toBeHidden();
     // Right edges aligned.
     expect(Math.abs(selected.x + selected.width - (child.x + child.width))).toBeLessThanOrEqual(1);
 
     // The exact saved pixels at 1:1 below the preview.
-    await expect(page.getByText("Saved image (500 × 44)")).toBeVisible();
+    await expect(page.getByText("Saved image · 500 × 44 · 1:1")).toBeVisible();
     const saved = page.getByAltText(/^Saved image for General/);
     expect(await saved.getAttribute("src")).toBe(await banner.getAttribute("src"));
 
@@ -318,4 +330,157 @@ test.describe("TeamSpeak preview", () => {
       expect(colours.row).toBe("rgb(25, 31, 50)");
     });
   }
+});
+
+// T-142-F3 items 4–6 and R4 (D-142F-33): every visible control of the D2
+// Studio editor works.
+test.describe("Studio editor", () => {
+  async function loadSource(page: Page, cid = "43") {
+    await page.getByRole("combobox", { name: "Channel", exact: true }).selectOption(cid);
+    await page.locator("#file-upload").setInputFiles({
+      name: "source.png",
+      mimeType: "image/png",
+      buffer: await sourcePng(page),
+    });
+    await expect(page.getByRole("button", { name: "Zoom in", exact: true })).toBeEnabled();
+  }
+  const field = (page: Page, name: string) => page.getByRole("textbox", { name, exact: false });
+  const after = (page: Page) => page.getByAltText("New banner of General");
+
+  test("X and Y set the crop in source pixels and the preview follows", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/");
+    await loadSource(page);
+    // The fitted crop spans the full 1000 px source width; halve it first so X can move.
+    await field(page, "Width").fill("500");
+    await field(page, "Width").blur();
+    await expect(field(page, "Width")).toHaveValue("500");
+    const x = field(page, "X");
+    await expect(x).not.toHaveValue("");
+    const before = await after(page).getAttribute("src");
+    await x.fill("100");
+    await expect.poll(() => field(page, "X").inputValue()).toBe("100");
+    await expect.poll(() => after(page).getAttribute("src")).not.toBe(before);
+    const moved = await after(page).getAttribute("src");
+    await field(page, "Y").fill("120");
+    await field(page, "Y").blur();
+    await expect(field(page, "Y")).toHaveValue("120");
+    await expect.poll(() => after(page).getAttribute("src")).not.toBe(moved);
+    // The preview row and the saved strip show the same export.
+    const preview = page.getByRole("figure", { name: "Preview in TeamSpeak" });
+    expect(await preview.getByAltText("Cropped banner for General").getAttribute("src")).toBe(
+      await after(page).getAttribute("src"),
+    );
+  });
+
+  test("W and H keep 500 : 44", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/");
+    await loadSource(page);
+    await field(page, "Width").fill("500");
+    await field(page, "Width").blur();
+    await expect(field(page, "Width")).toHaveValue("500");
+    await expect(field(page, "Height")).toHaveValue("44");
+    await field(page, "Height").fill("66");
+    await field(page, "Height").blur();
+    await expect(field(page, "Width")).toHaveValue("750");
+    await expect(field(page, "Height")).toHaveValue("66");
+  });
+
+  test("Fit and zoom act on the cropper and the readout shows the real zoom", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/");
+    const readout = page.getByLabel("Zoom level");
+    await expect(readout).toHaveText("– %");
+    await loadSource(page);
+    await expect(readout).toHaveText(/^\d+ %$/);
+    const fitted = await readout.textContent();
+    const imageWidth = () =>
+      page
+        .locator(".preview-box .cropper-canvas")
+        .evaluate((el) => el.getBoundingClientRect().width);
+    const width = await imageWidth();
+    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await expect(readout).not.toHaveText(fitted!);
+    expect(await imageWidth()).toBeGreaterThan(width);
+    // The readout is the canvas width over the natural width (1000 px source).
+    const shown = parseInt((await readout.textContent())!, 10);
+    expect(Math.abs(shown - Math.round(((await imageWidth()) / 1000) * 100))).toBeLessThanOrEqual(
+      1,
+    );
+    await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+    await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+    expect(await imageWidth()).toBeLessThan(width + 1);
+    await page.getByRole("button", { name: "Fit to screen", exact: true }).click();
+    await expect(readout).toHaveText(fitted!);
+  });
+
+  test("a layer row selects its channel, the same state as the select", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/");
+    const layers = page.getByRole("list", { name: "Channels" });
+    const rows = layers.getByRole("button");
+    expect(await rows.count()).toBeGreaterThan(0);
+    const second = rows.nth(1);
+    await second.click();
+    await expect(second).toHaveAttribute("aria-current", "true");
+    await expect(page.getByRole("combobox", { name: "Channel", exact: true })).toHaveValue("43");
+    await page.getByRole("combobox", { name: "Channel", exact: true }).selectOption("42");
+    await expect(rows.nth(0)).toHaveAttribute("aria-current", "true");
+    await expect(second).not.toHaveAttribute("aria-current");
+  });
+
+  test("the deep link /?channel=<cid> preselects the channel", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/?channel=43");
+    await expect(page.getByRole("combobox", { name: "Channel", exact: true })).toHaveValue("43");
+    await expect(
+      page.getByRole("list", { name: "Channels" }).getByRole("button").nth(1),
+    ).toHaveAttribute("aria-current", "true");
+  });
+
+  test("Before shows the empty tile without a current banner, the banner with one", async ({
+    page,
+  }) => {
+    const api = await mockApi(page);
+    await page.goto("/");
+    await loadSource(page);
+    await expect(page.getByText("No banner yet")).toBeVisible();
+    await expect(after(page)).toBeVisible();
+    // 250 x 22 (R8) wherever the dock has the room; a phone column narrows them.
+    const roomy = page.viewportSize()!.width >= 600;
+    for (const strip of roomy ? [page.getByText("No banner yet"), after(page)] : []) {
+      const box = (await strip.boundingBox())!;
+      expect(Math.abs(box.width - 250)).toBeLessThanOrEqual(1);
+      expect(Math.abs(box.height - 22)).toBeLessThanOrEqual(1);
+    }
+    await page.getByRole("button", { name: "Crop & send image" }).click();
+    await expect.poll(() => api.uploads.length).toBe(1);
+    const current = page.getByAltText("Saved banner for General");
+    await expect(current).toBeVisible();
+    await expect
+      .poll(() => current.evaluate((img: HTMLImageElement) => img.naturalWidth))
+      .toBe(500);
+    const box = (await current.boundingBox())!;
+    if (roomy) {
+      expect(Math.abs(box.width - 250)).toBeLessThanOrEqual(1);
+      expect(Math.abs(box.height - 22)).toBeLessThanOrEqual(1);
+    } else expect(box.width / box.height).toBeCloseTo(500 / 44, 0);
+  });
+
+  test("the editor never reads the admin-only banner URLs (R4)", async ({ page }) => {
+    await mockApi(page);
+    const adminCalls: string[] = [];
+    await page.route("**/channels/banner-urls", (route) => {
+      adminCalls.push(route.request().url());
+      return route.fulfill({ status: 403, json: { message: "Admins only." } });
+    });
+    await page.goto("/");
+    const rows = page.getByRole("list", { name: "Channels" }).getByRole("button");
+    await expect(rows).toHaveCount(2);
+    await expect(page.locator("#studio-layers").getByRole("alert")).toHaveCount(0);
+    await loadSource(page);
+    await expect(after(page)).toBeVisible();
+    expect(adminCalls).toEqual([]);
+  });
 });

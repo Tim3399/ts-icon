@@ -1,10 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Routes, Route } from "react-router-dom";
 import BannerCropper from "./components/BannerCropper";
 import ChannelGallery from "./components/ChannelGallery";
 import BannerUrlManager from "./components/BannerUrlManager";
 import ChannelWallpaperGenerator from "./components/ChannelWallpaperGenerator";
-import ChannelTreePreview from "./components/ChannelTreePreview";
 import RequireUpload from "./components/RequireUpload";
 import RequireAdmin from "./components/RequireAdmin";
 import {
@@ -14,8 +13,6 @@ import {
   ModeLink,
   ModeSwitcher,
   Notice,
-  Panel,
-  StudioLayers,
   StudioPage,
   StudioShell,
   type MenuItem,
@@ -23,41 +20,7 @@ import {
 import { THEME_LABELS, THEME_ORDER, useTheme } from "./theme/theme";
 import { useAuth } from "./auth/AuthContext";
 import { useCanUpload, useIsAdmin } from "./auth/permissions";
-import { usePreviewOverlay } from "./preview/PreviewOverlayContext";
 import { PreviewOverlayProvider } from "./preview/PreviewOverlayProvider";
-
-// Keeps the live tree reasonably fresh even when nothing in this tab
-// triggers an explicit bumpRefresh() (e.g. another admin changing channels
-// elsewhere) -- fetchLiveChannels() on the backend already caches for 30s,
-// so polling faster than that would just re-read the same cached result.
-const LIVE_TREE_POLL_MS = 30_000;
-
-// The live tree in the editor's layer panel. D-142G-3 rebuilds it as the D2
-// layer list on GET channels (R4); until then it keeps the current
-// ChannelTreePreview, which reads the admin-only banner-URL endpoint.
-function LiveTreeLayers() {
-  const { overlay, refreshKey } = usePreviewOverlay();
-  const [pollTick, setPollTick] = useState(0);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible") setPollTick((t) => t + 1);
-    }, LIVE_TREE_POLL_MS);
-    return () => clearInterval(id);
-  }, []);
-
-  return (
-    <StudioLayers>
-      <Panel id="live-tree-panel" title="Live channel tree" footer="Live from the TeamSpeak server">
-        <ChannelTreePreview
-          className="channel-tree-live"
-          refreshKey={refreshKey + pollTick}
-          overlay={overlay}
-        />
-      </Panel>
-    </StudioLayers>
-  );
-}
 
 function NotFound() {
   return (
@@ -144,12 +107,9 @@ export default function App() {
             path="/"
             element={
               <RequireUpload>
-                <Page>
-                  <BannerCropper />
-                </Page>
-                {/* Gated to admin: the endpoint the current tree reads
-                    (GET channels/banner-urls) is admin-only. */}
-                {isAdmin && <LiveTreeLayers />}
+                {/* The editor fills the main region (canvas and dock) and brings
+                    its own layer panel and inspector (T-142-F3 item 4, R4). */}
+                <BannerCropper />
               </RequireUpload>
             }
           />

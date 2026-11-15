@@ -100,10 +100,9 @@ for (const width of WIDTHS) {
     await expectNoHorizontalOverflow(page);
   });
 
-  test.fixme(`${width} px: the crop stage keeps 500 px and the 1:1 preview row fits`, async ({
+  test(`${width} px: the crop stage keeps 500 px and the 1:1 preview row fits`, async ({
     page,
   }) => {
-    // enabled by D-142G-3
     await open(page, width, "/", "Create a channel banner");
     const stage = page.getByTestId("crop-stage");
     expect((await stage.boundingBox())!.width).toBeGreaterThanOrEqual(CROP_STAGE_MIN);

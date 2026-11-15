@@ -120,7 +120,8 @@ test("the live tree is the editor's layer panel and is absent elsewhere", async 
   await mockApi(page);
   await page.goto("/");
   const layers = page.getByRole("complementary", { name: "Layers" });
-  await expect(layers.getByRole("region", { name: "Live channel tree" })).toBeVisible();
+  // D-142F-33: the layer panel is D2's "Channels" panel on GET channels (R4).
+  await expect(layers.getByRole("region", { name: "Channels" })).toBeVisible();
   await page.goto("/channels");
   await expect(
     page.getByRole("heading", { level: 1, name: "Manage channel images" }),

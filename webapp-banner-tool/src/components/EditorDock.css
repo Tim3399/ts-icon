@@ -1,0 +1,97 @@
+/* EditorDock: D2's dock under the canvas – the TeamSpeak preview, the
+   before/after comparison beside it and the saved strip below. Roles and
+   tokens only (src/design/README.md). */
+
+.dock-layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-5) var(--space-6);
+}
+
+.dock-layout > .ts-preview-stack {
+  flex: none;
+  max-width: 100%;
+}
+
+.dock-side {
+  display: grid;
+  flex: 1 1 calc(var(--size-grid-medium) + var(--space-8));
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.compare {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.compare-title {
+  color: var(--color-label);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+  font-weight: var(--font-weight-semibold);
+}
+
+.compare-row {
+  display: grid;
+  grid-template-columns: var(--size-property-label) minmax(0, auto);
+  align-items: center;
+  justify-content: start;
+  gap: var(--space-3);
+}
+
+.compare-label {
+  color: var(--color-label-secondary);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+}
+
+/* Half the saved size: 250 x 22 (R8), plain strips at the banner ratio. */
+.compare-strip {
+  display: block;
+  width: 250px;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: var(--size-banner-ratio);
+  border-radius: var(--radius-small);
+}
+
+.compare-empty {
+  display: grid;
+  place-items: center;
+  border: var(--size-hairline) solid var(--color-border);
+  color: var(--color-label-tertiary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+.dock-hint {
+  color: var(--color-label-secondary);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+}
+
+.saved {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.saved-label {
+  color: var(--color-label-secondary);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+}
+
+/* 1:1: the export's own 500 x 44 pixels, narrower only when the column is. */
+.saved-strip {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-small);
+}
+
+.saved {
+  margin-top: var(--space-2);
+}
