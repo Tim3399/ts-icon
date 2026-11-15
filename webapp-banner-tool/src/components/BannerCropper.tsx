@@ -288,6 +288,21 @@ export default function BannerCropper() {
     return () => document.removeEventListener("paste", listener);
   }, []);
 
+  // Focus after "Crop & send image" (README, "Focus after the main action"):
+  // the channel select after a save (the next step is the next channel; the
+  // toast announces the success through its live region), the error message
+  // after a failure. Applied once the controls are enabled again, so focus
+  // never falls back to <body>. Field errors focus their field themselves.
+  const focusAfterSave = useRef<"channel" | "error" | null>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (uploading || !focusAfterSave.current) return;
+    const target = focusAfterSave.current;
+    focusAfterSave.current = null;
+    if (target === "channel") document.getElementById(FIELD_IDS.cid)?.focus();
+    else errorRef.current?.focus();
+  }, [uploading, error]);
+
   const upload = async () => {
     if (lock.current || !cropper.current || !ready || !selected) return;
     lock.current = true;
@@ -307,6 +322,7 @@ export default function BannerCropper() {
       setSavedRevision(Date.now());
       showToast("Image uploaded successfully!", "success");
       bumpRefresh();
+      focusAfterSave.current = "channel";
     } catch (err) {
       const message = describeApiError(
         err,
@@ -317,6 +333,7 @@ export default function BannerCropper() {
       else if (!fields.receive(err)) {
         setError(message);
         showToast(message, "error");
+        focusAfterSave.current = "error";
       }
     } finally {
       lock.current = false;
@@ -450,14 +467,16 @@ export default function BannerCropper() {
         header="Crop"
         footer={
           <span id="crop-help">
-            Drag the image to frame it, or use the arrows. The banner is saved at {TARGET_WIDTH} ×{" "}
-            {TARGET_HEIGHT} pixels.
+            Drag the image or use the arrows to frame the {TARGET_WIDTH} × {TARGET_HEIGHT} pixel
+            banner.
           </span>
         }
       >
         {error && (
           <li className="editor-pane">
-            <RequestError message={error} />
+            <div ref={errorRef} tabIndex={-1} className="editor-error">
+              <RequestError message={error} />
+            </div>
           </li>
         )}
         <li className="editor-pane editor-crop">

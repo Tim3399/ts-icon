@@ -448,6 +448,19 @@ an accent icon (`data-accent="selection"`); other rows are label colour with sec
 Inline messages use `Notice` and `RequestError` in the Primer Banner style: a neutral box, text in
 label colour and a glyph in the status role.
 
+## Focus after the main action
+
+After a screen's main action, keyboard focus moves to a defined element and never falls back to
+`<body>` (T-142-F2 item 4):
+
+- **Success:** the control of the user's next step. In the Banner editor that is the channel select
+  after "Crop & send image": the next step is the next channel, and the success toast is announced
+  by its own live region.
+- **Failure:** the error message (a focusable wrapper, `tabIndex={-1}`, around the `RequestError`).
+  A field error focuses its field instead.
+
+Focus moves once the controls are enabled again, so it never lands on a disabled control.
+
 ## Hit targets
 
 Every visible `button`, `a`, `input`, `select`, `textarea` and `[role=button]` is at least 28 × 28 px

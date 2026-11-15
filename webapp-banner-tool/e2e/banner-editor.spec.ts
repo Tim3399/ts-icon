@@ -162,6 +162,52 @@ test.describe("image sources", () => {
   });
 });
 
+// T-142-F2 item 4: focus after "Crop & send image" (src/design/README.md,
+// "Focus after the main action").
+test.describe("focus after save", () => {
+  async function loadAndSave(page: Page) {
+    await page.getByRole("combobox", { name: "Channel", exact: true }).selectOption("43");
+    await page.locator("#file-upload").setInputFiles({
+      name: "source.png",
+      mimeType: "image/png",
+      buffer: await sourcePng(page),
+    });
+    const save = page.getByRole("button", { name: "Crop & send image" });
+    await expect(save).toBeEnabled();
+    await save.focus();
+    await page.keyboard.press("Enter");
+  }
+  const active = (page: Page) =>
+    page.evaluate(() => {
+      const el = document.activeElement;
+      return el ? `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}` : "none";
+    });
+
+  test("moves to the channel select after a successful save", async ({ page }) => {
+    const api = await mockApi(page);
+    await page.goto("/");
+    await loadAndSave(page);
+    await expect.poll(() => api.uploads.length).toBe(1);
+    await expect.poll(() => active(page)).toBe("select#banner-channel");
+  });
+
+  test("moves to the error message after a failed save", async ({ page }) => {
+    await mockApi(page);
+    // Registered after mockApi, so it answers the upload first.
+    await page.route("**/channels/43/image", (route) =>
+      route.request().method() === "POST"
+        ? route.fulfill({ status: 500, json: { message: "The disk is full." } })
+        : route.fallback(),
+    );
+    await page.goto("/");
+    await loadAndSave(page);
+    const message = page.locator(".editor-error");
+    await expect(message).toContainText("The server could not finish this action.");
+    await expect(message).toBeFocused();
+    expect(await active(page)).not.toBe("body");
+  });
+});
+
 // T-142-F1 items 14, 15 and 17: the TeamSpeak preview.
 test.describe("TeamSpeak preview", () => {
   // TS6 client geometry (src/components/teamspeakGeometry.ts; TS6 reference,

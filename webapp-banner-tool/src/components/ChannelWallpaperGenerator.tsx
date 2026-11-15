@@ -417,7 +417,7 @@ export default function ChannelWallpaperGenerator() {
           header="Source image"
           footer="One image is sliced top to bottom into banner-sized rows."
         >
-          <ListRow title="Image">
+          <ListRow title="File or URL">
             <Stack gap={4}>
               <UploadInput
                 id="wallpaper-file-upload"
@@ -456,7 +456,7 @@ export default function ChannelWallpaperGenerator() {
           header="Parent channel"
           footer="The generated channels are created below this channel, or at the top level."
         >
-          <ListRow title="Parent channel">
+          <ListRow title="Create the channels below">
             <div
               id={FIELD_IDS.parentCid}
               tabIndex={-1}
@@ -483,10 +483,11 @@ export default function ChannelWallpaperGenerator() {
             header="Options"
             footer="Naming and layout of the channels that will be created."
           >
-            <ListRow title="Name prefix">
+            <ListRow title="Channel name prefix">
               <TextField
                 id="wallpaper-name-prefix"
                 label="Channel name prefix"
+                labelHidden
                 error={fieldErrors.namePrefix}
                 value={options.namePrefix}
                 maxLength={88}
@@ -497,6 +498,7 @@ export default function ChannelWallpaperGenerator() {
               <Select
                 id={FIELD_IDS.spacerMode}
                 label="Spacer mode"
+                labelHidden
                 error={fieldErrors.spacerMode}
                 value={options.spacerMode}
                 onChange={(e) => setOption("spacerMode", e.target.value as Options["spacerMode"])}

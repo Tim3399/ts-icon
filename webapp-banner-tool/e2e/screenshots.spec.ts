@@ -5,6 +5,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { fixtureImages, mockApi, screenshotChannels, type ApiState } from "./fixtures/api";
+import { fixtureBanner } from "./fixtures/banners";
 import { SCREEN_ROUTES, SHELL_ROUTES } from "./fixtures/routes";
 
 const dir = process.env.SCREENSHOT_DIR ?? "";
@@ -54,6 +55,22 @@ for (const theme of THEMES) {
         await shoot(page, `route-${slug}-${suffix}`);
       });
     }
+
+    // The Banner editor with an image loaded (T-142-F1 gate, T-142-F2 item 7):
+    // Hytale between its neighbours, the live panel open. The source artwork
+    // has no text, so the preview shows the channel name once and no glyphs at
+    // the banner's top edge.
+    test(`Banner editor with an image loaded (${suffix})`, async ({ page }) => {
+      await prepare(page, theme, viewport);
+      const source = await fixtureBanner(page, { kind: "artwork", title: "", hue: 200 });
+      await page.addInitScript(() => localStorage.setItem("ts-icon-rail-open", "open"));
+      await page.goto("/?channel=13");
+      await page
+        .locator("#file-upload")
+        .setInputFiles({ name: "artwork.png", mimeType: "image/png", buffer: source });
+      await expect(page.getByAltText("Cropped banner for Hytale")).toBeVisible();
+      await shoot(page, `route-banner-editor-loaded-${suffix}`);
+    });
 
     test(`sidebar open (${suffix})`, async ({ page }) => {
       test.skip(viewport !== "mobile", "The sidebar is always open on desktop.");
