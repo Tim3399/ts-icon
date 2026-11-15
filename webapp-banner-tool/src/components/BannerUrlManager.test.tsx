@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import BannerUrlManager from "./BannerUrlManager";
 
@@ -77,10 +77,12 @@ it("aborts a bulk update and skips its follow-up work after unmount", async () =
       finishUpdate = () => resolve({ updated: ["42"], alreadyManaged: [] });
     });
   });
-  vi.spyOn(window, "confirm").mockReturnValue(true);
   const view = render(<BannerUrlManager />);
 
   fireEvent.click(await screen.findByRole("button", { name: "Set for all channels" }));
+  fireEvent.click(
+    within(screen.getByRole("alertdialog")).getByRole("button", { name: "Set URLs" }),
+  );
   const signal = apiFetchJsonMock.mock.calls[1][1].signal as AbortSignal;
   view.unmount();
   expect(signal.aborted).toBe(true);

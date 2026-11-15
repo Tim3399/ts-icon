@@ -42,12 +42,7 @@ export const SHELL_ROUTES: AppRoute[] = [
 export const ALL_ROUTES: AppRoute[] = [...SCREEN_ROUTES, ...SHELL_ROUTES];
 
 /** Routes whose screens are restyled in stage B (T-142-F1). enabled in stage B */
-export const STAGE_B_ROUTES: string[] = [
-  "/banner-urls",
-  "/wallpaper",
-  "/access-denied",
-  "/missing-page",
-];
+export const STAGE_B_ROUTES: string[] = ["/wallpaper", "/access-denied", "/missing-page"];
 
 /**
  * Stage-A screens still being rebuilt: the Banner editor by D-142F-2, Manage
