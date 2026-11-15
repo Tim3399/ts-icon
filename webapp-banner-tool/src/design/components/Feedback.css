@@ -20,9 +20,9 @@
   flex-wrap: wrap;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  border: var(--size-hairline) solid var(--color-destructive);
+  border: var(--size-hairline) solid var(--color-border);
   border-radius: var(--radius-card);
-  background-color: var(--color-destructive-bg);
+  background-color: var(--color-bg-row);
   color: var(--color-label);
   font-size: var(--font-subheadline-size);
   line-height: var(--font-subheadline-line);

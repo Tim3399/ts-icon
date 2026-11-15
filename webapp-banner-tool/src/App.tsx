@@ -11,14 +11,15 @@ import {
   AccessDenied,
   AppShell,
   Brand,
-  Button,
   LinkButton,
+  MenuButton,
   Notice,
   SidebarLink,
   SidePanel,
-  ThemeToggle,
-  UserChip,
+  ToolbarButton,
+  type MenuItem,
 } from "./design";
+import { THEME_LABELS, THEME_ORDER, useTheme } from "./theme/theme";
 import { useAuth } from "./auth/AuthContext";
 import { useCanUpload, useIsAdmin } from "./auth/permissions";
 import { usePreviewOverlay } from "./preview/PreviewOverlayContext";
@@ -86,6 +87,7 @@ export default function App() {
   const canUpload = useCanUpload();
   const isAdmin = useIsAdmin();
   const [railOpen, setRailOpen] = useState(readRailPreference);
+  const { preference, setPreference } = useTheme();
 
   const toggleRail = useCallback(() => {
     setRailOpen((open) => {
@@ -100,10 +102,25 @@ export default function App() {
 
   const railLabel = railOpen ? "Hide the live channel tree" : "Show the live channel tree";
 
+  // The one account menu of the top bar: the signed-in name as its header,
+  // the appearance choice and the way out.
+  const accountItems: MenuItem[] = [
+    ...THEME_ORDER.map(
+      (theme, i): MenuItem => ({
+        label: THEME_LABELS[theme],
+        checked: preference === theme,
+        onSelect: () => setPreference(theme),
+        separatorBefore: i === 0,
+        groupLabel: i === 0 ? "Appearance" : undefined,
+      }),
+    ),
+    { label: "Log out", onSelect: logout, separatorBefore: true },
+  ];
+
   return (
     <PreviewOverlayProvider>
       <AppShell
-        brand={<Brand name="TS-Icon" tagline="Channel banners" logoSrc="/icon.svg" />}
+        brand={<Brand name="TS-Icon" />}
         navLabel="Primary"
         nav={
           <>
@@ -132,20 +149,22 @@ export default function App() {
         toolbar={
           <>
             {isAdmin && (
-              <Button
-                variant="plain"
+              <ToolbarButton
                 icon="panel"
-                iconOnly
                 onClick={toggleRail}
                 aria-expanded={railOpen}
                 aria-controls={LIVE_PANEL_ID}
-                title={railLabel}
-                aria-label={railLabel}
+                label={railLabel}
               />
             )}
-            <ThemeToggle />
-            <UserChip name={username} />
-            <Button variant="plain" icon="logout" iconOnly onClick={logout} aria-label="Logout" />
+            <MenuButton
+              label={username || "Account"}
+              icon="user"
+              header={username ? `Signed in as ${username}` : undefined}
+              items={accountItems}
+              align="end"
+              collapseLabel
+            />
           </>
         }
         // Gated to admin, matching the nav links above: the backend endpoint

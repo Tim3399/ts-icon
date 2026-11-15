@@ -40,7 +40,11 @@ export type IconName =
   | "inbox"
   | "send"
   | "undo"
-  | "sidebar";
+  | "sidebar"
+  | "chevronDown"
+  | "chevronRight"
+  | "user"
+  | "more";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   image: (
@@ -242,6 +246,21 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
       <path d="M9 4.5v15" />
+    </>
+  ),
+  chevronDown: <path d="M6 9.5l6 6 6-6" />,
+  chevronRight: <path d="M9.5 6l6 6-6 6" />,
+  user: (
+    <>
+      <circle cx="12" cy="8.5" r="3.5" />
+      <path d="M5 20a7 7 0 0 1 14 0" />
+    </>
+  ),
+  more: (
+    <>
+      <circle cx="6" cy="12" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="18" cy="12" r="1" />
     </>
   ),
   undo: (

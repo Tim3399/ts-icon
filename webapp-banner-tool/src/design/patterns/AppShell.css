@@ -1,6 +1,8 @@
-/* App shell: sidebar, toolbar, content and the optional side panel.
-   Breakpoints: sidebar column from 1024 px, side panel column from 1200 px
-   (T-142 items 15 and 16). */
+/* App shell: source-list sidebar, top bar, content and the optional side
+   panel. Breakpoints: sidebar column from 1024 px; the side panel sits beside the
+   content only while the main column keeps --size-main-min (T-142 items 15
+   and 16, T-142-F1 addendum 3). Containers are separated by 1 px borders,
+   not shadows (T-142-F1 item 6). */
 
 .ds-shell {
   display: grid;
@@ -17,8 +19,8 @@
   display: inline-flex;
   align-items: center;
   min-height: var(--size-hit-target);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-control);
   background-color: var(--color-accent-fill);
   color: var(--color-on-accent-fill);
   font-weight: var(--font-weight-semibold);
@@ -31,11 +33,11 @@
   transform: none;
 }
 
-/* Sidebar */
+/* Sidebar: a source list on a muted surface. */
 
 /* The column runs the full page height; its content sticks to the top. */
 .ds-shell-sidebar {
-  border-right: var(--size-hairline) solid var(--color-separator);
+  border-right: var(--size-hairline) solid var(--color-border);
   background-color: var(--color-bg-sidebar);
   /* Opening shows the drawer at once (focus can move in); closing hides it
      only after the slide, see the collapsed rule below. */
@@ -47,34 +49,44 @@
   top: var(--space-0);
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);
   max-height: 100dvh;
   overflow-y: auto;
-  padding: var(--space-4) var(--space-3);
+  padding: var(--space-4) var(--space-2);
 }
 
 .ds-shell-brand {
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1) var(--space-3);
+}
+
+.ds-shell-nav-heading {
+  margin: var(--space-0) var(--space-0) var(--space-1);
+  padding: var(--space-0) var(--space-3);
+  color: var(--color-label-secondary);
+  font-size: var(--font-footnote-size);
+  line-height: var(--font-footnote-line);
+  font-weight: var(--font-weight-semibold);
 }
 
 .ds-shell-nav-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-half);
   list-style: none;
 }
 
 .ds-sidebar-link {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   min-height: var(--size-hit-target);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-control);
   color: var(--color-label);
   font-size: var(--font-body-size);
   line-height: var(--font-body-line);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-regular);
   text-decoration: none;
   transition: background-color var(--motion-fast) var(--motion-easing);
 }
@@ -84,18 +96,35 @@
 }
 
 .ds-sidebar-link-icon {
+  display: inline-grid;
+  place-items: center;
   flex: none;
-  color: var(--color-accent);
+  color: var(--color-label-secondary);
 }
 
-/* The current destination stays highlighted (HIG lists and sidebars). */
+/* The current destination: muted background, an accent marker at the
+   leading edge and an accent icon (Primer NavList, HIG source list). */
 .ds-sidebar-link[aria-current="page"] {
   background-color: var(--color-selected-bg);
   font-weight: var(--font-weight-semibold);
 }
 
 .ds-sidebar-link[aria-current="page"] .ds-sidebar-link-icon {
-  color: var(--color-label);
+  color: var(--color-accent);
+}
+
+.ds-sidebar-link-marker {
+  position: absolute;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  left: calc(var(--space-1) * -1);
+  width: var(--space-1);
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+}
+
+.ds-sidebar-link[aria-current="page"] .ds-sidebar-link-marker {
+  background-color: var(--color-accent);
 }
 
 .ds-shell-scrim {
@@ -108,6 +137,7 @@
 /* Content column */
 
 .ds-shell-content {
+  container: shell / inline-size;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -122,7 +152,7 @@
   gap: var(--space-2);
   min-height: var(--size-toolbar);
   padding: var(--space-1) var(--space-4);
-  border-bottom: var(--size-hairline) solid var(--color-separator);
+  border-bottom: var(--size-hairline) solid var(--color-border);
   background-color: var(--color-bg-window);
 }
 
@@ -134,7 +164,7 @@
 .ds-shell-toolbar-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
   margin-left: auto;
   min-width: 0;
 }
@@ -158,7 +188,12 @@
   outline: none;
 }
 
-/* Side panel: below the content until 1200 px, then a column beside it. */
+/* Side panel: below the content, and a column beside it only when the content
+   column is wide enough to keep the main column at --size-main-min
+   (T-142-F1 addendum 3, C1). Media and container conditions cannot read
+   custom properties, so the container query below spells out the sum
+   --size-main-min + --size-panel (560 + 340 = 900 px); a unit test fails if
+   the three numbers drift apart. */
 
 .ds-side-panel {
   min-width: 0;
@@ -166,6 +201,7 @@
   max-width: var(--size-content-max);
   margin: var(--space-0) auto;
   padding: var(--space-4) var(--space-6) var(--space-8);
+  border-top: var(--size-hairline) solid var(--color-border);
   background-color: var(--color-bg-panel);
 }
 
@@ -188,8 +224,6 @@
   font-size: var(--font-footnote-size);
   line-height: var(--font-footnote-line);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--font-tracking-section);
-  text-transform: uppercase;
 }
 
 .ds-side-panel-body {
@@ -198,7 +232,7 @@
   min-height: 0;
 }
 
-@media (min-width: 1200px) {
+@container shell (min-width: 900px) {
   .ds-shell-body-with-panel:has(> .ds-side-panel:not([hidden])) {
     grid-template-columns: minmax(0, 1fr) var(--size-panel);
   }
@@ -207,7 +241,8 @@
     align-self: stretch;
     margin: var(--space-0);
     padding: var(--space-0) var(--space-4);
-    border-left: var(--size-hairline) solid var(--color-separator);
+    border-top: 0;
+    border-left: var(--size-hairline) solid var(--color-border);
   }
 
   /* The panel column runs the full height; its content sticks below the
@@ -224,55 +259,13 @@
   }
 }
 
-/* Account */
-
-.ds-user-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-bg-row);
-  color: var(--color-label);
-  font-size: var(--font-subheadline-size);
-  line-height: var(--font-subheadline-line);
-  font-weight: var(--font-weight-medium);
-}
-
-.ds-user-avatar {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: var(--size-avatar);
-  height: var(--size-avatar);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-accent-fill);
-  color: var(--color-on-accent-fill);
-  font-size: var(--font-caption-1-size);
-  line-height: var(--font-caption-1-line);
-  font-weight: var(--font-weight-bold);
-}
-
-.ds-user-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 14em;
-}
-
-/* Brand */
+/* Brand: the app name, small, no logo tile. */
 
 .ds-brand {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
   min-height: var(--size-hit-target);
   color: var(--color-label);
-}
-
-.ds-brand-mark {
-  flex: none;
 }
 
 .ds-brand-name {
@@ -280,13 +273,6 @@
   font-size: var(--font-headline-size);
   line-height: var(--font-headline-line);
   font-weight: var(--font-weight-bold);
-}
-
-.ds-brand-tagline {
-  display: block;
-  color: var(--color-label-secondary);
-  font-size: var(--font-caption-1-size);
-  line-height: var(--font-caption-1-line);
 }
 
 /* Narrow: the sidebar becomes a drawer behind the toolbar toggle. */
@@ -305,7 +291,6 @@
     width: min(var(--size-sidebar), 85vw);
     overflow-y: auto;
     background-color: var(--color-bg-sidebar);
-    box-shadow: var(--shadow-overlay);
   }
 
   .ds-shell[data-sidebar="collapsed"] .ds-shell-sidebar {
@@ -317,16 +302,12 @@
   }
 
   .ds-shell-sidebar-toggle {
-    display: inline-flex;
+    display: inline-grid;
   }
 
   .ds-shell-toolbar-brand {
     display: block;
     min-width: 0;
-  }
-
-  .ds-shell-toolbar-brand .ds-brand-tagline {
-    display: none;
   }
 }
 
@@ -341,13 +322,5 @@
 
   .ds-side-panel {
     padding: var(--space-4) var(--space-4) var(--space-7);
-  }
-
-  .ds-user-chip {
-    padding: var(--space-1);
-  }
-
-  .ds-user-name {
-    display: none;
   }
 }

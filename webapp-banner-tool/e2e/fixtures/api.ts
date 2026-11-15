@@ -2,6 +2,7 @@
 // these mocked API responses and needs no backend. Parts of T-142 extend their
 // own fixtures here; the defaults stay what the original workflows spec used.
 import { expect, type Page } from "@playwright/test";
+import { BANNER_CYCLE, fixtureBanner, fixtureSource } from "./banners";
 
 const PUBLIC_API = "http://127.0.0.1:3000";
 const ADMIN_API = "http://127.0.0.1:3001";
@@ -111,48 +112,18 @@ export async function mockApi(page: Page, options: MockApiOptions = {}) {
   return { uploads, deleted };
 }
 
-/** A 1000 x 400 gradient PNG with a white block, drawn in the page. */
-export async function sourcePng(page: Page): Promise<Buffer> {
-  return Buffer.from(
-    await page.evaluate(() => {
-      const canvas = document.createElement("canvas");
-      canvas.width = 1000;
-      canvas.height = 400;
-      const context = canvas.getContext("2d")!;
-      const gradient = context.createLinearGradient(0, 0, 1000, 400);
-      gradient.addColorStop(0, "#eb4034");
-      gradient.addColorStop(1, "#346eeb");
-      context.fillStyle = gradient;
-      context.fillRect(0, 0, 1000, 400);
-      context.fillStyle = "#ffffff";
-      context.fillRect(300, 80, 200, 100);
-      return canvas.toDataURL("image/png").split(",")[1];
-    }),
-    "base64",
-  );
+/** The 1000 x 400 photo-like source image of the crop workflows (fixtures/banners.ts). */
+export const sourcePng = fixtureSource;
+
+/** A 500 x 44 banner PNG (dark artwork) in the given hue with a short title. */
+export function bannerPng(page: Page, hue: number, title = "Banner"): Promise<Buffer> {
+  return fixtureBanner(page, { kind: "artwork", title, hue });
 }
 
-/** A 500 x 44 banner PNG in the given hue, drawn in the page. */
-export async function bannerPng(page: Page, hue: number): Promise<Buffer> {
-  return Buffer.from(
-    await page.evaluate((h) => {
-      const canvas = document.createElement("canvas");
-      canvas.width = 500;
-      canvas.height = 44;
-      const context = canvas.getContext("2d")!;
-      const gradient = context.createLinearGradient(0, 0, 500, 44);
-      gradient.addColorStop(0, `hsl(${h} 70% 35%)`);
-      gradient.addColorStop(1, `hsl(${(h + 60) % 360} 80% 55%)`);
-      context.fillStyle = gradient;
-      context.fillRect(0, 0, 500, 44);
-      for (let x = 0; x < 500; x += 25) {
-        context.fillStyle = `hsl(${(h + x) % 360} 90% 70% / 0.35)`;
-        context.beginPath();
-        context.arc(x, 22 + 14 * Math.sin(x / 40), 9, 0, Math.PI * 2);
-        context.fill();
-      }
-      return canvas.toDataURL("image/png").split(",")[1];
-    }, hue),
-    "base64",
-  );
+/** cid -> realistic fixture banner for the channels that get an image. */
+export async function fixtureImages(page: Page, cids: string[]): Promise<Map<string, Buffer>> {
+  const images = new Map<string, Buffer>();
+  for (const [i, cid] of cids.entries())
+    images.set(cid, await fixtureBanner(page, BANNER_CYCLE[i % BANNER_CYCLE.length]));
+  return images;
 }

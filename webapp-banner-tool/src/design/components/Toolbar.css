@@ -1,0 +1,38 @@
+/* Toolbar and ToolbarButton: icon-only, borderless, label colour. */
+
+.ds-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.ds-toolbar-button {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: var(--size-hit-target);
+  min-height: var(--size-hit-target);
+  padding: var(--space-0);
+  border: 0;
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-label-secondary);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing);
+}
+
+.ds-toolbar-button:hover:not(:disabled) {
+  background-color: var(--color-fill-hover);
+  color: var(--color-label);
+}
+
+.ds-toolbar-button:active:not(:disabled) {
+  background-color: var(--color-fill-pressed);
+}
+
+.ds-toolbar-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

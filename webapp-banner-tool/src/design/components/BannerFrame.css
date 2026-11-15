@@ -6,7 +6,7 @@
   place-items: center;
   overflow: hidden;
   width: 100%;
-  border: var(--size-hairline) solid var(--color-separator);
+  border: var(--size-hairline) solid var(--color-border);
   border-radius: var(--radius-small);
   background-color: var(--color-checker-a);
   background-image:

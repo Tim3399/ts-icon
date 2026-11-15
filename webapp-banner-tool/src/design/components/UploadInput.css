@@ -9,7 +9,7 @@
   gap: var(--space-1);
   min-height: calc(var(--size-hit-target) * 2);
   padding: var(--space-5) var(--space-4);
-  border: var(--size-focus-ring) dashed var(--color-separator);
+  border: var(--size-hairline) dashed var(--color-separator);
   border-radius: var(--radius-card);
   background-color: var(--color-control-bg);
   color: var(--color-label-secondary);
@@ -22,12 +22,16 @@
 
 .ds-dropzone:hover,
 .ds-dropzone-drag-over {
-  border-color: var(--color-accent);
-  background-color: var(--color-accent-bg);
+  background-color: var(--color-fill-hover);
+}
+
+.ds-dropzone-drag-over {
+  border-color: var(--color-label-secondary);
+  background-color: var(--color-fill-pressed);
 }
 
 .ds-dropzone-icon {
-  color: var(--color-accent);
+  color: var(--color-label-secondary);
 }
 
 .ds-dropzone-label {

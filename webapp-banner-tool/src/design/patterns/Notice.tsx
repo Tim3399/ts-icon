@@ -33,7 +33,7 @@ export function Notice({
         {brand}
         {icon && (
           <div className="ds-notice-icon" aria-hidden="true">
-            <Icon name={icon} size={22} />
+            <Icon name={icon} size={28} strokeWidth={1.5} />
           </div>
         )}
         <Title className="ds-notice-title">{title}</Title>

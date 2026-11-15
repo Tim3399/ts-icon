@@ -1,4 +1,4 @@
-// App shell: sidebar (T-142 items 14, 15), live panel (item 16), the
+// App shell: sidebar (T-142 items 14, 15), live panel (item 16, width-based per F1 addendum 3), the
 // Not-found page and the keyboard-only workflow across screens.
 import { expect, test } from "@playwright/test";
 import { mockApi, sourcePng } from "./fixtures/api";
@@ -58,7 +58,8 @@ test("banner creation, gallery navigation and deletion work using Tab and keyboa
   await tabTo(page, page.getByRole("link", { name: "Manage channel images" }));
   await page.keyboard.press("Enter");
   await expect(page.locator(".channel-card")).toHaveCount(2);
-  await expect(page.getByRole("link", { name: "Manage channel images" })).toHaveAttribute(
+  // On narrow viewports the sidebar closes after the navigation, so address the link by its target.
+  await expect(page.locator('#app-sidebar a[href="/channels"]')).toHaveAttribute(
     "aria-current",
     "page",
   );
@@ -197,7 +198,10 @@ test.describe("live panel", () => {
     await expect(panel).toBeVisible();
   });
 
-  test("sits beside the content from 1200 px and below it under 1200 px", async ({ page }) => {
+  test("sits beside the content while the main column keeps its minimum, below it otherwise", async ({
+    page,
+  }) => {
+    // --size-main-min (560 px) + --size-panel (340 px) + the 240 px sidebar = 1140 px.
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/");
     const panel = page.getByRole("complementary", { name: "Live channel tree" });
@@ -206,8 +210,9 @@ test.describe("live panel", () => {
     let [p, m] = [(await panel.boundingBox())!, (await main.boundingBox())!];
     expect(p.x).toBeGreaterThanOrEqual(m.x + m.width - 1);
     expect(p.y).toBeLessThan(m.y + m.height);
+    expect(m.width).toBeGreaterThanOrEqual(560);
 
-    await page.setViewportSize({ width: 1199, height: 800 });
+    await page.setViewportSize({ width: 1100, height: 800 });
     await expect.poll(async () => (await panel.boundingBox())!.y).toBeGreaterThan(m.y);
     [p, m] = [(await panel.boundingBox())!, (await main.boundingBox())!];
     expect(p.y).toBeGreaterThanOrEqual(m.y + m.height - 1);

@@ -4,8 +4,9 @@ import "./Section.css";
 
 interface SectionProps {
   title: string;
-  /** Renders a numbered chip before the title, for ordered workflows. */
+  /** @deprecated Renders the number as plain secondary text; stage B removes it. */
   step?: number;
+  /** @deprecated Stage B removes it. */
   icon?: IconName;
   subtitle?: ReactNode;
   /** Controls or status shown at the trailing edge of the section header. */
@@ -15,9 +16,11 @@ interface SectionProps {
   children: ReactNode;
 }
 
-// The card shell every page section shares: consistent heading level, spacing
-// and header/footer structure, so pages describe *what* is in a section
-// instead of restating how a section looks.
+/**
+ * @deprecated Content card with its own heading. Only stage-B screens still
+ * use it until they move to ListSection; no stage-A screen may. It renders as
+ * a quiet bordered box without a shadow.
+ */
 export function Section({
   title,
   step,
@@ -33,8 +36,8 @@ export function Section({
       <div className="ds-section-head">
         <div className="ds-section-head-text">
           <h2 className="ds-section-title">
-            {step !== undefined && <span className="ds-section-step">{step}</span>}
-            {icon && <Icon name={icon} size={17} />}
+            {step !== undefined && <span className="ds-section-step">{step}.</span>}
+            {icon && <Icon name={icon} size={16} />}
             {title}
           </h2>
           {subtitle && <p className="ds-section-subtitle">{subtitle}</p>}
