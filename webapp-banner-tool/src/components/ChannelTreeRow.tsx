@@ -1,18 +1,15 @@
 import { useState, type CSSProperties } from "react";
 import { Button, Icon } from "../design";
+import { TEAMSPEAK_GEOMETRY, TEAMSPEAK_GEOMETRY_STYLE } from "./teamspeakGeometry";
 import "./ChannelTreeRow.css";
-
-/** Match --size-channel-indent and --space-3: the row's own left padding carries the tree indent. */
-export const TREE_INDENT_PX = 20;
-export const TREE_BASE_PADDING_PX = 12;
 
 type BannerState = "loading" | "loaded" | "failed";
 
 export interface ChannelTreeRowProps {
   name: string;
-  /** Tree depth; the row indents itself by it. */
+  /** Tree depth; the row indents itself by it, right edges stay aligned. */
   depth: number;
-  /** Banner behind the row, or none. */
+  /** Banner drawn over the whole pill, or none. */
   image?: string | null;
   isSpacer?: boolean;
   /** The channel has sub-channels right below it (a parent). */
@@ -25,17 +22,17 @@ export interface ChannelTreeRowProps {
   selected?: boolean;
   /** Makes the row a button (the Wallpaper parent picker). */
   onSelect?: () => void;
-  /** Banner at its exact 500 x 44 size (the editor's TeamSpeak preview). */
-  exact?: boolean;
   /** Lazy-load the banner (long trees). */
   lazy?: boolean;
   className?: string;
 }
 
 /**
- * One row of the TeamSpeak channel tree (T-142 item 17, docs/design/DESIGN.md
- * "Channel tree look"), shared by the live tree, the Wallpaper parent picker
- * and the Banner editor's TeamSpeak preview.
+ * One row of the TeamSpeak 6 channel tree, shared by the live tree, the
+ * Wallpaper parent picker and the Banner editor's TeamSpeak preview. It uses
+ * the TS6 client geometry (teamspeakGeometry.ts): a 30 px pill whose banner
+ * covers it without a fade, the name on top, 10 px indent per depth with the
+ * right edges aligned, a 44 px row pitch.
  *
  * The kind follows the real channel and the banner's load state, never the
  * mere presence of an image URL (T-142-F1 C2, C3):
@@ -43,6 +40,10 @@ export interface ChannelTreeRowProps {
  *   image, or the image fails) it shows its name;
  * - a parent channel is a group (bold label over the banner) only while its
  *   banner has loaded; otherwise it is a normal channel row with its icon.
+ *
+ * The row (li) is one pitch tall and the pill sits centred in it. A
+ * selectable row's button fills the whole row, so its hit target is the
+ * 44 px pitch, not the 30 px pill.
  */
 export function ChannelTreeRow({
   name,
@@ -54,7 +55,6 @@ export function ChannelTreeRow({
   pending = false,
   selected = false,
   onSelect,
-  exact = false,
   lazy = false,
   className,
 }: ChannelTreeRowProps) {
@@ -73,22 +73,42 @@ export function ChannelTreeRow({
     : hasChildren && loaded
       ? "group"
       : "channel";
-  const content = (
-    <>
-      {kind === "channel" && (
-        <span className="channel-tree-icon">
-          <Icon name="layers" size={17} />
-        </span>
+  const pill = (
+    <div
+      className="channel-tree-pill"
+      data-kind={kind}
+      data-pending={pending}
+      data-selected={selected}
+    >
+      {showsBanner && image && (
+        <img
+          className="channel-tree-banner"
+          src={image}
+          alt={imageAlt}
+          loading={lazy ? "lazy" : undefined}
+          onLoad={() => setBanner({ src: image, state: "loaded" })}
+          onError={() => setBanner({ src: image, state: "failed" })}
+        />
       )}
-      <span
-        className={`channel-tree-name${kind === "spacer" ? " channel-tree-name-hidden" : ""}`}
-        title={name}
-      >
-        {name}
-      </span>
-    </>
+      <div className="channel-tree-content">
+        {kind === "channel" && (
+          <span className="channel-tree-icon">
+            <Icon name="layers" size={15} />
+          </span>
+        )}
+        <span
+          className={`channel-tree-name${kind === "spacer" ? " channel-tree-name-hidden" : ""}`}
+          title={name}
+        >
+          {name}
+        </span>
+      </div>
+    </div>
   );
-  const style: CSSProperties = { paddingLeft: TREE_BASE_PADDING_PX + depth * TREE_INDENT_PX };
+  const style: CSSProperties = {
+    ...TEAMSPEAK_GEOMETRY_STYLE,
+    paddingLeft: depth * TEAMSPEAK_GEOMETRY.indent,
+  };
   return (
     <li
       className={[
@@ -101,36 +121,18 @@ export function ChannelTreeRow({
         .join(" ")}
       style={style}
     >
-      <div
-        className="channel-tree-pill"
-        data-kind={kind}
-        data-pending={pending}
-        data-selected={selected}
-        data-exact={exact || undefined}
-      >
-        {showsBanner && image && (
-          <img
-            className="channel-tree-banner"
-            src={image}
-            alt={imageAlt}
-            loading={lazy ? "lazy" : undefined}
-            onLoad={() => setBanner({ src: image, state: "loaded" })}
-            onError={() => setBanner({ src: image, state: "failed" })}
-          />
-        )}
-        {onSelect ? (
-          <Button
-            variant="plain"
-            className="channel-tree-button"
-            aria-pressed={selected}
-            onClick={onSelect}
-          >
-            {content}
-          </Button>
-        ) : (
-          <div className="channel-tree-content">{content}</div>
-        )}
-      </div>
+      {onSelect ? (
+        <Button
+          variant="plain"
+          className="channel-tree-button"
+          aria-pressed={selected}
+          onClick={onSelect}
+        >
+          {pill}
+        </Button>
+      ) : (
+        pill
+      )}
     </li>
   );
 }

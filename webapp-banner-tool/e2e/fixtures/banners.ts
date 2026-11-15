@@ -7,7 +7,7 @@ import type { Page } from "@playwright/test";
 export type BannerKind =
   /** A channel spacer: a dark, almost flat strip with a centred title. */
   | "spacer"
-  /** A wide artwork: a dark sweep of light across the full width, title at the left. */
+  /** A wide artwork: a dark sweep of light across the full width, title at the right. */
   | "artwork"
   /** A light image: pale, low contrast, dark title. */
   | "light";
@@ -92,8 +92,10 @@ export async function fixtureBanner(page: Page, spec: BannerSpec): Promise<Buffe
       // Title.
       c.font = "700 19px system-ui, -apple-system, 'Segoe UI', sans-serif";
       c.textBaseline = "middle";
-      c.textAlign = kind === "spacer" ? "center" : "left";
-      const x = kind === "spacer" ? 250 : 16;
+      // Right-aligned on channel banners: TeamSpeak draws the channel name over
+      // the left of the banner, so real banners keep their own text to the right.
+      c.textAlign = kind === "spacer" ? "center" : "right";
+      const x = kind === "spacer" ? 250 : 484;
       if (!light) {
         c.fillStyle = "rgb(0 0 0 / 0.45)";
         c.fillText(title, x + 1, 23);

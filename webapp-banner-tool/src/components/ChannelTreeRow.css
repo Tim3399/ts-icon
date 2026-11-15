@@ -1,123 +1,117 @@
-/* ChannelTreeRow: one row of the TeamSpeak 6 channel tree (T-142 item 17,
-   docs/design/DESIGN.md "Channel tree look"). Rows are rounded pills; a
-   banner sits behind its row and fades into the row colour where the name
-   is; spacers are banner-only pills; groups carry a bold label over the
-   banner. Roles and tokens only (src/design/README.md).
+/* ChannelTreeRow: one row of the TeamSpeak 6 channel tree, drawn with the TS6
+   client geometry (T-142-F1 addendum 4, docs/design/DESIGN.md "Channel tree
+   look"). The --teamspeak-* sizes come from teamspeakGeometry.ts (the one
+   place for them; TS6 reference, estimated, calibrate) through the row's
+   inline style. Colours are the theme-independent --color-ts-* roles: the
+   tree looks like the TeamSpeak client in both app themes.
 
-   The colours come from three local properties so a container can switch the
-   whole row to another surface (the editor's TeamSpeak preview) without
-   restyling it: --tree-row-bg, --tree-label and --tree-label-secondary. */
+   - The row is one pitch tall; the 30 px pill sits centred in it, so rows are
+     14 px apart and a picker button can fill the whole 44 px row.
+   - The banner covers the pill (cover, centred), with no fade; the name is
+     drawn on top with a soft shadow in the tree colour for bright banners.
+   - Spacers with a loaded banner are banner-only pills; groups carry a bold
+     label over the banner; sub-channels are indented with aligned right edges. */
 
 .channel-tree-row {
-  --tree-row-bg: var(--color-bg-row);
-  --tree-label: var(--color-label);
-  --tree-label-secondary: var(--color-label-secondary);
+  display: flex;
+  align-items: center;
   min-width: 0;
+  height: var(--teamspeak-row-pitch);
 }
 
 .channel-tree-pill {
-  --row-bg: var(--tree-row-bg);
+  --row-bg: var(--color-ts-row-bg);
   position: relative;
   display: flex;
   align-items: center;
-  min-height: var(--size-hit-target);
+  flex: 1 1 auto;
   min-width: 0;
+  height: var(--teamspeak-row-height);
   border: var(--size-hairline) solid transparent;
-  border-radius: var(--radius-row);
+  border-radius: var(--teamspeak-row-radius);
   background-color: var(--row-bg);
-  color: var(--tree-label);
+  color: var(--color-ts-label);
   overflow: hidden;
 }
 
-/* The banner covers the pill, anchored right like the TeamSpeak client; the
-   overlay fades its left part into the row colour behind the name. */
 .channel-tree-banner {
   position: absolute;
   top: 0;
-  right: 0;
-  bottom: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: right center;
-}
-
-.channel-tree-pill:has(.channel-tree-banner)::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  background-image: linear-gradient(to right, var(--row-bg) 0%, transparent 45%);
-  pointer-events: none;
-}
-
-/* Spacer with a loaded banner: the banner is the whole pill, no fade. */
-.channel-tree-pill[data-kind="spacer"]::after {
-  display: none;
-}
-
-/* Group: bold label over the banner. */
-.channel-tree-pill[data-kind="group"] .channel-tree-name,
-.channel-tree-pill[data-kind="spacer-text"] .channel-tree-name {
-  font-weight: var(--font-weight-bold);
-}
-
-/* Exact size: the pill is the banner's own 500 x 44 box, so the banner is
-   drawn 1:1 (the editor's TeamSpeak preview). Narrower containers scale it
-   down proportionally. */
-.channel-tree-pill[data-exact] {
-  width: 100%;
-  max-width: 500px; /* the saved banner's width: 1:1 */
-  aspect-ratio: var(--size-banner-ratio);
-  min-height: 0;
-  border-width: 0;
+  object-position: center;
 }
 
 /* Rows spliced in from a page's not-yet-submitted PreviewOverlay: a dashed
    neutral border, so they are never mistaken for real channels. */
 .channel-tree-pill[data-pending="true"] {
-  border-color: var(--color-border);
+  border-color: var(--color-ts-label-secondary);
   border-style: dashed;
 }
 
-/* The chosen parent of the Wallpaper picker: a neutral selected surface and
+/* The chosen parent of the Wallpaper picker: a lighter row and a label-coloured
    border; aria-pressed carries the state. */
 .channel-tree-pill[data-selected="true"] {
-  --row-bg: var(--color-selected-bg);
-  border-color: var(--tree-label-secondary);
+  --row-bg: var(--color-ts-header-bg);
+  border-color: var(--color-ts-label);
 }
 
-.channel-tree-content,
-.channel-tree-button {
+/* A spacer without a banner sits on the header surface, as in the client. */
+.channel-tree-pill[data-kind="spacer-text"] {
+  --row-bg: var(--color-ts-header-bg);
+}
+
+.channel-tree-content {
   position: relative;
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--teamspeak-icon-gap);
   width: 100%;
   min-width: 0;
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--font-body-size);
-  line-height: var(--font-body-line);
-  font-weight: var(--font-weight-row);
+  padding: var(--space-0) var(--space-2);
+  font-size: var(--teamspeak-name-size);
+  line-height: var(--teamspeak-row-height);
+  font-weight: var(--font-weight-semibold);
+  text-shadow:
+    0 0 var(--space-1) var(--color-ts-tree-bg),
+    0 var(--size-hairline) var(--space-half) var(--color-ts-tree-bg);
 }
 
-/* The selectable row is a design Button laid over the whole pill. Selectors
-   carry the row class so they win over the Button's own padding and justify. */
+.channel-tree-pill[data-kind="group"] .channel-tree-name,
+.channel-tree-pill[data-kind="spacer-text"] .channel-tree-name {
+  font-weight: var(--font-weight-bold);
+}
+
+/* The picker button fills the whole row (the hit target is the 44 px pitch);
+   it draws nothing itself, the pill inside it is the visible row. Selectors
+   carry the row class so they win over the Button's own look. */
 .channel-tree-row .channel-tree-button {
-  justify-content: flex-start;
-  border-radius: inherit;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: var(--space-0);
+  border-width: 0;
+  border-radius: var(--teamspeak-row-radius);
+  background-color: transparent;
   color: inherit;
   text-align: left;
+}
+
+.channel-tree-row .channel-tree-button:hover,
+.channel-tree-row .channel-tree-button:active {
+  background-color: transparent;
 }
 
 .channel-tree-row .channel-tree-button:focus-visible {
   outline: none;
 }
 
-.channel-tree-pill:has(.channel-tree-button:focus-visible) {
+.channel-tree-button:focus-visible .channel-tree-pill {
   outline: var(--size-focus-ring) solid var(--color-focus);
   outline-offset: var(--size-focus-ring);
 }
@@ -125,7 +119,7 @@
 .channel-tree-icon {
   display: inline-flex;
   flex: none;
-  color: var(--tree-label-secondary);
+  color: var(--color-ts-label-secondary);
 }
 
 .channel-tree-name {

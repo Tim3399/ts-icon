@@ -164,12 +164,18 @@ test.describe("image sources", () => {
 
 // T-142-F1 items 14, 15 and 17: the TeamSpeak preview.
 test.describe("TeamSpeak preview", () => {
-  test("shows the exact crop at 1:1 with the channel's neighbour and follows the crop", async ({
+  // TS6 client geometry (src/components/teamspeakGeometry.ts; TS6 reference,
+  // estimated, calibrate): 456 x 30 depth-0 pill, 10 px indent with aligned
+  // right edges, 44 px row pitch.
+  const TS6 = { width: 456, height: 30, indent: 10, pitch: 44 };
+
+  test("draws the crop with the TS6 geometry next to the channel's neighbour and follows the crop", async ({
     page,
   }) => {
     await mockApi(page);
     await page.goto("/");
-    await page.getByRole("combobox", { name: "Channel", exact: true }).selectOption("43");
+    // "General" (#42, depth 0) with its sub-channel "General" (#43, depth 1) below.
+    await page.getByRole("combobox", { name: "Channel", exact: true }).selectOption("42");
     await page.locator("#file-upload").setInputFiles({
       name: "source.png",
       mimeType: "image/png",
@@ -178,26 +184,51 @@ test.describe("TeamSpeak preview", () => {
     const preview = page.getByRole("figure", { name: "Preview in TeamSpeak" });
     const banner = preview.getByAltText("Cropped banner for General");
     await expect(banner).toBeVisible();
-    // Two rows: the parent "General" above the selected sub-channel "General".
     await expect(preview.locator(".channel-tree-row")).toHaveCount(2);
     await expect(preview.locator(".ts-preview-selected .channel-tree-name")).toHaveText("General");
-    // Exactly the 500 x 44 export.
+    // The banner is the exact 500 x 44 export, drawn with cover into the pill.
     expect(
-      await banner.evaluate((img: HTMLImageElement) => [img.naturalWidth, img.naturalHeight]),
-    ).toEqual([500, 44]);
-    const pill = preview.locator(".ts-preview-selected .channel-tree-pill");
-    const box = (await pill.boundingBox())!;
-    const width = page.viewportSize()!.width;
-    if (width >= 600) {
-      expect(box.width).toBeCloseTo(500, 0);
-      expect(box.height).toBeCloseTo(44, 0);
-      await expect(page.getByText("Scaled to fit this screen.")).toBeHidden();
+      await banner.evaluate((img: HTMLImageElement) => [
+        img.naturalWidth,
+        img.naturalHeight,
+        getComputedStyle(img).objectFit,
+      ]),
+    ).toEqual([500, 44, "cover"]);
+    // No fade overlay and no dimmed context rows.
+    const looks = await preview.locator(".channel-tree-pill").evaluateAll((pills) =>
+      pills.map((pill) => ({
+        after: getComputedStyle(pill, "::after").backgroundImage,
+        opacity: getComputedStyle(pill.closest("li")!).opacity,
+      })),
+    );
+    for (const look of looks) expect(look).toEqual({ after: "none", opacity: "1" });
+
+    const pills = preview.locator(".channel-tree-pill");
+    const [selected, child] = [
+      (await pills.nth(0).boundingBox())!,
+      (await pills.nth(1).boundingBox())!,
+    ];
+    const scaled = page.getByText("Scaled down to fit this screen");
+    if (page.viewportSize()!.width >= 600) {
+      expect(Math.abs(selected.width - TS6.width)).toBeLessThanOrEqual(1);
+      expect(Math.abs(selected.height - TS6.height)).toBeLessThanOrEqual(1);
+      expect(Math.abs(selected.width - child.width - TS6.indent)).toBeLessThanOrEqual(1);
+      expect(Math.abs(child.y - selected.y - TS6.pitch)).toBeLessThanOrEqual(1);
+      await expect(scaled).toBeHidden();
     } else {
-      expect(box.width).toBeLessThan(500);
-      expect(box.width / box.height).toBeCloseTo(500 / 44, 1);
-      await expect(page.getByText("Scaled to fit this screen.")).toBeVisible();
+      expect(selected.width).toBeLessThan(TS6.width);
+      expect(selected.width / selected.height).toBeCloseTo(TS6.width / TS6.height, 0);
+      await expect(scaled).toBeVisible();
     }
-    // The preview follows a nudge within a frame or two.
+    // Right edges aligned.
+    expect(Math.abs(selected.x + selected.width - (child.x + child.width))).toBeLessThanOrEqual(1);
+
+    // The exact saved pixels at 1:1 below the preview.
+    await expect(page.getByText("Saved image (500 × 44)")).toBeVisible();
+    const saved = page.getByAltText(/^Saved image for General/);
+    expect(await saved.getAttribute("src")).toBe(await banner.getAttribute("src"));
+
+    // The preview follows a zoom within a frame or two.
     const before = await banner.getAttribute("src");
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
     await expect.poll(() => banner.getAttribute("src")).not.toBe(before);
@@ -237,8 +268,8 @@ test.describe("TeamSpeak preview", () => {
       expect({ tree: colours.tree, row: colours.row, label: colours.label }).toEqual(
         colours.expected,
       );
-      // The TeamSpeak navy row, not the app theme's row surface.
-      expect(colours.row).toBe("rgb(27, 35, 54)");
+      // The measured TS6 pill colour #191f32, not the app theme's row surface.
+      expect(colours.row).toBe("rgb(25, 31, 50)");
     });
   }
 });

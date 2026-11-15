@@ -533,15 +533,7 @@ export default function BannerCropper() {
         </li>
       </ListSection>
 
-      <ListSection
-        header="TeamSpeak preview"
-        footer={
-          <span className="ts-preview-scaled">
-            Scaled to fit this screen. TeamSpeak shows the banner at {TARGET_WIDTH} ×{" "}
-            {TARGET_HEIGHT} pixels.
-          </span>
-        }
-      >
+      <ListSection header="TeamSpeak preview">
         <li className="editor-pane">
           <TeamSpeakPreview
             channels={channels}

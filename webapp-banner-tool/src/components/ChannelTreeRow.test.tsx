@@ -17,7 +17,7 @@ describe("ChannelTreeRow", () => {
   it("indents by depth", () => {
     const { container } = renderRow({ name: "Music", depth: 2 });
     expect((container.querySelector(".channel-tree-row") as HTMLElement).style.paddingLeft).toBe(
-      "52px",
+      "20px",
     );
   });
 
