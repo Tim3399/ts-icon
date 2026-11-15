@@ -89,6 +89,21 @@ describe("FileButton", () => {
     fireEvent.change(screen.getByLabelText("Replace…"), { target: { files: [file] } });
     expect(onFile).toHaveBeenCalledWith(file);
   });
+
+  it("wires a rejected file's message to the input and focuses it", () => {
+    render(<FileButton id="replace-a" onFile={vi.fn()} error="Use PNG, JPEG or WebP." />);
+    const input = screen.getByLabelText("Replace…");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription("Use PNG, JPEG or WebP.");
+    expect(input).toHaveFocus();
+  });
+
+  it("is not invalid without an error", () => {
+    render(<FileButton id="replace-b" onFile={vi.fn()} />);
+    const input = screen.getByLabelText("Replace…");
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(input).not.toHaveAttribute("aria-describedby");
+  });
 });
 
 describe("MenuButton", () => {
