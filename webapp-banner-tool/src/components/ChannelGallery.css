@@ -1,46 +1,49 @@
-/* Screen styles of ChannelGallery, moved unchanged from src/styles in D-142-1.
-   Owned and restyled by its T-142 part; uses only design-system tokens
-   once restyled (src/design/README.md). */
+/* Screen styles of ChannelGallery (T-142 part b). Layout comes from Stack, Cluster
+   and Grid; everything here uses design-system role tokens only (src/design/README.md). */
 
-/* ---------------------------------------------------------------------------
-   Channel gallery
---------------------------------------------------------------------------- */
-.channel-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--space-4);
+.channel-toolbar {
+  padding: var(--space-4);
+  border-radius: var(--radius-panel);
+  background-color: var(--color-bg-elevated);
+  box-shadow: var(--shadow-raised);
+}
+
+.channel-filter {
+  flex: 1 1 var(--size-grid-medium);
+  min-width: 0;
+}
+
+.channel-toolbar-meta {
+  margin-left: auto;
+  padding-bottom: var(--space-3);
+  font-size: var(--font-footnote-size);
+  line-height: var(--font-footnote-line);
+  color: var(--color-label-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .channel-card {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  min-width: 0;
   padding: var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-card);
+  background-color: var(--color-bg-elevated);
+  box-shadow: var(--shadow-raised);
+  outline: var(--size-focus-ring) dashed transparent;
+  outline-offset: calc(var(--size-focus-ring) * -1);
   transition:
-    border-color var(--duration-fast) var(--ease),
-    box-shadow var(--duration-fast) var(--ease),
-    background-color var(--duration-fast) var(--ease);
-}
-
-.channel-card:hover {
-  box-shadow: var(--shadow-md);
+    outline-color var(--motion-fast) var(--motion-easing),
+    background-color var(--motion-fast) var(--motion-easing);
 }
 
 .channel-card-drag-over {
-  border-color: var(--accent);
-  border-style: dashed;
-  background: var(--accent-soft);
+  outline-color: var(--color-accent);
+  background-color: var(--color-accent-bg);
 }
 
-.channel-card-image {
-  width: 100%;
-}
-
-.channel-card-head {
+.channel-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -48,42 +51,83 @@
   min-width: 0;
 }
 
-.channel-card-name {
-  font-size: var(--text-base);
-  font-weight: 600;
+.channel-name {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-headline-size);
+  line-height: var(--font-headline-line);
+  font-weight: var(--font-weight-headline);
 }
 
-.channel-card-status {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
+.channel-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-half) var(--space-2);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-fill-hover);
+  color: var(--color-label);
+  font-size: var(--font-caption-1-size);
+  line-height: var(--font-caption-1-line);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.channel-badge::before {
+  content: "";
+  width: var(--space-half);
+  height: var(--space-half);
+  box-sizing: content-box;
+  border: var(--space-half) solid currentcolor;
+  border-radius: var(--radius-pill);
+  color: var(--color-label-secondary);
+}
+
+.channel-badge[data-state="own"] {
+  background-color: var(--color-positive-bg);
+}
+
+.channel-badge[data-state="own"]::before {
+  color: var(--color-positive);
+}
+
+.channel-badge[data-state="fallback"] {
+  background-color: var(--color-accent-bg);
+}
+
+.channel-badge[data-state="fallback"]::before {
+  color: var(--color-accent);
+}
+
+.channel-status {
   overflow-wrap: anywhere;
+  font-size: var(--font-footnote-size);
+  line-height: var(--font-footnote-line);
+  color: var(--color-label-secondary);
 }
 
-.channel-card-actions {
+.channel-actions {
   margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
 }
 
-/* ---------------------------------------------------------------------------
-   Loading placeholders
---------------------------------------------------------------------------- */
-/* Deliberately not `.channel-card`: placeholders must never be counted as
-   real channels by anything selecting on that class. */
-.skeleton-card {
+/* Loading placeholders. Deliberately not `.channel-card`: placeholders must
+   never be counted as real channels by anything selecting on that class. */
+.channel-placeholder {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-4);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
+  border-radius: var(--radius-card);
+  background-color: var(--color-bg-elevated);
+  box-shadow: var(--shadow-raised);
 }
 
-@media (max-width: 767px) {
-  .channel-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.channel-empty {
+  padding: var(--space-4);
+  border-radius: var(--radius-panel);
+  background-color: var(--color-bg-elevated);
+  box-shadow: var(--shadow-raised);
 }

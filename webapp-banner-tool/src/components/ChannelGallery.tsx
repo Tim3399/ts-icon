@@ -5,11 +5,16 @@ import { channelImageEndpoint, channelImageUrl } from "../api/channels";
 import { useChannels } from "../hooks/useChannels";
 import {
   BannerFrame,
+  Button,
+  Cluster,
   EmptyState,
-  Icon,
+  Grid,
   PageHeader,
   RequestError,
+  Select,
   Skeleton,
+  Stack,
+  TextField,
   UploadInput,
   useToast,
 } from "../design";
@@ -27,10 +32,10 @@ const FILTERS = [
   ["spacer", "Spacer channels"],
 ] as const;
 
-function imageState(channel: Channel): { label: string; variant: string } {
-  if (channel.hasImage) return { label: "Own image", variant: "badge-managed" };
-  if (channel.hasFallback) return { label: "Fallback", variant: "badge-info" };
-  return { label: "No image", variant: "badge-unmanaged" };
+function imageState(channel: Channel): { label: string; state: "own" | "fallback" | "none" } {
+  if (channel.hasImage) return { label: "Own image", state: "own" };
+  if (channel.hasFallback) return { label: "Fallback", state: "fallback" };
+  return { label: "No image", state: "none" };
 }
 
 export default function ChannelGallery() {
@@ -105,208 +110,190 @@ export default function ChannelGallery() {
   );
   const filtered = query.trim() !== "" || filter !== "all";
   return (
-    <div>
+    <Stack gap={4}>
       <PageHeader
         eyebrow="Channels"
         icon="image"
         title="Manage channel images"
         lead="Review every channel's banner at its real proportions, replace one by dropping a file on its card, or clear it again."
         actions={
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => void reload()}
-            disabled={loading}
-          >
-            <Icon name="refresh" size={15} />
+          <Button icon="refresh" onClick={() => void reload()} disabled={loading}>
             Refresh
-          </button>
+          </Button>
         }
       />
-      <div className="page-sections">
-        <SpacerBaseImageManager onChanged={reload} />
+      <SpacerBaseImageManager onChanged={reload} />
 
-        <div className="card">
-          <div className="toolbar">
-            <label className="field">
-              Search channels
-              <span className="input-icon">
-                <Icon name="search" size={15} />
-                <input
-                  className="input"
-                  type="search"
-                  value={query}
-                  placeholder="Filter by name"
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </span>
-            </label>
-            <label className="field">
-              Image status
-              <span className="select-wrap">
-                <select
-                  className="input"
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
+      <Cluster gap={3} align="end" className="channel-toolbar">
+        <TextField
+          id="channel-search"
+          type="search"
+          className="channel-filter"
+          label="Search channels"
+          value={query}
+          placeholder="Filter by name"
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <Select
+          id="channel-image-status"
+          className="channel-filter"
+          label="Image status"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        >
+          {FILTERS.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
+        <p className="channel-toolbar-meta">
+          {loading
+            ? "Loading…"
+            : `${visible.length} of ${channels.length} channel${channels.length === 1 ? "" : "s"}`}
+        </p>
+      </Cluster>
+
+      <RequestError message={error} retry={() => void reload()} />
+
+      {loading && (
+        <>
+          <p role="status" className="ds-visually-hidden">
+            Loading channels…
+          </p>
+          {/* Deliberately not `.channel-card`: placeholders must never be
+              counted as real channels by anything selecting on that class. */}
+          <Grid gap={4} aria-hidden="true">
+            {[0, 1, 2, 3, 4, 5].map((key) => (
+              <div className="channel-placeholder" key={key}>
+                <Skeleton height={40} radius="small" />
+                <Skeleton height={14} width="60%" />
+                <Skeleton height={10} width="40%" />
+                <Skeleton height={52} radius="control" />
+              </div>
+            ))}
+          </Grid>
+        </>
+      )}
+
+      {!loading && !error && visible.length === 0 && (
+        <div className="channel-empty">
+          <EmptyState
+            icon="inbox"
+            title={channels.length ? "No channels match these filters." : "No channels found."}
+            description={
+              channels.length
+                ? "Clear the search or choose a different image status."
+                : "TeamSpeak reported no channels for this server."
+            }
+            action={
+              filtered && channels.length ? (
+                <Button
+                  size="small"
+                  onClick={() => {
+                    setQuery("");
+                    setFilter("all");
+                  }}
                 >
-                  {FILTERS.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </span>
-            </label>
-            <p className="toolbar-meta">
-              {loading
-                ? "Loading…"
-                : `${visible.length} of ${channels.length} channel${channels.length === 1 ? "" : "s"}`}
-            </p>
-          </div>
+                  Reset filters
+                </Button>
+              ) : undefined
+            }
+          />
         </div>
+      )}
 
-        <RequestError message={error} retry={() => void reload()} />
-
-        {loading && (
-          <>
-            <p role="status" className="sr-only">
-              Loading channels…
-            </p>
-            {/* Deliberately not `.channel-card`: placeholders must never be
-                counted as real channels by anything selecting on that class. */}
-            <div className="channel-grid" aria-hidden="true">
-              {[0, 1, 2, 3, 4, 5].map((key) => (
-                <div className="skeleton-card" key={key}>
-                  <Skeleton height={40} radius={8} />
-                  <Skeleton height={14} width="60%" />
-                  <Skeleton height={10} width="40%" />
-                  <Skeleton height={52} radius={10} />
+      {!loading && visible.length > 0 && (
+        <Grid gap={4}>
+          {visible.map((channel) => {
+            const image = imageState(channel);
+            const busy = operations[channel.cid];
+            return (
+              <article
+                key={channel.cid}
+                className={`channel-card${dragOver === channel.cid ? " channel-card-drag-over" : ""}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (!locks.current.has(channel.cid)) setDragOver(channel.cid);
+                }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOver(null);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) void changeImage(channel.cid, file);
+                }}
+              >
+                <BannerFrame
+                  src={
+                    channel.hasImage || channel.hasFallback
+                      ? channelImageUrl(channel, revisions[channel.cid])
+                      : null
+                  }
+                  alt={channel.name}
+                  imageKey={revisions[channel.cid]}
+                  lazy
+                  placeholder="No image available"
+                  onError={() =>
+                    setErrors((prev) => ({
+                      ...prev,
+                      [channel.cid]:
+                        "This image could not be loaded. Refresh the channel list to try again.",
+                    }))
+                  }
+                />
+                <div className="channel-head">
+                  <h2 className="channel-name" title={channel.name}>
+                    {channel.name}
+                  </h2>
+                  <span className="channel-badge" data-state={image.state}>
+                    {image.label}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {!loading && !error && visible.length === 0 && (
-          <div className="card">
-            <EmptyState
-              icon="inbox"
-              title={channels.length ? "No channels match these filters." : "No channels found."}
-              description={
-                channels.length
-                  ? "Clear the search or choose a different image status."
-                  : "TeamSpeak reported no channels for this server."
-              }
-              action={
-                filtered && channels.length ? (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => {
-                      setQuery("");
-                      setFilter("all");
-                    }}
+                <p className="channel-status">
+                  {channel.pid
+                    ? `Under ${channels.find((c) => c.cid === channel.pid)?.name ?? "parent channel"} · `
+                    : ""}
+                  Channel #{channel.cid}
+                  {channel.hasFallback && !channel.hasImage ? " · Spacer base image" : ""}
+                </p>
+                <Stack gap={2} className="channel-actions">
+                  <UploadInput
+                    id={`file-upload-${channel.cid}`}
+                    resetKey={fileResetKeys[channel.cid]}
+                    error={fileErrors[channel.cid]}
+                    disabled={Boolean(busy)}
+                    compact
+                    hint=""
+                    label={busy || "Drop or click to replace"}
+                    onFile={(file) => void changeImage(channel.cid, file)}
+                  />
+                  <Button
+                    variant="destructive"
+                    size="small"
+                    icon="trash"
+                    disabled={!channel.hasImage || Boolean(busy)}
+                    onClick={() => void changeImage(channel.cid)}
                   >
-                    Reset filters
-                  </button>
-                ) : undefined
-              }
-            />
-          </div>
-        )}
-
-        {!loading && visible.length > 0 && (
-          <div className="channel-grid">
-            {visible.map((channel) => {
-              const state = imageState(channel);
-              const busy = operations[channel.cid];
-              return (
-                <article
-                  key={channel.cid}
-                  className={`channel-card${dragOver === channel.cid ? " channel-card-drag-over" : ""}`}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    if (!locks.current.has(channel.cid)) setDragOver(channel.cid);
+                    {busy === "Deleting…" ? "Deleting…" : "Delete image"}
+                  </Button>
+                </Stack>
+                <RequestError
+                  message={errors[channel.cid] || ""}
+                  retry={() => {
+                    setErrors((prev) => ({ ...prev, [channel.cid]: "" }));
+                    setRevisions((prev) => ({ ...prev, [channel.cid]: Date.now() }));
+                    void reload();
                   }}
-                  onDragLeave={(e) => {
-                    if (!e.currentTarget.contains(e.relatedTarget as Node | null))
-                      setDragOver(null);
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setDragOver(null);
-                    const file = e.dataTransfer.files?.[0];
-                    if (file) void changeImage(channel.cid, file);
-                  }}
-                >
-                  <BannerFrame
-                    className="channel-card-image"
-                    src={
-                      channel.hasImage || channel.hasFallback
-                        ? channelImageUrl(channel, revisions[channel.cid])
-                        : null
-                    }
-                    alt={channel.name}
-                    imageKey={revisions[channel.cid]}
-                    lazy
-                    placeholder="No image available"
-                    onError={() =>
-                      setErrors((prev) => ({
-                        ...prev,
-                        [channel.cid]:
-                          "This image could not be loaded. Refresh the channel list to try again.",
-                      }))
-                    }
-                  />
-                  <div className="channel-card-head">
-                    <h2 className="channel-card-name truncate" title={channel.name}>
-                      {channel.name}
-                    </h2>
-                    <span className={`badge ${state.variant}`}>{state.label}</span>
-                  </div>
-                  <p className="channel-card-status">
-                    {channel.pid
-                      ? `Under ${channels.find((c) => c.cid === channel.pid)?.name ?? "parent channel"} · `
-                      : ""}
-                    Channel #{channel.cid}
-                    {channel.hasFallback && !channel.hasImage ? " · Spacer base image" : ""}
-                  </p>
-                  <div className="channel-card-actions">
-                    <UploadInput
-                      id={`file-upload-${channel.cid}`}
-                      resetKey={fileResetKeys[channel.cid]}
-                      error={fileErrors[channel.cid]}
-                      disabled={Boolean(busy)}
-                      compact
-                      hint=""
-                      label={busy || "Drop or click to replace"}
-                      onFile={(file) => void changeImage(channel.cid, file)}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-danger btn-block btn-sm"
-                      disabled={!channel.hasImage || Boolean(busy)}
-                      onClick={() => void changeImage(channel.cid)}
-                    >
-                      <Icon name="trash" size={14} />
-                      {busy === "Deleting…" ? "Deleting…" : "Delete image"}
-                    </button>
-                  </div>
-                  <RequestError
-                    message={errors[channel.cid] || ""}
-                    retry={() => {
-                      setErrors((prev) => ({ ...prev, [channel.cid]: "" }));
-                      setRevisions((prev) => ({ ...prev, [channel.cid]: Date.now() }));
-                      void reload();
-                    }}
-                  />
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
+                />
+              </article>
+            );
+          })}
+        </Grid>
+      )}
+    </Stack>
   );
 }
