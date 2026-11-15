@@ -60,7 +60,8 @@ for (const theme of THEMES) {
       await page.goto("/channels");
       await page.getByRole("button", { name: "Show sidebar" }).click();
       await expect(page.getByRole("link", { name: "Banner editor" })).toBeVisible();
-      await shoot(page, `sidebar-open-${suffix}`);
+      // The drawer is fixed to the viewport, so a full-page shot would cut it.
+      await page.screenshot({ path: join(dir, `sidebar-open-${suffix}.png`) });
     });
 
     test(`toast (${suffix})`, async ({ page }) => {
