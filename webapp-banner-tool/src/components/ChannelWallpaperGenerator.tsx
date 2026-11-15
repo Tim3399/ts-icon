@@ -8,13 +8,20 @@ import { useAuth } from "../auth/AuthContext";
 import { ApiError, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from "../api/client";
 import type { PreviewRow, WallpaperRun } from "../api/types";
 import {
+  Button,
+  Checkbox,
+  Cluster,
   EmptyState,
   FieldError,
-  Icon,
+  Grid,
   LoadingState,
   PageHeader,
   RequestError,
   Section,
+  Select,
+  Spinner,
+  Stack,
+  TextField,
   UploadInput,
   useToast,
 } from "../design";
@@ -66,15 +73,17 @@ const FIELD_IDS = {
 };
 const ADVANCED_FIELDS = ["xOffset", "yOffset", "backgroundColor", "coverFitMode"];
 
-const RUN_STATUS: Record<WallpaperRun["status"], { label: string; badge: string }> = {
-  pending: { label: "Pending", badge: "badge-warning" },
-  running: { label: "Running", badge: "badge-accent badge-busy" },
-  completed: { label: "Completed", badge: "badge-managed" },
-  "partial-failure": { label: "Partial failure", badge: "badge-danger" },
-  undoing: { label: "Undoing", badge: "badge-accent badge-busy" },
-  "undo-partial": { label: "Undo incomplete", badge: "badge-danger" },
-  undone: { label: "Undone", badge: "badge-neutral" },
-};
+type BadgeTone = "neutral" | "accent" | "positive" | "warning" | "destructive";
+const RUN_STATUS: Record<WallpaperRun["status"], { label: string; tone: BadgeTone; busy?: true }> =
+  {
+    pending: { label: "Pending", tone: "warning" },
+    running: { label: "Running", tone: "accent", busy: true },
+    completed: { label: "Completed", tone: "positive" },
+    "partial-failure": { label: "Partial failure", tone: "destructive" },
+    undoing: { label: "Undoing", tone: "accent", busy: true },
+    "undo-partial": { label: "Undo incomplete", tone: "destructive" },
+    undone: { label: "Undone", tone: "neutral" },
+  };
 
 function validation(options: Options, source: string, file: File | null): FieldMessages {
   const errors: FieldMessages = {};
@@ -380,7 +389,7 @@ export default function ChannelWallpaperGenerator() {
   const blocked = Object.keys(fieldErrors).length > 0;
 
   return (
-    <div>
+    <div className="wallpaper-page">
       <PageHeader
         eyebrow="Bulk operation"
         icon="sparkles"
@@ -388,8 +397,8 @@ export default function ChannelWallpaperGenerator() {
         lead="Slice one large image into 500 × 44 rows and create a channel per row, so the artwork reads as a single wallpaper down the channel list. Every run can be undone."
       />
 
-      <div className="workbench workbench-wide">
-        <div className="workbench-main">
+      <div className="wallpaper-workbench">
+        <div className="wallpaper-main">
           <Section
             title="Source image"
             step={1}
@@ -408,26 +417,22 @@ export default function ChannelWallpaperGenerator() {
                 setSourceImageUrl("");
               }}
             />
-            <div className="field">
-              <label htmlFor="wallpaper-source-url">Or load from a URL instead</label>
-              <input
-                className="input"
-                id="wallpaper-source-url"
-                {...fieldProps("sourceImageUrl")}
-                type="url"
-                value={sourceImageUrl}
-                disabled={Boolean(busy)}
-                placeholder="https://example.com/wallpaper.png"
-                onChange={(e) => {
-                  fields.clear("sourceImageUrl");
-                  fields.clear("file");
-                  setFileResetKey((previous) => previous + 1);
-                  setSourceImageUrl(e.target.value);
-                  if (e.target.value) setFile(null);
-                }}
-              />
-              {fieldError("sourceImageUrl")}
-            </div>
+            <TextField
+              id="wallpaper-source-url"
+              label="Or load from a URL instead"
+              error={fieldErrors.sourceImageUrl}
+              type="url"
+              value={sourceImageUrl}
+              disabled={Boolean(busy)}
+              placeholder="https://example.com/wallpaper.png"
+              onChange={(e) => {
+                fields.clear("sourceImageUrl");
+                fields.clear("file");
+                setFileResetKey((previous) => previous + 1);
+                setSourceImageUrl(e.target.value);
+                if (e.target.value) setFile(null);
+              }}
+            />
           </Section>
 
           <Section
@@ -460,148 +465,121 @@ export default function ChannelWallpaperGenerator() {
             icon="sliders"
             subtitle="Naming and layout of the channels that will be created."
           >
-            <fieldset disabled={Boolean(busy)} className="plain-fieldset">
-              <div className="field-grid">
-                <div className="field">
-                  <label htmlFor="wallpaper-name-prefix">Channel name prefix</label>
-                  <input
+            <fieldset disabled={Boolean(busy)} className="wallpaper-options">
+              <Stack gap={4}>
+                <Grid min="medium">
+                  <TextField
                     id="wallpaper-name-prefix"
-                    {...fieldProps("namePrefix")}
-                    className="input"
+                    label="Channel name prefix"
+                    error={fieldErrors.namePrefix}
                     value={options.namePrefix}
                     maxLength={88}
                     onChange={(e) => setOption("namePrefix", e.target.value)}
                   />
-                  {fieldError("namePrefix")}
-                </div>
-                <div className="field">
-                  <label htmlFor={FIELD_IDS.spacerMode}>Spacer mode</label>
-                  <span className="select-wrap">
-                    <select
-                      className="input"
-                      id={FIELD_IDS.spacerMode}
-                      {...fieldProps("spacerMode")}
-                      value={options.spacerMode}
-                      onChange={(e) =>
-                        setOption("spacerMode", e.target.value as Options["spacerMode"])
-                      }
-                    >
-                      <option value="flat">Flat</option>
-                      <option value="nested-spacer">Nested spacer</option>
-                    </select>
-                  </span>
-                  {fieldError("spacerMode")}
-                </div>
-              </div>
-              <div className="advanced">
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  aria-expanded={advancedOpen}
-                  aria-controls="wallpaper-advanced"
-                  onClick={() => setAdvancedOpen((v) => !v)}
-                >
-                  <Icon name={advancedOpen ? "up" : "down"} size={14} />
-                  Advanced options
-                </button>
-                {advancedOpen && (
-                  <div id="wallpaper-advanced" className="advanced-body">
-                    <div className="field-grid">
-                      {(["xOffset", "yOffset"] as const).map((key) => (
-                        <div className="field" key={key}>
-                          <label htmlFor={FIELD_IDS[key]}>
-                            {key === "xOffset" ? "X offset (px)" : "Y offset (px)"}
-                          </label>
-                          <input
-                            id={FIELD_IDS[key]}
-                            {...fieldProps(key)}
-                            className="input"
-                            type="number"
-                            step="1"
-                            min="-20000"
-                            max="20000"
-                            value={options[key]}
-                            onChange={(e) => setOption(key, e.target.value)}
+                  <Select
+                    id={FIELD_IDS.spacerMode}
+                    label="Spacer mode"
+                    error={fieldErrors.spacerMode}
+                    value={options.spacerMode}
+                    onChange={(e) =>
+                      setOption("spacerMode", e.target.value as Options["spacerMode"])
+                    }
+                  >
+                    <option value="flat">Flat</option>
+                    <option value="nested-spacer">Nested spacer</option>
+                  </Select>
+                </Grid>
+                <div className="wallpaper-advanced">
+                  <Button
+                    variant="plain"
+                    size="small"
+                    icon={advancedOpen ? "up" : "down"}
+                    aria-expanded={advancedOpen}
+                    aria-controls="wallpaper-advanced"
+                    onClick={() => setAdvancedOpen((v) => !v)}
+                  >
+                    Advanced options
+                  </Button>
+                  {advancedOpen && (
+                    <div id="wallpaper-advanced" className="wallpaper-advanced-body">
+                      <Stack gap={4}>
+                        <Grid min="medium">
+                          {(["xOffset", "yOffset"] as const).map((key) => (
+                            <TextField
+                              key={key}
+                              id={FIELD_IDS[key]}
+                              label={key === "xOffset" ? "X offset (px)" : "Y offset (px)"}
+                              error={fieldErrors[key]}
+                              type="number"
+                              step="1"
+                              min="-20000"
+                              max="20000"
+                              value={options[key]}
+                              onChange={(e) => setOption(key, e.target.value)}
+                            />
+                          ))}
+                          <TextField
+                            id={FIELD_IDS.backgroundColor}
+                            label="Background color (#RRGGBBAA)"
+                            error={fieldErrors.backgroundColor}
+                            value={options.backgroundColor}
+                            onChange={(e) => setOption("backgroundColor", e.target.value)}
                           />
-                          {fieldError(key)}
-                        </div>
-                      ))}
-                      <div className="field">
-                        <label htmlFor={FIELD_IDS.backgroundColor}>
-                          Background color (#RRGGBBAA)
-                        </label>
-                        <input
-                          className="input"
-                          id={FIELD_IDS.backgroundColor}
-                          {...fieldProps("backgroundColor")}
-                          value={options.backgroundColor}
-                          onChange={(e) => setOption("backgroundColor", e.target.value)}
+                        </Grid>
+                        <Checkbox
+                          id={FIELD_IDS.coverFitMode}
+                          label="Cover-fit mode"
+                          hint="Fills nested rows with image content instead of letterboxing them."
+                          error={fieldErrors.coverFitMode}
+                          checked={options.coverFitMode}
+                          onChange={(e) => setOption("coverFitMode", e.target.checked)}
                         />
-                        {fieldError("backgroundColor")}
-                      </div>
+                      </Stack>
                     </div>
-                    <label className="check">
-                      <input
-                        type="checkbox"
-                        id={FIELD_IDS.coverFitMode}
-                        {...fieldProps("coverFitMode")}
-                        checked={options.coverFitMode}
-                        onChange={(e) => setOption("coverFitMode", e.target.checked)}
-                      />
-                      <span className="check-text">
-                        Cover-fit mode
-                        <span className="check-hint">
-                          Fills nested rows with image content instead of letterboxing them.
-                        </span>
-                      </span>
-                    </label>
-                    {fieldError("coverFitMode")}
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              </Stack>
             </fieldset>
           </Section>
         </div>
 
-        <div className="workbench-side">
+        <div className="wallpaper-side">
           <Section
             title="Preview"
             step={4}
-            className="workbench-sticky"
+            className="wallpaper-preview-section"
             subtitle="Exactly the rows that will be created, at their real proportions."
             actions={
               rows.length > 0 ? (
-                <span className="badge badge-neutral">{rows.length} rows</span>
+                <span className="wallpaper-badge" data-tone="neutral">
+                  {rows.length} rows
+                </span>
               ) : undefined
             }
             footer={
-              <button
-                type="button"
-                className="btn btn-primary btn-lg btn-block"
+              <Button
+                variant="prominent"
+                className="wallpaper-generate"
+                icon={busy === "generate" ? undefined : "sparkles"}
                 onClick={() => void generate()}
                 disabled={Boolean(busy) || previewLoading || rows.length === 0 || blocked}
               >
-                {busy === "generate" ? (
-                  <span className="spinner" aria-hidden="true" />
-                ) : (
-                  <Icon name="sparkles" size={15} />
-                )}
+                {busy === "generate" && <Spinner />}
                 {busy === "generate" ? "Generating…" : "Generate channels"}
-              </button>
+              </Button>
             }
           >
             {blocked && (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm btn-block"
+              <Button
+                size="small"
+                icon="alert"
                 onClick={() => {
                   if (ADVANCED_FIELDS.some((key) => fieldErrors[key])) setAdvancedOpen(true);
                   fields.focusFirst(fieldErrors);
                 }}
               >
-                <Icon name="alert" size={14} />
                 Review highlighted fields
-              </button>
+              </Button>
             )}
             <RequestError message={previewError} retry={() => setPreviewRetry((v) => v + 1)} />
             {previewLoading && <LoadingState label="Slicing preview…" />}
@@ -618,24 +596,20 @@ export default function ChannelWallpaperGenerator() {
                 title="No current preview"
                 description="The last preview no longer matches these settings."
                 action={
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => setPreviewRetry((v) => v + 1)}
-                  >
+                  <Button size="small" onClick={() => setPreviewRetry((v) => v + 1)}>
                     Refresh preview
-                  </button>
+                  </Button>
                 }
               />
             )}
             {rows.length > 0 && (
-              <div className="wallpaper-preview-stack checkerboard scroll-area">
+              <div className="wallpaper-preview-stack">
                 {rows.map((row, i) => (
                   <img
                     key={i}
                     src={row.imageDataUrl}
                     alt={row.isSpacer ? "spacer row" : "channel row"}
-                    style={{ marginLeft: row.depth * 20 }}
+                    style={{ marginInlineStart: `calc(${row.depth} * var(--size-channel-indent))` }}
                     className="wallpaper-preview-row"
                   />
                 ))}
@@ -645,21 +619,16 @@ export default function ChannelWallpaperGenerator() {
         </div>
       </div>
 
-      <div className="page-sections page-sections-after">
+      <div className="wallpaper-after">
         <RequestError message={actionError} />
         <Section
           title="Recent operations"
           icon="undo"
           subtitle="Results stay available after leaving this page. Resume an incomplete generation, or undo one that finished."
           actions={
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => void loadRuns()}
-            >
-              <Icon name="refresh" size={14} />
+            <Button size="small" icon="refresh" onClick={() => void loadRuns()}>
               Refresh operations
-            </button>
+            </Button>
           }
         >
           <RequestError message={runsError} retry={() => void loadRuns()} />
@@ -672,23 +641,29 @@ export default function ChannelWallpaperGenerator() {
             />
           )}
           {runs.length > 0 && (
-            <ul className="run-list">
+            <ul className="wallpaper-run-list">
               {runs.map((run) => {
                 const status = RUN_STATUS[run.status] ?? {
                   label: run.status,
-                  badge: "badge-neutral",
+                  tone: "neutral" as const,
                 };
                 return (
-                  <li className="run-card" key={run.runId}>
-                    <div className="run-card-head">
-                      <h3 className="run-card-title">
+                  <li className="wallpaper-run" key={run.runId}>
+                    <div className="wallpaper-run-head">
+                      <h3 className="wallpaper-run-title">
                         {run.createdAt
                           ? new Date(run.createdAt).toLocaleString()
                           : `Operation ${run.runId.slice(0, 8)}`}
                       </h3>
-                      <span className={`badge ${status.badge}`}>{status.label}</span>
+                      <span
+                        className="wallpaper-badge"
+                        data-tone={status.tone}
+                        data-busy={"busy" in status ? "true" : undefined}
+                      >
+                        {status.label}
+                      </span>
                     </div>
-                    <p role="status" className="hint">
+                    <p role="status" className="wallpaper-run-status">
                       Status: {run.status}. {run.rowCount} channel(s) remaining.
                     </p>
                     {(run.error || run.failedAt) && (
@@ -697,7 +672,7 @@ export default function ChannelWallpaperGenerator() {
                       />
                     )}
                     {run.createdChannels.length > 0 && (
-                      <ul className="run-channels">
+                      <ul className="wallpaper-run-channels">
                         {run.createdChannels.map((c) => (
                           <li key={c.cid}>
                             {c.name} (#{c.cid})
@@ -705,34 +680,33 @@ export default function ChannelWallpaperGenerator() {
                         ))}
                       </ul>
                     )}
-                    <div className="actions-row" style={{ marginTop: "var(--space-4)" }}>
+                    <Cluster gap={2}>
                       {["pending", "partial-failure"].includes(run.status) && (
-                        <button
-                          type="button"
-                          className="btn btn-primary btn-sm"
+                        <Button
+                          size="small"
+                          icon="refresh"
                           disabled={Boolean(busy)}
                           onClick={() => void mutateRun(run, "resume")}
                         >
-                          <Icon name="refresh" size={14} />
                           Resume generation
-                        </button>
+                        </Button>
                       )}
                       {!["running", "undoing", "undone"].includes(run.status) && (
-                        <button
-                          type="button"
-                          className="btn btn-danger btn-sm"
+                        <Button
+                          variant="destructive"
+                          size="small"
+                          icon="undo"
                           disabled={Boolean(busy)}
                           onClick={() => void mutateRun(run, "undo")}
                         >
-                          <Icon name="undo" size={14} />
                           {run.createdChannels.length === 0
                             ? "Discard operation"
                             : run.status === "undo-partial"
                               ? "Retry undo"
                               : "Undo this generation"}
-                        </button>
+                        </Button>
                       )}
-                    </div>
+                    </Cluster>
                   </li>
                 );
               })}
