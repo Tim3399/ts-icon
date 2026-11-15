@@ -1,52 +1,53 @@
-/* Screen styles of BannerCropper (T-142 part a). Built on the design-system
-   role tokens only (src/design/README.md); layout uses Stack and Cluster. */
+/* Screen styles of the Banner editor (T-142-F1 stage A). Built from
+   ListSection rows on the design-system role tokens only
+   (src/design/README.md). One column, so the crop stage never shares its
+   width with a second column (T-142-F1 C1). */
 
-/* Settings first in the DOM so tab order follows the task order. */
-.crop-workbench {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-4);
-  align-items: start;
-}
-
-.crop-side,
-.crop-main {
-  min-width: 0;
-}
-
-.crop-hint {
-  flex: 1 1 var(--size-grid-medium);
-  align-self: center;
-  color: var(--color-label-secondary);
-  font-size: var(--font-footnote-size);
-  line-height: var(--font-footnote-line);
-}
-
-.saved-preview {
+.banner-editor {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-6);
+  max-width: var(--size-content-max);
 }
 
-.saved-preview-label {
+/* A ListSection row that holds a control or a pane instead of a title. */
+.editor-pane {
+  padding: var(--space-3) var(--space-4);
+}
+
+/* Row dividers between the editor's own rows (ListRow dividers its own). */
+.editor-pane:not(:first-child),
+.editor-current:not(:first-child),
+.editor-url:not(:first-child) {
+  border-top: var(--size-hairline) solid var(--color-divider);
+}
+
+.editor-current-banner {
+  width: var(--size-grid-medium);
+}
+
+/* ---------------------------------------------------------------------------
+   Crop stage
+--------------------------------------------------------------------------- */
+
+.editor-crop {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  color: var(--color-label-secondary);
-  font-size: var(--font-footnote-size);
-  line-height: var(--font-footnote-line);
-  font-weight: var(--font-weight-semibold);
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-left: var(--space-0);
+  padding-right: var(--space-0);
 }
 
-.saved-live {
-  display: inline-flex;
+.crop-toolbar {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
-  color: var(--color-positive);
-  font-size: var(--font-caption-1-size);
-  line-height: var(--font-caption-1-line);
-  font-weight: var(--font-weight-semibold);
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-0) var(--space-3);
+}
+
+.crop-toolbar > :last-child {
+  margin-left: auto;
 }
 
 /* Banners are often partly transparent; the checkerboard keeps "empty" and
@@ -66,26 +67,20 @@
     calc(var(--size-checker) / -2) 0;
 }
 
-/* ---------------------------------------------------------------------------
-   Crop stage
---------------------------------------------------------------------------- */
-
 /* No width/height transition here on purpose: BannerCropper re-initializes
    Cropper.js right after toggling the enlarge/shrink size, and Cropper.js
    measures this container synchronously at that point -- an animated resize
    made it measure mid-transition and lay the crop box out against the wrong
-   dimensions. */
+   dimensions. The stage spans the full row, edge to edge. */
 .preview-box {
   position: relative;
   width: 100%;
-  height: calc(var(--size-hit-target) * 6);
+  height: calc(var(--size-thumb) * 6);
   overflow: hidden;
-  border: var(--size-hairline) solid var(--color-separator);
-  border-radius: var(--radius-card);
 }
 
 .preview-box-enlarged {
-  height: calc(var(--size-hit-target) * 10);
+  height: calc(var(--size-thumb) * 10);
 }
 
 .preview-box > img {
@@ -99,7 +94,8 @@
   justify-content: center;
 }
 
-/* Cropper.js paints its own chrome; align it with the accent role. */
+/* Cropper.js paints its own chrome; the selection frame is the accent's
+   "crop" use (data-accent="crop" on .cropper-crop-box). */
 .preview-box .cropper-view-box {
   outline-color: var(--color-accent);
 }
@@ -110,34 +106,31 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Exact-output crop preview
+   TeamSpeak preview and the save action
 --------------------------------------------------------------------------- */
 
-/* Cropper.js mirrors the live selection in here by writing inline width and
-   height onto this element and a transform onto the image it injects. Both
-   need the plain block/overflow-hidden box it expects, so no centring here.
-   The 500:44 ratio applies before any image is loaded. */
-.crop-output {
-  display: block;
-  overflow: hidden;
-  width: 100%;
-  aspect-ratio: var(--size-banner-ratio);
-  border: var(--size-hairline) solid var(--color-separator);
-  border-radius: var(--radius-small);
+/* The preview is 1:1 from 600 px; below that it scales and says so. */
+.ts-preview-scaled {
+  display: none;
 }
 
-.crop-output img {
-  max-width: none;
+@media (max-width: 599px) {
+  .ts-preview-scaled {
+    display: inline;
+  }
 }
 
-@media (min-width: 1024px) {
-  .crop-workbench {
-    grid-template-columns: minmax(var(--size-grid-large), var(--size-panel)) minmax(0, 1fr);
-    gap: var(--space-5);
-  }
+.editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3) var(--space-4);
+}
 
-  .crop-sticky {
-    position: sticky;
-    top: calc(var(--size-toolbar) + var(--space-5));
-  }
+.editor-hint {
+  flex: 1 1 var(--size-grid-medium);
+  color: var(--color-label-secondary);
+  font-size: var(--font-footnote-size);
+  line-height: var(--font-footnote-line);
 }

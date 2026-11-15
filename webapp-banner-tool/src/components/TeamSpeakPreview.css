@@ -1,0 +1,43 @@
+/* TeamSpeakPreview: the selected channel's banner in a TeamSpeak channel-tree
+   mock, at 1:1 (T-142-F1 item 14). The rows are ChannelTreeRow; this file
+   gives them the TeamSpeak client surface, in the theme-independent
+   --color-ts-* roles: the preview is TeamSpeak dark in both app themes. */
+
+.ts-preview {
+  margin: 0;
+  padding: var(--space-3);
+  border: var(--size-hairline) solid var(--color-ts-divider);
+  border-radius: var(--radius-card);
+  background-color: var(--color-ts-tree-bg);
+  color: var(--color-ts-label);
+  overflow: hidden;
+}
+
+.ts-preview .channel-tree-row {
+  --tree-row-bg: var(--color-ts-row-bg);
+  --tree-label: var(--color-ts-label);
+  --tree-label-secondary: var(--color-ts-label-secondary);
+}
+
+/* A spacer without a banner sits on the header surface, as in the client. */
+.ts-preview .channel-tree-pill[data-kind="spacer-text"] {
+  --row-bg: var(--color-ts-header-bg);
+}
+
+.ts-preview-tree {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The context rows are quieter than the row being edited. */
+.ts-preview-context {
+  opacity: 0.72;
+}
+
+.ts-preview-empty {
+  padding: var(--space-6) var(--space-4);
+}

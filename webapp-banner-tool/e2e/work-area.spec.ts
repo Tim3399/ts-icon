@@ -53,7 +53,6 @@ for (const width of WIDTHS) {
   });
 
   test(`${width} px: the crop stage is at least 500 px wide`, async ({ page }) => {
-    test.fixme(true, "enabled by D-142F-2");
     await open(page, width, "/");
     await page.getByRole("combobox", { name: "Channel", exact: true }).waitFor();
     const stage = page.getByTestId("crop-stage");

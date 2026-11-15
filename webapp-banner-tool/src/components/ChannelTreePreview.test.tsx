@@ -49,15 +49,13 @@ describe("ChannelTreePreview", () => {
     expect(musicRow.style.paddingLeft).toBe("32px");
   });
 
-  it("shows a managed badge only for managed channels", async () => {
+  it("shows no state chips: the managed state lives on the Banner URLs screen (F1 item 10)", async () => {
     apiFetchJsonMock.mockResolvedValue({ channels: CHANNELS });
-    render(<ChannelTreePreview />);
+    const { container } = render(<ChannelTreePreview />);
 
     await screen.findByText("General");
-    const generalRow = screen.getByText("General").closest(".channel-tree-row") as HTMLElement;
-    const musicRow = screen.getByText("Music").closest(".channel-tree-row") as HTMLElement;
-    expect(generalRow.querySelector('[data-badge="managed"]')).not.toBeNull();
-    expect(musicRow.querySelector('[data-badge="managed"]')).toBeNull();
+    expect(container.querySelector("[data-badge]")).toBeNull();
+    expect(screen.queryByText("Managed")).toBeNull();
   });
 
   it("is not clickable when selectable is false (the default)", async () => {
@@ -124,7 +122,7 @@ describe("ChannelTreePreview", () => {
       expect.stringContaining("Music"),
     ]);
     expect(rows[1].className).toContain("channel-tree-row-pending");
-    expect(rows[1].querySelector('[data-badge="pending"]')).not.toBeNull();
+    expect(rows[1].querySelector('.channel-tree-pill[data-pending="true"]')).not.toBeNull();
   });
 
   it("inserts overlay rows at the very start for a null (top-level) parent", async () => {

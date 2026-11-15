@@ -1,0 +1,148 @@
+/* ChannelTreeRow: one row of the TeamSpeak 6 channel tree (T-142 item 17,
+   docs/design/DESIGN.md "Channel tree look"). Rows are rounded pills; a
+   banner sits behind its row and fades into the row colour where the name
+   is; spacers are banner-only pills; groups carry a bold label over the
+   banner. Roles and tokens only (src/design/README.md).
+
+   The colours come from three local properties so a container can switch the
+   whole row to another surface (the editor's TeamSpeak preview) without
+   restyling it: --tree-row-bg, --tree-label and --tree-label-secondary. */
+
+.channel-tree-row {
+  --tree-row-bg: var(--color-bg-row);
+  --tree-label: var(--color-label);
+  --tree-label-secondary: var(--color-label-secondary);
+  min-width: 0;
+}
+
+.channel-tree-pill {
+  --row-bg: var(--tree-row-bg);
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: var(--size-hit-target);
+  min-width: 0;
+  border: var(--size-hairline) solid transparent;
+  border-radius: var(--radius-row);
+  background-color: var(--row-bg);
+  color: var(--tree-label);
+  overflow: hidden;
+}
+
+/* The banner covers the pill, anchored right like the TeamSpeak client; the
+   overlay fades its left part into the row colour behind the name. */
+.channel-tree-banner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: right center;
+}
+
+.channel-tree-pill:has(.channel-tree-banner)::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-image: linear-gradient(to right, var(--row-bg) 0%, transparent 45%);
+  pointer-events: none;
+}
+
+/* Spacer with a loaded banner: the banner is the whole pill, no fade. */
+.channel-tree-pill[data-kind="spacer"]::after {
+  display: none;
+}
+
+/* Group: bold label over the banner. */
+.channel-tree-pill[data-kind="group"] .channel-tree-name,
+.channel-tree-pill[data-kind="spacer-text"] .channel-tree-name {
+  font-weight: var(--font-weight-bold);
+}
+
+/* Exact size: the pill is the banner's own 500 x 44 box, so the banner is
+   drawn 1:1 (the editor's TeamSpeak preview). Narrower containers scale it
+   down proportionally. */
+.channel-tree-pill[data-exact] {
+  width: 100%;
+  max-width: 500px; /* the saved banner's width: 1:1 */
+  aspect-ratio: var(--size-banner-ratio);
+  min-height: 0;
+  border-width: 0;
+}
+
+/* Rows spliced in from a page's not-yet-submitted PreviewOverlay: a dashed
+   neutral border, so they are never mistaken for real channels. */
+.channel-tree-pill[data-pending="true"] {
+  border-color: var(--color-border);
+  border-style: dashed;
+}
+
+/* The chosen parent of the Wallpaper picker: a neutral selected surface and
+   border; aria-pressed carries the state. */
+.channel-tree-pill[data-selected="true"] {
+  --row-bg: var(--color-selected-bg);
+  border-color: var(--tree-label-secondary);
+}
+
+.channel-tree-content,
+.channel-tree-button {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-body-size);
+  line-height: var(--font-body-line);
+  font-weight: var(--font-weight-row);
+}
+
+/* The selectable row is a design Button laid over the whole pill. Selectors
+   carry the row class so they win over the Button's own padding and justify. */
+.channel-tree-row .channel-tree-button {
+  justify-content: flex-start;
+  border-radius: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.channel-tree-row .channel-tree-button:focus-visible {
+  outline: none;
+}
+
+.channel-tree-pill:has(.channel-tree-button:focus-visible) {
+  outline: var(--size-focus-ring) solid var(--color-focus);
+  outline-offset: var(--size-focus-ring);
+}
+
+.channel-tree-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--tree-label-secondary);
+}
+
+.channel-tree-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A spacer with a banner shows only the banner; the name stays for assistive technology. */
+.channel-tree-name-hidden {
+  position: absolute;
+  width: var(--size-hairline);
+  height: var(--size-hairline);
+  margin: calc(-1 * var(--size-hairline));
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
