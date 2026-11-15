@@ -69,9 +69,8 @@ These hold for the primitive, component and pattern stylesheets here and for eve
 | `src/components/ChannelWallpaperGenerator.tsx` | form default `backgroundColor: "#00000000"`       | wallpaper background value sent to the API |
 | `src/components/ChannelWallpaperGenerator.tsx` | validation text containing `#00000000 or #FFFFFF` | user-facing format example                 |
 
-Test files are exempt. Temporary exemptions until D-142-7: `src/legacy/legacy.css` and the screen
-files of T-142 parts a–e with their colocated CSS. `src/components/ChannelAutocomplete.tsx` is exempt
-(unused, its removal is a separate decision).
+Test files are exempt. `src/components/ChannelAutocomplete.tsx` is exempt (unused, its removal is a
+separate decision).
 
 ## Token naming
 
@@ -278,9 +277,3 @@ Every visible `button`, `a`, `input`, `select`, `textarea` and `[role=button]` i
 | Inline text link inside running text | HIG and WCAG 2.5.8 exempt inline targets; enlarging them would break the line height           |
 | Checkbox or radio input              | Counts when its associated `label` is at least 44 × 44 px (`Checkbox` makes the row the label) |
 | Visually hidden file input           | Counts when its drop zone (`UploadInput` label) is at least 44 × 44 px                         |
-
-## Temporary legacy layer
-
-`src/legacy/legacy.css` keeps the generic classes the screens still use (`.btn*`, `.card*`,
-`.field*`, …) restyled on these roles through token aliases. It is removed in D-142-7 and is exempt
-from the rules above until then. Nothing new goes there.

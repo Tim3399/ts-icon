@@ -2,7 +2,7 @@
 // Exemptions: HIT_TARGET_EXEMPTIONS in helpers/assertions.ts (and the README).
 import { expect, test, type Page } from "@playwright/test";
 import { mockApi } from "./fixtures/api";
-import { PENDING_SCREEN_ROUTES, SCREEN_ROUTES, SHELL_ROUTES } from "./fixtures/routes";
+import { SCREEN_ROUTES, SHELL_ROUTES } from "./fixtures/routes";
 import {
   expectHitTargets,
   openSidebarByKeyboard,
@@ -39,7 +39,5 @@ for (const route of SCREEN_ROUTES) {
     await expect(page.getByRole("heading", { level: 1, name: route.heading })).toBeVisible();
     await expectHitTargets(page);
   };
-  if (PENDING_SCREEN_ROUTES.includes(route.path))
-    test.fixme(title, check); // enabled in D-142-7
-  else test(title, check);
+  test(title, check);
 }

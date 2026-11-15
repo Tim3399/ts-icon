@@ -4,7 +4,6 @@ import App from "./App";
 import { BrowserRouter } from "react-router-dom";
 import AuthProvider from "./auth/AuthProvider";
 import "./design/index.css";
-import "./legacy/legacy.css";
 import "cropperjs/dist/cropper.min.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
