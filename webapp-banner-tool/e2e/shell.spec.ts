@@ -1,13 +1,10 @@
-// App shell: sidebar (T-142 items 14, 15), live panel (item 16, width-based per F1 addendum 3), the
-// Not-found page and the keyboard-only workflow across screens.
+// Studio shell (T-142-F3 items 1 and 3; replaces the sidebar and live panel of
+// T-142 items 14-16, R3): the mode switcher, the Not-found page and the
+// keyboard-only workflow across screens. The layer panel breakpoints are in
+// studio-layout.spec.ts.
 import { expect, test } from "@playwright/test";
 import { mockApi, sourcePng } from "./fixtures/api";
-import {
-  expectNoHorizontalOverflow,
-  openSidebarByKeyboard,
-  sidebarIsCollapsible,
-  tabTo,
-} from "./helpers/assertions";
+import { tabTo } from "./helpers/assertions";
 
 test("unknown route offers a usable recovery path", async ({ page }) => {
   await mockApi(page);
@@ -53,16 +50,13 @@ test("banner creation, gallery navigation and deletion work using Tab and keyboa
 
   await page.screenshot({ path: testInfo.outputPath("saved-banner.png"), fullPage: true });
 
-  // Below 1024 px the sidebar is collapsed; it opens by keyboard first (item 15).
-  if (await sidebarIsCollapsible(page)) await openSidebarByKeyboard(page);
-  await tabTo(page, page.getByRole("link", { name: "Manage channel images" }));
+  // The mode switcher is in the top bar at every width (icons only below 1240 px).
+  const modes = page.getByRole("navigation", { name: "Primary" });
+  const channelsLink = modes.getByRole("link", { name: "Manage channel images" });
+  await tabTo(page, channelsLink);
   await page.keyboard.press("Enter");
   await expect(page.locator(".channel-row")).toHaveCount(2);
-  // On narrow viewports the sidebar closes after the navigation, so address the link by its target.
-  await expect(page.locator('#app-sidebar a[href="/channels"]')).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
+  await expect(channelsLink).toHaveAttribute("aria-current", "page");
   const status = page.getByLabel("Image status");
   await tabTo(page, status);
   await page.keyboard.press("Home");
@@ -83,141 +77,51 @@ test("banner creation, gallery navigation and deletion work using Tab and keyboa
     .toBe(true);
 });
 
-test("sidebar lists the destinations and marks the current one", async ({ page }) => {
+test("the mode switcher lists the destinations and marks the current one", async ({ page }) => {
   await mockApi(page);
   await page.goto("/banner-urls");
-  if (await sidebarIsCollapsible(page)) await openSidebarByKeyboard(page);
   const nav = page.getByRole("navigation", { name: "Primary" });
-  await expect(nav.getByRole("link")).toHaveText([
+  const links = nav.getByRole("link");
+  expect(await links.count()).toBeGreaterThan(0);
+  // The labels are the accessible names at every width (visible text from 1240 px).
+  for (const [i, name] of [
     "Banner editor",
     "Manage channel images",
     "Banner URLs",
     "Channel Wallpaper",
-  ]);
+  ].entries())
+    await expect(links.nth(i)).toHaveAccessibleName(name);
+  await expect(links).toHaveCount(4);
   await expect(nav.getByRole("link", { name: "Banner URLs" })).toHaveAttribute(
     "aria-current",
     "page",
   );
   await expect(nav.locator("[aria-current=page]")).toHaveCount(1);
-  // At most two levels (HIG): one list, no nested lists.
+  // One level only: one list, no nested lists.
   await expect(nav.locator("ul ul")).toHaveCount(0);
 });
 
-test.describe("sidebar on narrow viewports", () => {
-  test.beforeEach(async ({ page }, testInfo) => {
-    test.skip(
-      !["mobile", "zoom-layout"].includes(testInfo.project.name),
-      "Item 15 covers the collapsed sidebar in the mobile and zoom-layout projects.",
-    );
-    await mockApi(page);
-    await page.goto("/");
-  });
-
-  test("starts collapsed, opens and closes by keyboard, Escape returns focus", async ({ page }) => {
-    const sidebar = page.locator("#app-sidebar");
-    const toggle = page.getByRole("button", { name: "Show sidebar" });
-    await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(toggle).toHaveAttribute("aria-controls", "app-sidebar");
-    await expect(sidebar).toHaveAttribute("inert", "");
-    // Collapsed links are neither focusable nor exposed to assistive technology.
-    await expect(page.getByRole("link", { name: "Banner editor" })).toHaveCount(0);
-
-    await openSidebarByKeyboard(page);
-    await expect(sidebar).not.toHaveAttribute("inert");
-    await expect(page.getByRole("link", { name: "Banner editor" })).toBeFocused();
-
-    await page.keyboard.press("Escape");
-    const closed = page.getByRole("button", { name: "Show sidebar" });
-    await expect(closed).toHaveAttribute("aria-expanded", "false");
-    await expect(closed).toBeFocused();
-    await expect(sidebar).toHaveAttribute("inert", "");
-
-    // Enter on the toggle opens it again; Enter on the toggle inside the open
-    // state is covered by the click path below.
-    await page.keyboard.press("Enter");
-    await expect(page.getByRole("button", { name: "Hide sidebar" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    await page.getByRole("button", { name: "Hide sidebar" }).focus();
-    await page.keyboard.press("Enter");
-    await expect(page.getByRole("button", { name: "Show sidebar" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-  });
-
-  test("closes after a navigation", async ({ page }) => {
-    await openSidebarByKeyboard(page);
-    await tabTo(page, page.getByRole("link", { name: "Manage channel images" }));
-    await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/\/channels$/);
-    await expect(page.getByRole("button", { name: "Show sidebar" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    await expect(page.locator("#app-sidebar")).toHaveAttribute("inert", "");
-    await expectNoHorizontalOverflow(page);
-  });
-});
-
-test("sidebar is a visible column from 1024 px", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop", "Wide layout is checked in the desktop project.");
+test("the top bar shows the Studio mark and one account button", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "Banner editor" })).toBeVisible();
-  await expect(page.locator("#app-sidebar")).not.toHaveAttribute("inert");
-  await expect(page.getByRole("button", { name: /sidebar/ })).toBeHidden();
-  await page.setViewportSize({ width: 1024, height: 720 });
-  await expect(page.getByRole("link", { name: "Banner editor" })).toBeVisible();
-  await page.setViewportSize({ width: 1023, height: 720 });
-  await expect(page.getByRole("button", { name: "Show sidebar" })).toBeVisible();
+  const bar = page.locator(".ds-studio-bar");
+  await expect(bar).toContainText("ts-icon");
+  await expect(bar).toContainText("Studio");
+  await expect(bar.locator('button[aria-haspopup="menu"]')).toHaveCount(1);
 });
 
-test.describe("live panel", () => {
-  test.beforeEach(async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== "desktop", "Item 16 runs in the desktop project.");
-    await mockApi(page);
-  });
-
-  test("toggle hides and shows the panel and the choice survives a reload", async ({ page }) => {
-    await page.goto("/");
-    const panel = page.getByRole("complementary", { name: "Live channel tree" });
-    const hide = page.getByRole("button", { name: "Hide the live channel tree" });
-    await expect(panel).toBeVisible();
-    await expect(hide).toHaveAttribute("aria-expanded", "true");
-    await hide.click();
-    await expect(panel).toBeHidden();
-    expect(await page.evaluate(() => localStorage.getItem("ts-icon-rail-open"))).toBe("closed");
-    await page.reload();
-    await expect(page.getByRole("heading", { name: "Create a channel banner" })).toBeVisible();
-    await expect(panel).toBeHidden();
-    const show = page.getByRole("button", { name: "Show the live channel tree" });
-    await expect(show).toHaveAttribute("aria-expanded", "false");
-    await show.click();
-    await expect(panel).toBeVisible();
-    await page.reload();
-    await expect(panel).toBeVisible();
-  });
-
-  test("sits beside the content while the main column keeps its minimum, below it otherwise", async ({
-    page,
-  }) => {
-    // --size-main-min (560 px) + --size-panel (340 px) + the 240 px sidebar = 1140 px.
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto("/");
-    const panel = page.getByRole("complementary", { name: "Live channel tree" });
-    const main = page.locator("#main-content");
-    await expect(panel).toBeVisible();
-    let [p, m] = [(await panel.boundingBox())!, (await main.boundingBox())!];
-    expect(p.x).toBeGreaterThanOrEqual(m.x + m.width - 1);
-    expect(p.y).toBeLessThan(m.y + m.height);
-    expect(m.width).toBeGreaterThanOrEqual(560);
-
-    await page.setViewportSize({ width: 1100, height: 800 });
-    await expect.poll(async () => (await panel.boundingBox())!.y).toBeGreaterThan(m.y);
-    [p, m] = [(await panel.boundingBox())!, (await main.boundingBox())!];
-    expect(p.y).toBeGreaterThanOrEqual(m.y + m.height - 1);
-    await expectNoHorizontalOverflow(page);
-  });
+test("the live tree is the editor's layer panel and is absent elsewhere", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "The wide layout runs in the desktop project.");
+  await mockApi(page);
+  await page.goto("/");
+  const layers = page.getByRole("complementary", { name: "Layers" });
+  await expect(layers.getByRole("region", { name: "Live channel tree" })).toBeVisible();
+  await page.goto("/channels");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Manage channel images" }),
+  ).toBeVisible();
+  await expect(layers).toBeHidden();
+  await expect(page.getByRole("button", { name: /layers/ })).toHaveCount(0);
 });

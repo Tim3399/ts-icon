@@ -1,6 +1,6 @@
-/* Button and LinkButton: the three HIG styles. Prominent has the accent
-   fill; gray has a neutral fill; plain is borderless text. No style has a
-   border (T-142-F1 item 8). */
+/* Button and LinkButton in the D2 look: prominent has the accent fill; gray
+   is a white control with D2's 1 px --line-strong edge; plain is borderless
+   text in the accent. */
 
 .ds-button {
   display: inline-flex;
@@ -13,8 +13,8 @@
   border: 0;
   border-radius: var(--radius-control);
   font-family: inherit;
-  font-size: var(--font-body-size);
-  line-height: var(--font-body-line);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
   font-weight: var(--font-weight-medium);
   text-align: center;
   text-decoration: none;
@@ -38,8 +38,6 @@
 .ds-button-small {
   min-height: var(--size-hit-target-small);
   padding: var(--space-half) var(--space-2);
-  font-size: var(--font-subheadline-size);
-  line-height: var(--font-subheadline-line);
 }
 
 .ds-button-icon-only {
@@ -48,6 +46,7 @@
 
 /* Prominent: the accent-filled primary action (one per view). */
 .ds-button-prominent {
+  min-height: var(--size-control-prominent);
   background-color: var(--color-accent-fill);
   color: var(--color-on-accent-fill);
   font-weight: var(--font-weight-semibold);
@@ -61,16 +60,16 @@
   background-color: var(--color-accent-fill-pressed);
 }
 
-/* Gray: the default for every other action: neutral fill, label colour and
-   a 1 px neutral border (Primer default button, addendum 1). */
+/* Gray: the default for every other action: a white control with D2's
+   1 px --line-strong edge and the label colour. */
 .ds-button-gray {
-  border: var(--size-hairline) solid var(--color-border);
-  background-color: var(--color-fill-neutral);
+  border: var(--size-hairline) solid var(--color-border-strong);
+  background-color: var(--color-control-bg);
   color: var(--color-label);
 }
 
 .ds-button-gray:hover:not(:disabled) {
-  background-color: var(--color-fill-hover);
+  background-color: var(--color-hover-bg);
 }
 
 .ds-button-gray:active:not(:disabled) {

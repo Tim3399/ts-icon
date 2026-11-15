@@ -124,17 +124,24 @@ export async function tabTo(page: Page, control: Locator) {
   await expect(control, "Control must be reachable with Tab alone").toBeFocused();
 }
 
-/** Below 1024 px the sidebar is a drawer; this reports whether it is one. */
-export async function sidebarIsCollapsible(page: Page) {
-  return page.evaluate(() => !window.matchMedia("(min-width: 1024px)").matches);
+/**
+ * T-142-F3 R2: from 1024 to 1239 px the layer panel is a drawer behind a
+ * top-bar toggle; this reports whether the viewport is in that range.
+ */
+export async function layersAreDrawer(page: Page) {
+  return page.evaluate(
+    () =>
+      window.matchMedia("(min-width: 1024px)").matches &&
+      !window.matchMedia("(min-width: 1240px)").matches,
+  );
 }
 
-/** Opens the collapsed sidebar with the keyboard only (Tab to the toggle, Enter). */
-export async function openSidebarByKeyboard(page: Page) {
-  const toggle = page.getByRole("button", { name: "Show sidebar" });
+/** Opens the layer drawer with the keyboard only (Tab to the toggle, Enter). */
+export async function openLayersByKeyboard(page: Page) {
+  const toggle = page.getByRole("button", { name: "Show layers" });
   await tabTo(page, toggle);
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("button", { name: "Hide sidebar" })).toHaveAttribute(
+  await expect(page.getByRole("button", { name: "Hide layers" })).toHaveAttribute(
     "aria-expanded",
     "true",
   );

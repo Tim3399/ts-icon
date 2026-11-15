@@ -29,8 +29,10 @@ export * from "./components/MenuButton";
 export * from "./components/ConfirmDialog";
 export * from "./components/StatusGlyph";
 export * from "./components/TextLink";
+export * from "./components/Studio";
 
 // Patterns
 export * from "./patterns/Notice";
 export * from "./patterns/AccessDenied";
-export * from "./patterns/AppShell";
+export * from "./patterns/StudioShell";
+export * from "./patterns/studioLayout";

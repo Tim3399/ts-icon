@@ -1,0 +1,75 @@
+/* Type scale of concept D2 "Studio Light" (T-142-F3 item 2, R3). Four sizes:
+   micro, small, body and title, plus a heading size for the few page titles
+   that remain. These are the values below 1024 px (D2's phone values);
+   metrics.css, the one viewport media query of the foundations, sets the
+   desktop values from 1024 px (R9: D-6's switch, not D2's 900 px).
+
+   The HIG role names of the earlier rounds (large-title ... caption-2) stay as
+   aliases of the D2 sizes, so the screens that are rebuilt later keep working;
+   new code uses the D2 names. No text is smaller than 11 px. */
+
+:root {
+  --font-family-text:
+    -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", "Noto Sans", Helvetica, Arial,
+    sans-serif;
+  --font-family-mono:
+    ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono", Menlo, Consolas, monospace;
+
+  /* The only weights in use */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* D2 scale, below 1024 px (D2 phone values) */
+  --font-micro-size: 13px;
+  --font-micro-line: 18px;
+  --font-small-size: 15px;
+  --font-small-line: 20px;
+  --font-text-size: 16px;
+  --font-text-line: 22px;
+  --font-title-size: 17px;
+  --font-title-line: 22px;
+  --font-heading-size: 22px;
+  --font-heading-line: 28px;
+
+  /* HIG role aliases (earlier rounds) */
+  --font-large-title-size: var(--font-heading-size);
+  --font-large-title-line: var(--font-heading-line);
+  --font-weight-large-title: var(--font-weight-semibold);
+  --font-title-1-size: var(--font-heading-size);
+  --font-title-1-line: var(--font-heading-line);
+  --font-weight-title-1: var(--font-weight-semibold);
+  --font-title-2-size: var(--font-heading-size);
+  --font-title-2-line: var(--font-heading-line);
+  --font-weight-title-2: var(--font-weight-semibold);
+  --font-title-3-size: var(--font-title-size);
+  --font-title-3-line: var(--font-title-line);
+  --font-weight-title-3: var(--font-weight-semibold);
+  --font-headline-size: var(--font-text-size);
+  --font-headline-line: var(--font-text-line);
+  --font-weight-headline: var(--font-weight-semibold);
+  --font-body-size: var(--font-text-size);
+  --font-body-line: var(--font-text-line);
+  --font-weight-body: var(--font-weight-regular);
+  --font-callout-size: var(--font-small-size);
+  --font-callout-line: var(--font-small-line);
+  --font-weight-callout: var(--font-weight-regular);
+  --font-subheadline-size: var(--font-small-size);
+  --font-subheadline-line: var(--font-small-line);
+  --font-weight-subheadline: var(--font-weight-regular);
+  --font-footnote-size: var(--font-micro-size);
+  --font-footnote-line: var(--font-micro-line);
+  --font-weight-footnote: var(--font-weight-regular);
+  --font-caption-1-size: var(--font-micro-size);
+  --font-caption-1-line: var(--font-micro-line);
+  --font-weight-caption-1: var(--font-weight-regular);
+  --font-caption-2-size: var(--font-micro-size);
+  --font-caption-2-line: var(--font-micro-line);
+  --font-weight-caption-2: var(--font-weight-regular);
+
+  /* Emphasis for labels inside controls and rows */
+  --font-weight-control: var(--font-weight-medium);
+  --font-weight-row: var(--font-weight-medium);
+  --font-tracking-section: 0.04em;
+}

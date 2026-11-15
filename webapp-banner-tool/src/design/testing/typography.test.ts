@@ -1,6 +1,7 @@
-// T-142 item 7 and T-142-F1 addendum 1: the iOS type scale below 1024 px, the
-// macOS scale from 1024 px (one media query in metrics.css), the allowed
-// weights, the 11 px floor and the system font stack.
+// T-142-F3 item 2 and R3/R9: the D2 type scale. Below 1024 px D2's phone
+// values, from 1024 px D2's desktop values (one media query in metrics.css,
+// D-6), the allowed weights, the 11 px floor and the system font stack. The
+// HIG role names of earlier rounds are aliases of the D2 sizes.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -8,8 +9,8 @@ import { describe, expect, it } from "vitest";
 // Vitest runs from webapp-banner-tool/ (jsdom has no file: import.meta.url).
 const designDir = join(process.cwd(), "src/design");
 const srcDir = join(designDir, "..");
-const typography = readFileSync(join(designDir, "typography.css"), "utf8");
-const metrics = readFileSync(join(designDir, "metrics.css"), "utf8");
+const typography = readFileSync(join(designDir, "foundations/typography.css"), "utf8");
+const metrics = readFileSync(join(designDir, "foundations/metrics.css"), "utf8");
 const declarations = (css: string) =>
   Object.fromEntries(
     [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((m) => [
@@ -21,35 +22,36 @@ const tokens = declarations(typography);
 // The only media query of the foundations switches the metrics at 1024 px.
 const desktop = declarations(metrics);
 
-// iOS / iPadOS Dynamic Type, "Large (default)": size / leading in points.
-const IOS_SCALE: Record<string, [number, number]> = {
-  "large-title": [34, 41],
-  "title-1": [28, 34],
-  "title-2": [22, 28],
-  "title-3": [20, 25],
-  headline: [17, 22],
-  body: [17, 22],
-  callout: [16, 21],
-  subheadline: [15, 20],
-  footnote: [13, 18],
-  "caption-1": [12, 16],
-  "caption-2": [11, 13],
+// D2 concept.css: size / line height in px. "heading" is not in D2 (it has no
+// page titles); it serves the few headings the earlier screens still show.
+const D2_PHONE: Record<string, [number, number]> = {
+  micro: [13, 18],
+  small: [15, 20],
+  text: [16, 22],
+  title: [17, 22],
+  heading: [22, 28],
+};
+const D2_DESKTOP: Record<string, [number, number]> = {
+  micro: [11, 16],
+  small: [12, 18],
+  text: [13, 20],
+  title: [15, 20],
+  heading: [17, 22],
 };
 
-// macOS built-in text styles in points; Footnote and Caption (10 pt) are
-// raised to the 11 px web floor.
-const MACOS_SCALE: Record<string, [number, number]> = {
-  "large-title": [26, 32],
-  "title-1": [22, 26],
-  "title-2": [17, 22],
-  "title-3": [15, 20],
-  headline: [13, 16],
-  body: [13, 16],
-  callout: [12, 15],
-  subheadline: [11, 14],
-  footnote: [11, 14],
-  "caption-1": [11, 14],
-  "caption-2": [11, 14],
+// HIG role name -> the D2 size it aliases.
+const ALIASES: Record<string, string> = {
+  "large-title": "heading",
+  "title-1": "heading",
+  "title-2": "heading",
+  "title-3": "title",
+  headline: "text",
+  body: "text",
+  callout: "small",
+  subheadline: "small",
+  footnote: "micro",
+  "caption-1": "micro",
+  "caption-2": "micro",
 };
 
 function cssFiles(dir: string): string[] {
@@ -61,32 +63,32 @@ function cssFiles(dir: string): string[] {
 }
 
 describe("type scale", () => {
-  for (const [role, [size, line]] of Object.entries(IOS_SCALE)) {
-    it(`${role} is ${size}/${line} px`, () => {
+  for (const [role, [size, line]] of Object.entries(D2_PHONE)) {
+    it(`below 1024 px ${role} is ${size}/${line} px`, () => {
       expect(tokens[`--font-${role}-size`]).toBe(`${size}px`);
       expect(tokens[`--font-${role}-line`]).toBe(`${line}px`);
     });
   }
 
-  for (const [role, [size, line]] of Object.entries(MACOS_SCALE)) {
+  for (const [role, [size, line]] of Object.entries(D2_DESKTOP)) {
     it(`from 1024 px ${role} is ${size}/${line} px`, () => {
       expect(desktop[`--font-${role}-size`]).toBe(`${size}px`);
       expect(desktop[`--font-${role}-line`]).toBe(`${line}px`);
     });
   }
 
+  for (const [role, d2] of Object.entries(ALIASES)) {
+    it(`the role ${role} is an alias of the D2 ${d2} size`, () => {
+      expect(tokens[`--font-${role}-size`]).toBe(`var(--font-${d2}-size)`);
+      expect(tokens[`--font-${role}-line`]).toBe(`var(--font-${d2}-line)`);
+    });
+  }
+
   it("switches the metrics with exactly one media query at 1024 px", () => {
     expect(metrics.match(/@media/g)).toHaveLength(1);
     expect(metrics).toContain("@media (min-width: 1024px)");
-    expect(tokens["--size-hit-target"]).toBeUndefined();
     expect(desktop["--size-hit-target-small"]).toBe("28px");
     expect(parseInt(desktop["--size-hit-target"])).toBeGreaterThanOrEqual(28);
-  });
-
-  it("uses the Headline weight 600 on iOS and bold on macOS", () => {
-    expect(tokens["--font-weight-headline"]).toBe("var(--font-weight-semibold)");
-    expect(desktop["--font-weight-headline"]).toBe("var(--font-weight-bold)");
-    expect(tokens["--font-weight-semibold"]).toBe("600");
   });
 
   it("uses only the weights 400, 500, 600 and 700", () => {
@@ -99,8 +101,9 @@ describe("type scale", () => {
 
   it("has no text size below 11 px", () => {
     const sizes = Object.entries({ ...tokens, ...desktop })
-      .filter(([name]) => /^--font-.*-size$/.test(name))
+      .filter(([name, value]) => /^--font-.*-size$/.test(name) && !value.startsWith("var("))
       .map(([, value]) => parseFloat(value));
+    expect(sizes.length).toBeGreaterThan(0);
     expect(Math.min(...sizes)).toBeGreaterThanOrEqual(11);
   });
 

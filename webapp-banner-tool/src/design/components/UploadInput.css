@@ -9,7 +9,7 @@
   gap: var(--space-1);
   min-height: calc(var(--size-hit-target) * 2);
   padding: var(--space-5) var(--space-4);
-  border: var(--size-hairline) dashed var(--color-separator);
+  border: var(--size-hairline) dashed var(--color-border-strong);
   border-radius: var(--radius-card);
   background-color: var(--color-control-bg);
   color: var(--color-label-secondary);

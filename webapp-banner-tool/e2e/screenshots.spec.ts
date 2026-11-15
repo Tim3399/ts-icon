@@ -12,8 +12,9 @@ const dir = process.env.SCREENSHOT_DIR ?? "";
 const THEMES = ["dark", "light"] as const;
 const VIEWPORTS = {
   desktop: { width: 1440, height: 900 },
-  // 1280 px: the live panel is beside the content here (T-142-F1 addendum 3).
+  // 1280 and 1024 px: the Studio breakpoints of T-142-F3 R2 (item 14).
   laptop: { width: 1280, height: 800 },
+  "1024": { width: 1024, height: 768 },
   mobile: { width: 375, height: 667 },
 } as const;
 
@@ -57,13 +58,12 @@ for (const theme of THEMES) {
     }
 
     // The Banner editor with an image loaded (T-142-F1 gate, T-142-F2 item 7):
-    // Hytale between its neighbours, the live panel open. The source artwork
-    // has no text, so the preview shows the channel name once and no glyphs at
-    // the banner's top edge.
+    // Hytale between its neighbours, the live tree in the layer panel. The
+    // source artwork has no text, so the preview shows the channel name once
+    // and no glyphs at the banner's top edge.
     test(`Banner editor with an image loaded (${suffix})`, async ({ page }) => {
       await prepare(page, theme, viewport);
       const source = await fixtureBanner(page, { kind: "artwork", title: "", hue: 200 });
-      await page.addInitScript(() => localStorage.setItem("ts-icon-rail-open", "open"));
       await page.goto("/?channel=13");
       await page
         .locator("#file-upload")
@@ -72,14 +72,16 @@ for (const theme of THEMES) {
       await shoot(page, `route-banner-editor-loaded-${suffix}`);
     });
 
-    test(`sidebar open (${suffix})`, async ({ page }) => {
-      test.skip(viewport !== "mobile", "The sidebar is always open on desktop.");
+    // The layer drawer of 1024-1239 px (T-142-F3 R2), shot at 1100 px.
+    test(`layer drawer open at 1100 px (${suffix})`, async ({ page }) => {
+      test.skip(viewport !== "desktop", "One drawer shot per theme.");
       await prepare(page, theme, viewport);
-      await page.goto("/channels");
-      await page.getByRole("button", { name: "Show sidebar" }).click();
-      await expect(page.getByRole("link", { name: "Banner editor" })).toBeVisible();
+      await page.setViewportSize({ width: 1100, height: 800 });
+      await page.goto("/");
+      await page.getByRole("button", { name: "Show layers" }).click();
+      await expect(page.getByRole("region", { name: "Live channel tree" })).toBeVisible();
       // The drawer is fixed to the viewport, so a full-page shot would cut it.
-      await page.screenshot({ path: join(dir, `sidebar-open-${suffix}.png`) });
+      await page.screenshot({ path: join(dir, `layers-drawer-open-1100-${theme}.png`) });
     });
 
     test(`account menu open (${suffix})`, async ({ page }) => {
@@ -93,7 +95,8 @@ for (const theme of THEMES) {
 
     test(`toast (${suffix})`, async ({ page }) => {
       await prepare(page, theme, viewport, "error");
-      await page.goto("/banner-urls");
+      // The live tree raises the toast; it is the editor's layer panel now (D-142G-1).
+      await page.goto("/");
       await expect(page.locator(".ds-toast").first()).toBeVisible();
       await page.screenshot({ path: join(dir, `toast-${suffix}.png`) });
     });
