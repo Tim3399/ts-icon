@@ -446,6 +446,59 @@ describe("ImagesLocalController.listChannels", () => {
       channels: ["foo-bar"],
     });
   });
+
+  it("returns size and updatedAt only for channels that have their own stored image", async () => {
+    mockedFetchLiveChannels.mockResolvedValue([
+      { cid: "1", name: "With Image", bannerGfxUrl: null, pid: null },
+      { cid: "2", name: "Without Image", bannerGfxUrl: null, pid: null },
+    ]);
+    const { imagesService } = createImagesServiceStub();
+    const updatedAt = new Date("2026-11-15T10:20:30.000Z");
+    (imagesService.listMetadata as jest.Mock).mockResolvedValue([
+      {
+        channelId: "1",
+        channelName: "With Image",
+        contentHash: "abc",
+        size: 12345,
+        updatedAt,
+      },
+    ]);
+    const controller = createController(imagesService);
+
+    const { items } = await controller.listChannels();
+    const withImage = items.find((item) => item.cid === "1");
+    const withoutImage = items.find((item) => item.cid === "2");
+
+    expect(withImage).toMatchObject({
+      hasImage: true,
+      size: 12345,
+      updatedAt: "2026-11-15T10:20:30.000Z",
+    });
+    expect(withoutImage).toMatchObject({ hasImage: false });
+    expect(withoutImage).not.toHaveProperty("size");
+    expect(withoutImage).not.toHaveProperty("updatedAt");
+  });
+
+  it("gives the same size and updatedAt on channels/banner-urls", async () => {
+    mockedFetchLiveChannels.mockResolvedValue([
+      { cid: "1", name: "With Image", bannerGfxUrl: null, pid: null },
+    ]);
+    const { imagesService } = createImagesServiceStub();
+    (imagesService.listMetadata as jest.Mock).mockResolvedValue([
+      {
+        channelId: "1",
+        channelName: "With Image",
+        contentHash: "abc",
+        size: 7,
+        updatedAt: new Date("2026-01-02T03:04:05.000Z"),
+      },
+    ]);
+    const controller = createController(imagesService);
+
+    const { channels } = await controller.listChannelBannerUrls();
+
+    expect(channels[0]).toMatchObject({ size: 7, updatedAt: "2026-01-02T03:04:05.000Z" });
+  });
 });
 
 describe("ImagesLocalController.uploadImage", () => {

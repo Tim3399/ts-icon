@@ -231,7 +231,13 @@ export class ImagesService {
 
   async listMetadata() {
     return this.prisma.channelImage.findMany({
-      select: { channelId: true, channelName: true, contentHash: true },
+      select: {
+        channelId: true,
+        channelName: true,
+        contentHash: true,
+        size: true,
+        updatedAt: true,
+      },
     });
   }
 

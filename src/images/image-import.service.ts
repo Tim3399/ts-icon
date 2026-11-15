@@ -168,6 +168,8 @@ export class ImageImportService {
         hasImage: !!own,
         hasFallback: !own && !!fallback,
         contentHash: (own ?? fallback)?.contentHash,
+        // Only a channel's own stored image has a size and a change time (T-142-F3 R1).
+        ...(own ? { size: own.size, updatedAt: own.updatedAt.toISOString() } : {}),
         imageUrl: expectedBannerUrlForId(channel.cid, this.publicBaseUrl),
         depth: computeChannelDepth(channel.cid, channelsById),
         managed: isManagedByUs(channel, this.publicBaseUrl),
