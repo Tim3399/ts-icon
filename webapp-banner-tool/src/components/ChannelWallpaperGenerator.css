@@ -1,95 +1,234 @@
-/* Screen styles of ChannelWallpaperGenerator, moved unchanged from src/styles in D-142-1.
-   Owned and restyled by its T-142 part; uses only design-system tokens
-   once restyled (src/design/README.md). */
+/* Screen styles of ChannelWallpaperGenerator (route /wallpaper).
+   Built on the design-system role tokens only (src/design/README.md): no raw
+   colours, spacing, radii, type sizes or durations. Layout of fields and
+   button groups comes from Stack, Cluster and Grid. */
 
-/* ---------------------------------------------------------------------------
-   Wallpaper generator
---------------------------------------------------------------------------- */
+.wallpaper-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* Settings first in the DOM so the tab order follows the task order; the
+   preview sits beside them from 1024 px and below them on narrow screens. */
+.wallpaper-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+/* Sections space themselves (the design Section adds the gap between
+   siblings), so these columns only need to be shrinkable. */
+.wallpaper-main,
+.wallpaper-side,
+.wallpaper-after {
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .wallpaper-workbench {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+    gap: var(--space-5);
+  }
+
+  .wallpaper-preview-section {
+    position: sticky;
+    top: calc(var(--size-toolbar) + var(--space-5));
+  }
+}
+
+/* The footer button is the one prominent action of the screen. */
+.wallpaper-generate {
+  width: 100%;
+}
+
+/* Options -------------------------------------------------------------- */
+.wallpaper-options {
+  min-width: 0;
+  margin: var(--space-0);
+  padding: var(--space-0);
+  border: 0;
+}
+
+.wallpaper-advanced {
+  padding-top: var(--space-4);
+  border-top: var(--size-hairline) solid var(--color-separator);
+}
+
+.wallpaper-advanced-body {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background-color: var(--color-bg-content);
+}
+
+/* Preview stack: the sliced rows at their real 500:44 proportions, on the
+   transparency checkerboard so transparent areas read as transparent. */
 .wallpaper-preview-stack {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--space-half);
   max-height: 420px;
   overflow-y: auto;
   padding: var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-card);
+  background-color: var(--color-checker-a);
+  background-image:
+    linear-gradient(45deg, var(--color-checker-b) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--color-checker-b) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--color-checker-b) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--color-checker-b) 75%);
+  background-size: var(--size-checker) var(--size-checker);
+  background-position:
+    0 0,
+    0 calc(var(--size-checker) / 2),
+    calc(var(--size-checker) / 2) calc(var(--size-checker) / -2),
+    calc(var(--size-checker) / -2) 0;
+  overscroll-behavior: contain;
 }
 
 .wallpaper-preview-row {
   width: 100%;
   max-width: 500px;
-  aspect-ratio: 500 / 44;
+  aspect-ratio: var(--size-banner-ratio);
   height: auto;
   image-rendering: pixelated;
-  border-radius: 2px;
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 12%);
+  border-radius: var(--radius-small);
+  box-shadow: var(--shadow-raised);
 }
 
-.run-list {
-  list-style: none;
+/* Status badges -------------------------------------------------------- */
+.wallpaper-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-half) var(--space-2);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-bg-content);
+  color: var(--color-label-secondary);
+  font-size: var(--font-caption-1-size);
+  line-height: var(--font-caption-1-line);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.wallpaper-badge::before {
+  content: "";
+  flex: none;
+  width: var(--space-1);
+  height: var(--space-1);
+  border-radius: var(--radius-pill);
+  background-color: currentcolor;
+}
+
+.wallpaper-badge[data-tone="accent"] {
+  background-color: var(--color-accent-bg);
+  color: var(--color-label);
+}
+
+.wallpaper-badge[data-tone="positive"] {
+  background-color: var(--color-positive-bg);
+  color: var(--color-label);
+}
+
+.wallpaper-badge[data-tone="warning"] {
+  background-color: var(--color-warning-bg);
+  color: var(--color-label);
+}
+
+.wallpaper-badge[data-tone="destructive"] {
+  background-color: var(--color-destructive-bg);
+  color: var(--color-label);
+}
+
+/* The dot carries the role colour; the text stays in the label colour. */
+.wallpaper-badge[data-tone="accent"]::before {
+  color: var(--color-accent);
+}
+
+.wallpaper-badge[data-tone="positive"]::before {
+  color: var(--color-positive);
+}
+
+.wallpaper-badge[data-tone="warning"]::before {
+  color: var(--color-warning);
+}
+
+.wallpaper-badge[data-tone="destructive"]::before {
+  color: var(--color-destructive);
+}
+
+.wallpaper-badge[data-busy="true"]::before {
+  animation: wallpaper-pulse calc(var(--motion-slow) * 6) var(--motion-easing) infinite;
+}
+
+@keyframes wallpaper-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Recent operations ---------------------------------------------------- */
+.wallpaper-run-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  margin: var(--space-0);
+  padding: var(--space-0);
+  list-style: none;
 }
 
-.run-card {
+.wallpaper-run {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   padding: var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
+  border-radius: var(--radius-card);
+  background-color: var(--color-bg-content);
   overflow-wrap: anywhere;
 }
 
-.run-card-head {
+.wallpaper-run-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  flex-wrap: wrap;
 }
 
-.run-card-title {
-  font-size: var(--text-base);
-  font-weight: 600;
+.wallpaper-run-title {
+  font-size: var(--font-headline-size);
+  line-height: var(--font-headline-line);
+  font-weight: var(--font-weight-headline);
 }
 
-.run-channels {
-  list-style: none;
+.wallpaper-run-status {
+  color: var(--color-label-secondary);
+  font-size: var(--font-subheadline-size);
+  line-height: var(--font-subheadline-line);
+}
+
+.wallpaper-run-channels {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1) var(--space-2);
-  margin-top: var(--space-3);
+  margin: var(--space-0);
+  padding: var(--space-0);
+  list-style: none;
 }
 
-.run-channels li {
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-xs);
-  background: var(--surface-3);
-  border: 1px solid var(--border-subtle);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-
-/* ---------------------------------------------------------------------------
-   Advanced options disclosure
---------------------------------------------------------------------------- */
-.advanced {
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-subtle);
-}
-
-.advanced-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  margin-top: var(--space-4);
-  padding: var(--space-4);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
-}
-
-.page-sections-after {
-  margin-top: var(--space-4);
+.wallpaper-run-channels li {
+  padding: var(--space-half) var(--space-2);
+  border-radius: var(--radius-small);
+  background-color: var(--color-bg-row);
+  color: var(--color-label-secondary);
+  font-size: var(--font-caption-1-size);
+  line-height: var(--font-caption-1-line);
 }
