@@ -148,6 +148,9 @@ export async function structureViolations(page: Page, options: WalkOptions = {})
           const style = cs.getPropertyValue(`border-${side}-style`);
           if (width === 0 || style === "none") continue;
           const colour = cs.getPropertyValue(`border-${side}-color`);
+          // A fully transparent border draws nothing (the unchosen segments of
+          // SegmentedControl keep one so the chosen ring does not shift them).
+          if (colour === "rgba(0, 0, 0, 0)" || colour === "transparent") continue;
           if (width !== 1 || !neutralColours.includes(colour))
             out.push(`button ${name(el)} has a ${width}px ${colour} border`);
         }
