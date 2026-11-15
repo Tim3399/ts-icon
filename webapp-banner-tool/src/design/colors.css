@@ -1,0 +1,188 @@
+/* Colours: the raw palette and the colour roles.
+
+   This is the one file in src/ whose custom-property names describe a hue
+   (--navy-*, --gray-*, --blue-*, ...): the raw palette below. Only the role
+   blocks further down read it; components and screens use the
+   --color-<role> tokens only (README, "Token naming").
+
+   Palette sources: R-1 section 2.2 (TeamSpeak 6 client surfaces, sampled)
+   and 2.1 (teamspeak.com). Values marked "modified" keep the hue but move
+   the lightness until testing/contrast.test.ts passes (HIG wins, D-3). */
+
+:root {
+  /* Dark surfaces: TeamSpeak 6 client (R-1 2.2), used as sampled */
+  --navy-950: #131a2c; /* window top bar */
+  --navy-900: #1b2334; /* left column */
+  --navy-890: #1b2336; /* channel row pill */
+  --navy-880: #1d253a; /* darker card */
+  --navy-850: #232a3c; /* right panel, page background */
+  --navy-840: #232b40; /* header or spacer pill */
+  --navy-800: #253044; /* centre column */
+  --navy-750: #2b3346; /* elevated pill, toolbar card, input */
+
+  /* Dark foregrounds: cool greys on the navy hue */
+  --gray-050: #f2f5fa;
+  --gray-250: #b4bdcc;
+  --gray-350: #a1abbd;
+  --gray-550: #7a859c;
+
+  /* Light theme: derived from the same navy hue */
+  --gray-light-window: #e9edf3;
+  --gray-light-sidebar: #e1e6ee;
+  --gray-light-content: #f4f6f9;
+  --gray-light-panel: #eceff5;
+  --gray-light-label: #131a2c;
+  --gray-light-label-2: #3f4a5f;
+  --gray-light-label-3: #56617a;
+  --gray-light-separator: #6f798c;
+
+  /* TeamSpeak blue (R-1 2.1 #1c82cc, R-1 2.2 #0458fa) */
+  --blue-fill: #0458fa; /* R-1 2.2 primary button, as sampled */
+  --blue-fill-hover: #1a68ff; /* modified: lighter step of #0458fa */
+  --blue-fill-pressed: #0349d4; /* modified: darker step of #0458fa */
+  --blue-dark-accent: #3d9be0; /* modified #1c82cc: lighter for 3:1 on navy */
+  --blue-dark-link: #5cb0f2; /* modified #1c82cc: lighter for 4.5:1 on navy */
+  --blue-dark-selected: #1e4a86; /* modified #1c82cc: darker selection surface */
+  --blue-light-accent: #1c6fcc; /* modified #1c82cc: darker for 3:1 on light */
+  --blue-light-link: #0050d6; /* modified #0458fa: darker for 4.5:1 on light */
+  --blue-light-selected: #cfe0fa; /* modified #1c82cc: light selection surface */
+
+  /* TeamSpeak green (R-1 2.1 #25eb93) */
+  --green-dark: #25eb93; /* as on teamspeak.com */
+  --green-light: #0d7a4c; /* modified: darker for 4.5:1 on light content */
+
+  /* Warning and destructive: HIG system roles, no TeamSpeak brand value */
+  --orange-dark: #f5b94a;
+  --orange-light: #8a5a00;
+  --red-dark-text: #ff7b7b;
+  --red-dark-fill: #c62f3a;
+  --red-light: #c0242f;
+
+  --white: #ffffff;
+}
+
+/* Colour roles. Each value aliases the raw palette above; the README token
+   table names its source. Light is the base. Dark is declared twice on
+   purpose: once for an explicit choice (data-theme="dark") and once for
+   "follow the system" (no attribute), so the theme control wins in both
+   directions. testing/contrast.test.ts fails if the two dark blocks differ. */
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-label: var(--gray-light-label);
+  --color-label-secondary: var(--gray-light-label-2);
+  --color-label-tertiary: var(--gray-light-label-3);
+  --color-placeholder: var(--gray-light-label-3);
+  --color-separator: var(--gray-light-separator);
+  --color-link: var(--blue-light-link);
+  --color-accent: var(--blue-light-accent);
+  --color-accent-fill: var(--blue-fill);
+  --color-accent-fill-hover: var(--blue-fill-hover);
+  --color-accent-fill-pressed: var(--blue-fill-pressed);
+  --color-on-accent-fill: var(--white);
+  --color-control-bg: var(--white);
+  --color-selected-bg: var(--blue-light-selected);
+  --color-focus: var(--blue-fill);
+  --color-bg-window: var(--gray-light-window);
+  --color-bg-sidebar: var(--gray-light-sidebar);
+  --color-bg-content: var(--gray-light-content);
+  --color-bg-elevated: var(--white);
+  --color-bg-panel: var(--gray-light-panel);
+  --color-bg-row: var(--white);
+  --color-positive: var(--green-light);
+  --color-warning: var(--orange-light);
+  --color-destructive: var(--red-light);
+  --color-destructive-fill: var(--red-light);
+  --color-on-destructive-fill: var(--white);
+  --color-checker-a: var(--white);
+  --color-checker-b: var(--gray-light-sidebar);
+  --color-shadow: rgb(19 26 44 / 14%);
+  --color-scrim: rgb(19 26 44 / 40%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-label: var(--gray-050);
+    --color-label-secondary: var(--gray-250);
+    --color-label-tertiary: var(--gray-350);
+    --color-placeholder: var(--gray-350);
+    --color-separator: var(--gray-550);
+    --color-link: var(--blue-dark-link);
+    --color-accent: var(--blue-dark-accent);
+    --color-accent-fill: var(--blue-fill);
+    --color-accent-fill-hover: var(--blue-fill-hover);
+    --color-accent-fill-pressed: var(--blue-fill-pressed);
+    --color-on-accent-fill: var(--white);
+    --color-control-bg: var(--navy-890);
+    --color-selected-bg: var(--blue-dark-selected);
+    --color-focus: var(--blue-dark-link);
+    --color-bg-window: var(--navy-950);
+    --color-bg-sidebar: var(--navy-900);
+    --color-bg-content: var(--navy-850);
+    --color-bg-elevated: var(--navy-750);
+    --color-bg-panel: var(--navy-800);
+    --color-bg-row: var(--navy-890);
+    --color-positive: var(--green-dark);
+    --color-warning: var(--orange-dark);
+    --color-destructive: var(--red-dark-text);
+    --color-destructive-fill: var(--red-dark-fill);
+    --color-on-destructive-fill: var(--white);
+    --color-checker-a: var(--navy-880);
+    --color-checker-b: var(--navy-750);
+    --color-shadow: rgb(0 0 0 / 40%);
+    --color-scrim: rgb(0 0 0 / 55%);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-label: var(--gray-050);
+  --color-label-secondary: var(--gray-250);
+  --color-label-tertiary: var(--gray-350);
+  --color-placeholder: var(--gray-350);
+  --color-separator: var(--gray-550);
+  --color-link: var(--blue-dark-link);
+  --color-accent: var(--blue-dark-accent);
+  --color-accent-fill: var(--blue-fill);
+  --color-accent-fill-hover: var(--blue-fill-hover);
+  --color-accent-fill-pressed: var(--blue-fill-pressed);
+  --color-on-accent-fill: var(--white);
+  --color-control-bg: var(--navy-890);
+  --color-selected-bg: var(--blue-dark-selected);
+  --color-focus: var(--blue-dark-link);
+  --color-bg-window: var(--navy-950);
+  --color-bg-sidebar: var(--navy-900);
+  --color-bg-content: var(--navy-850);
+  --color-bg-elevated: var(--navy-750);
+  --color-bg-panel: var(--navy-800);
+  --color-bg-row: var(--navy-890);
+  --color-positive: var(--green-dark);
+  --color-warning: var(--orange-dark);
+  --color-destructive: var(--red-dark-text);
+  --color-destructive-fill: var(--red-dark-fill);
+  --color-on-destructive-fill: var(--white);
+  --color-checker-a: var(--navy-880);
+  --color-checker-b: var(--navy-750);
+  --color-shadow: rgb(0 0 0 / 40%);
+  --color-scrim: rgb(0 0 0 / 55%);
+}
+
+/* Derived state colours (README, "Derived surfaces"). Hover and pressed
+   fills lay the label colour over whatever surface the control sits on, so
+   one token serves every surface in both themes. Status tints mix the status
+   role into the elevated background. */
+
+:root {
+  --color-fill-hover: color-mix(in srgb, var(--color-label) 8%, transparent);
+  --color-fill-pressed: color-mix(in srgb, var(--color-label) 14%, transparent);
+  --color-positive-bg: color-mix(in srgb, var(--color-positive) 14%, var(--color-bg-elevated));
+  --color-warning-bg: color-mix(in srgb, var(--color-warning) 14%, var(--color-bg-elevated));
+  --color-destructive-bg: color-mix(
+    in srgb,
+    var(--color-destructive) 14%,
+    var(--color-bg-elevated)
+  );
+  --color-accent-bg: color-mix(in srgb, var(--color-accent) 16%, var(--color-bg-elevated));
+}

@@ -1,0 +1,353 @@
+/* App shell: sidebar, toolbar, content and the optional side panel.
+   Breakpoints: sidebar column from 1024 px, side panel column from 1200 px
+   (T-142 items 15 and 16). */
+
+.ds-shell {
+  display: grid;
+  grid-template-columns: var(--size-sidebar) minmax(0, 1fr);
+  min-height: 100dvh;
+  background-color: var(--color-bg-content);
+}
+
+.ds-skip-link {
+  position: fixed;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: var(--layer-skip-link);
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--size-hit-target);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent-fill);
+  color: var(--color-on-accent-fill);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  transform: translateY(calc(-100% - var(--space-4)));
+  transition: transform var(--motion-fast) var(--motion-easing);
+}
+
+.ds-skip-link:focus {
+  transform: none;
+}
+
+/* Sidebar */
+
+/* The column runs the full page height; its content sticks to the top. */
+.ds-shell-sidebar {
+  border-right: var(--size-hairline) solid var(--color-separator);
+  background-color: var(--color-bg-sidebar);
+  /* Opening shows the drawer at once (focus can move in); closing hides it
+     only after the slide, see the collapsed rule below. */
+  transition: transform var(--motion-standard) var(--motion-easing);
+}
+
+.ds-shell-sidebar-inner {
+  position: sticky;
+  top: var(--space-0);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-height: 100dvh;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-3);
+}
+
+.ds-shell-brand {
+  padding: var(--space-1) var(--space-2);
+}
+
+.ds-shell-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+}
+
+.ds-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-hit-target);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  color: var(--color-label);
+  font-size: var(--font-body-size);
+  line-height: var(--font-body-line);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  transition: background-color var(--motion-fast) var(--motion-easing);
+}
+
+.ds-sidebar-link:hover {
+  background-color: var(--color-fill-hover);
+}
+
+.ds-sidebar-link-icon {
+  flex: none;
+  color: var(--color-accent);
+}
+
+/* The current destination stays highlighted (HIG lists and sidebars). */
+.ds-sidebar-link[aria-current="page"] {
+  background-color: var(--color-selected-bg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ds-sidebar-link[aria-current="page"] .ds-sidebar-link-icon {
+  color: var(--color-label);
+}
+
+.ds-shell-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-scrim);
+  background-color: var(--color-scrim);
+}
+
+/* Content column */
+
+.ds-shell-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ds-shell-toolbar {
+  position: sticky;
+  top: var(--space-0);
+  z-index: var(--layer-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-toolbar);
+  padding: var(--space-1) var(--space-4);
+  border-bottom: var(--size-hairline) solid var(--color-separator);
+  background-color: var(--color-bg-window);
+}
+
+.ds-shell-sidebar-toggle,
+.ds-shell-toolbar-brand {
+  display: none;
+}
+
+.ds-shell-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+  min-width: 0;
+}
+
+.ds-shell-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  flex: 1 1 auto;
+}
+
+.ds-shell-main {
+  width: 100%;
+  max-width: var(--size-content-max);
+  min-width: 0;
+  margin: var(--space-0) auto;
+  padding: var(--space-7) var(--space-6) var(--space-9);
+}
+
+.ds-shell-main:focus {
+  outline: none;
+}
+
+/* Side panel: below the content until 1200 px, then a column beside it. */
+
+.ds-side-panel {
+  min-width: 0;
+  width: 100%;
+  max-width: var(--size-content-max);
+  margin: var(--space-0) auto;
+  padding: var(--space-4) var(--space-6) var(--space-8);
+  background-color: var(--color-bg-panel);
+}
+
+.ds-side-panel[hidden] {
+  display: none;
+}
+
+.ds-side-panel-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.ds-side-panel-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-label-secondary);
+  font-size: var(--font-footnote-size);
+  line-height: var(--font-footnote-line);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--font-tracking-section);
+  text-transform: uppercase;
+}
+
+.ds-side-panel-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+@media (min-width: 1200px) {
+  .ds-shell-body-with-panel:has(> .ds-side-panel:not([hidden])) {
+    grid-template-columns: minmax(0, 1fr) var(--size-panel);
+  }
+
+  .ds-side-panel {
+    align-self: stretch;
+    margin: var(--space-0);
+    padding: var(--space-0) var(--space-4);
+    border-left: var(--size-hairline) solid var(--color-separator);
+  }
+
+  /* The panel column runs the full height; its content sticks below the
+     toolbar and scrolls on its own. */
+  .ds-side-panel-inner {
+    position: sticky;
+    top: var(--size-toolbar);
+    max-height: calc(100dvh - var(--size-toolbar));
+    padding: var(--space-6) var(--space-0);
+  }
+
+  .ds-side-panel-body {
+    flex: 1 1 auto;
+  }
+}
+
+/* Account */
+
+.ds-user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-bg-row);
+  color: var(--color-label);
+  font-size: var(--font-subheadline-size);
+  line-height: var(--font-subheadline-line);
+  font-weight: var(--font-weight-medium);
+}
+
+.ds-user-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--size-avatar);
+  height: var(--size-avatar);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent-fill);
+  color: var(--color-on-accent-fill);
+  font-size: var(--font-caption-1-size);
+  line-height: var(--font-caption-1-line);
+  font-weight: var(--font-weight-bold);
+}
+
+.ds-user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 14em;
+}
+
+/* Brand */
+
+.ds-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-hit-target);
+  color: var(--color-label);
+}
+
+.ds-brand-mark {
+  flex: none;
+}
+
+.ds-brand-name {
+  display: block;
+  font-size: var(--font-headline-size);
+  line-height: var(--font-headline-line);
+  font-weight: var(--font-weight-bold);
+}
+
+.ds-brand-tagline {
+  display: block;
+  color: var(--color-label-secondary);
+  font-size: var(--font-caption-1-size);
+  line-height: var(--font-caption-1-line);
+}
+
+/* Narrow: the sidebar becomes a drawer behind the toolbar toggle. */
+
+@media (max-width: 1023px) {
+  .ds-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ds-shell-sidebar {
+    position: fixed;
+    top: var(--space-0);
+    bottom: var(--space-0);
+    left: var(--space-0);
+    z-index: var(--layer-drawer);
+    width: min(var(--size-sidebar), 85vw);
+    overflow-y: auto;
+    background-color: var(--color-bg-sidebar);
+    box-shadow: var(--shadow-overlay);
+  }
+
+  .ds-shell[data-sidebar="collapsed"] .ds-shell-sidebar {
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform var(--motion-standard) var(--motion-easing-exit),
+      visibility 0s linear var(--motion-standard);
+  }
+
+  .ds-shell-sidebar-toggle {
+    display: inline-flex;
+  }
+
+  .ds-shell-toolbar-brand {
+    display: block;
+    min-width: 0;
+  }
+
+  .ds-shell-toolbar-brand .ds-brand-tagline {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .ds-shell-toolbar {
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .ds-shell-main {
+    padding: var(--space-5) var(--space-4) var(--space-8);
+  }
+
+  .ds-side-panel {
+    padding: var(--space-4) var(--space-4) var(--space-7);
+  }
+
+  .ds-user-chip {
+    padding: var(--space-1);
+  }
+
+  .ds-user-name {
+    display: none;
+  }
+}

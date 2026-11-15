@@ -3,11 +3,10 @@ import { CHANNEL_BANNER_URLS_URL } from "../config";
 import { useAuth } from "../auth/AuthContext";
 import { apiFetchJson, describeApiError } from "../api/client";
 import { channelImageUrl } from "../api/channels";
-import { useToast } from "./ToastContext";
+import { EmptyState, LoadingState, RequestError, useToast } from "../design";
 import type { PreviewOverlay } from "../preview/PreviewOverlayContext";
 import type { Channel } from "../api/types";
-import RequestError from "./RequestError";
-import { EmptyState, LoadingState } from "./ui/States";
+import "./ChannelTreePreview.css";
 
 export type TreeChannel = Channel;
 

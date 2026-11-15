@@ -1,0 +1,56 @@
+/* PageHeader: eyebrow, Large Title, lead and page actions. */
+
+.ds-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.ds-page-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 48em;
+}
+
+.ds-page-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-label-secondary);
+  font-size: var(--font-footnote-size);
+  line-height: var(--font-footnote-line);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--font-tracking-section);
+  text-transform: uppercase;
+}
+
+.ds-page-title {
+  font-size: var(--font-large-title-size);
+  line-height: var(--font-large-title-line);
+  font-weight: var(--font-weight-large-title);
+}
+
+.ds-page-lead {
+  color: var(--color-label-secondary);
+  font-size: var(--font-callout-size);
+  line-height: var(--font-callout-line);
+}
+
+.ds-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+@media (max-width: 767px) {
+  .ds-page-title {
+    font-size: var(--font-title-1-size);
+    line-height: var(--font-title-1-line);
+    font-weight: var(--font-weight-title-1);
+  }
+}

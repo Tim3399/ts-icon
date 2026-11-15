@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import keycloak from "./keycloak";
 import { KEYCLOAK_ENABLED } from "../config";
-import { ToastProvider } from "../components/Toast";
+import { Button, Splash, ToastProvider } from "../design";
 
 import { AuthContext } from "./AuthContext";
 import { ApiError } from "../api/client";
@@ -118,14 +118,9 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   if (loading) {
     return (
       <ToastProvider>
-        <div className="splash">
-          <p className="splash-brand">
-            <img src="/icon.svg" alt="" width={28} height={28} />
-            TS-Icon
-          </p>
-          <span className="spinner spinner-lg" aria-hidden="true" />
+        <Splash name="TS-Icon" logoSrc="/icon.svg" busy>
           <p role="status">Authenticating…</p>
-        </div>
+        </Splash>
       </ToastProvider>
     );
   }
@@ -133,16 +128,17 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   if (!authenticated) {
     return (
       <ToastProvider>
-        <div className="splash">
-          <p className="splash-brand">
-            <img src="/icon.svg" alt="" width={28} height={28} />
-            TS-Icon
-          </p>
+        <Splash
+          name="TS-Icon"
+          logoSrc="/icon.svg"
+          actions={
+            <Button variant="prominent" onClick={() => location.reload()}>
+              Reload the page
+            </Button>
+          }
+        >
           <p role="alert">Login failed. Please reload the page.</p>
-          <button type="button" className="btn btn-primary" onClick={() => location.reload()}>
-            Reload the page
-          </button>
-        </div>
+        </Splash>
       </ToastProvider>
     );
   }

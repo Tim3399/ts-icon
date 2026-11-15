@@ -1,0 +1,102 @@
+/* TextField, TextArea, Select and Checkbox. */
+
+.ds-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ds-field-label {
+  font-size: var(--font-subheadline-size);
+  line-height: var(--font-subheadline-line);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-label);
+}
+
+.ds-field-hint {
+  font-size: var(--font-footnote-size);
+  line-height: var(--font-footnote-line);
+  color: var(--color-label-secondary);
+}
+
+.ds-control {
+  width: 100%;
+  min-height: var(--size-hit-target);
+  padding: var(--space-2) var(--space-3);
+  border: var(--size-hairline) solid var(--color-separator);
+  border-radius: var(--radius-control);
+  background-color: var(--color-control-bg);
+  color: var(--color-label);
+  font-size: var(--font-body-size);
+  line-height: var(--font-body-line);
+  transition: border-color var(--motion-fast) var(--motion-easing);
+}
+
+.ds-control::placeholder {
+  color: var(--color-placeholder);
+  opacity: 1;
+}
+
+.ds-control:focus-visible {
+  border-color: var(--color-focus);
+}
+
+.ds-control:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.ds-control[aria-invalid="true"] {
+  border-color: var(--color-destructive);
+}
+
+.ds-control-multiline {
+  min-height: calc(var(--size-hit-target) * 2);
+  resize: vertical;
+}
+
+.ds-select {
+  position: relative;
+  display: block;
+}
+
+.ds-select .ds-control {
+  appearance: none;
+  padding-right: var(--space-8);
+  cursor: pointer;
+}
+
+/* The chevron is painted by the wrapper so the native select keeps its
+   keyboard and screen reader behaviour. */
+.ds-select::after {
+  content: "";
+  position: absolute;
+  right: var(--space-4);
+  top: 50%;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-right: var(--size-focus-ring) solid var(--color-label-secondary);
+  border-bottom: var(--size-focus-ring) solid var(--color-label-secondary);
+  transform: translateY(-75%) rotate(45deg);
+  pointer-events: none;
+}
+
+.ds-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-hit-target);
+  padding: var(--space-1) var(--space-0);
+  cursor: pointer;
+  font-size: var(--font-body-size);
+  line-height: var(--font-body-line);
+}
+
+.ds-checkbox-box {
+  flex: none;
+  width: var(--size-icon);
+  height: var(--size-icon);
+  margin: var(--space-0);
+  accent-color: var(--color-accent-fill);
+}

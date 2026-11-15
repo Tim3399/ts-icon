@@ -1,0 +1,25 @@
+/* Screen styles of SpacerBaseImageManager, moved unchanged from src/styles in D-142-1.
+   Owned and restyled by its T-142 part; uses only design-system tokens
+   once restyled (src/design/README.md). */
+
+/* ---------------------------------------------------------------------------
+   Spacer base image
+--------------------------------------------------------------------------- */
+.spacer-base {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.spacer-base-upload .field + .field,
+.spacer-base-upload > .field {
+  margin-top: 0;
+}
+
+@media (min-width: 720px) {
+  .spacer-base {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+}

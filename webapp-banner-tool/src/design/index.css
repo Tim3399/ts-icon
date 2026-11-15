@@ -1,0 +1,8 @@
+/* Global entry point of the foundations, imported once from main.tsx.
+   Design components import their own colocated stylesheet. */
+
+@import "./colors.css";
+@import "./tokens.css";
+@import "./typography.css";
+@import "./motion.css";
+@import "./base.css";

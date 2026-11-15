@@ -11,7 +11,10 @@ const { apiFetchMock, apiFetchJsonMock, auth, bumpRefresh, showToast } = vi.hois
 }));
 
 vi.mock("../auth/AuthContext", () => ({ useAuth: () => auth }));
-vi.mock("./ToastContext", () => ({ useToast: () => ({ showToast }) }));
+vi.mock("../design", async () => ({
+  ...(await vi.importActual("../design")),
+  useToast: () => ({ showToast }),
+}));
 vi.mock("../preview/PreviewOverlayContext", () => ({
   usePreviewOverlay: () => ({ bumpRefresh }),
 }));

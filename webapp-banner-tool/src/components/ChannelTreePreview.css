@@ -1,0 +1,125 @@
+/* Screen styles of ChannelTreePreview, moved unchanged from src/styles in D-142-1.
+   Owned and restyled by its T-142 part; uses only design-system tokens
+   once restyled (src/design/README.md). */
+
+/* ---------------------------------------------------------------------------
+   Channel tree
+--------------------------------------------------------------------------- */
+.channel-tree {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.channel-tree-scroll {
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.channel-tree-list {
+  list-style: none;
+  padding: var(--space-1);
+}
+
+.channel-tree-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 5px var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-sm);
+  min-width: 0;
+}
+
+.channel-tree-row-selectable:hover {
+  background: var(--surface-hover);
+}
+
+.channel-tree-thumb {
+  width: 44px;
+  height: 8px;
+  flex: 0 0 auto;
+  object-fit: cover;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+
+.channel-tree-thumb-placeholder {
+  background: repeating-linear-gradient(45deg, var(--border) 0 3px, transparent 3px 6px);
+  border: 1px solid var(--border);
+}
+
+.channel-tree-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Rows spliced in from a page's not-yet-submitted PreviewOverlay -- visually
+   distinct from the saved tree so they are never mistaken for real channels. */
+.channel-tree-row-pending {
+  border-color: var(--accent);
+  border-style: dashed;
+  background: var(--accent-soft);
+}
+
+.tree-select {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  padding: 4px var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease);
+}
+
+.tree-select:hover {
+  background: var(--surface-hover);
+}
+
+.tree-select[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-border);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------------------
+   Small helpers
+--------------------------------------------------------------------------- */
+.channel-tree-notice {
+  padding: var(--space-3);
+}
+
+.channel-tree-live {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+
+.channel-tree-live .channel-tree-scroll {
+  max-height: none;
+  flex: 1 1 auto;
+}
+
+/* Below this width the rail becomes a normal block under the main content
+   rather than a column, so neither pane is squeezed under its usable size. */
+@media (max-width: 1199px) {
+  .channel-tree-live .channel-tree-scroll {
+    max-height: 340px;
+  }
+}

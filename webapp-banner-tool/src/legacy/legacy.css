@@ -1,0 +1,941 @@
+/* TEMPORARY (T-142): removed in D-142-7.
+
+   Generic classes the screens still use while parts a-e restyle them
+   (.btn*, .card*, .field*, .input*, .badge*, .alert*, .workbench*, ...).
+   Restyled on the new role tokens through the aliases below: every old token
+   name points at a design-system role, so these rules follow both themes.
+   Exempt from T-142 items 2-4 and 11 only until D-142-7. Nothing new may be
+   added here; new styling belongs in src/design or a screen's own CSS. */
+
+:root {
+  --bg: var(--color-bg-content);
+  --bg-pattern: transparent;
+  --surface: var(--color-bg-elevated);
+  --surface-2: var(--color-bg-row);
+  --surface-3: var(--color-bg-row);
+  --surface-hover: var(--color-fill-hover);
+  --surface-inset: var(--color-bg-row);
+  --surface-overlay: var(--color-bg-elevated);
+  --border: var(--color-separator);
+  --border-subtle: var(--color-separator);
+  --border-strong: var(--color-separator);
+  --text: var(--color-label);
+  --text-muted: var(--color-label-secondary);
+  --text-subtle: var(--color-label-tertiary);
+  --text-on-accent: var(--color-on-accent-fill);
+  --accent: var(--color-accent-fill);
+  --accent-hover: var(--color-accent-fill-hover);
+  --accent-active: var(--color-accent-fill-pressed);
+  --accent-text: var(--color-link);
+  --accent-soft: var(--color-accent-bg);
+  --accent-soft-border: var(--color-accent);
+  --success: var(--color-positive);
+  --success-text: var(--color-positive);
+  --success-soft: var(--color-positive-bg);
+  --warning: var(--color-warning);
+  --warning-text: var(--color-warning);
+  --warning-soft: var(--color-warning-bg);
+  --danger: var(--color-destructive-fill);
+  --danger-text: var(--color-destructive);
+  --danger-soft: var(--color-destructive-bg);
+  --danger-border: var(--color-destructive);
+  --info: var(--color-link);
+  --info-text: var(--color-link);
+  --info-soft: var(--color-accent-bg);
+  --checker-a: var(--color-checker-a);
+  --checker-b: var(--color-checker-b);
+  --radius-xs: var(--radius-small);
+  --radius-sm: var(--radius-control);
+  --radius-md: var(--radius-row);
+  --radius-lg: var(--radius-panel);
+  --radius-xl: var(--radius-panel);
+  --shadow-xs: var(--shadow-raised);
+  --shadow-sm: var(--shadow-raised);
+  --shadow-md: var(--shadow-overlay);
+  --shadow-lg: var(--shadow-overlay);
+  --font-sans: var(--font-family-text);
+  --font-mono: var(--font-family-mono);
+  --text-2xs: var(--font-caption-2-size);
+  --text-xs: var(--font-caption-1-size);
+  --text-sm: var(--font-footnote-size);
+  --text-base: var(--font-subheadline-size);
+  --text-md: var(--font-callout-size);
+  --text-lg: var(--font-headline-size);
+  --text-xl: var(--font-title-2-size);
+  --text-2xl: var(--font-title-1-size);
+  --header-height: var(--size-toolbar);
+  --rail-width: var(--size-panel);
+  --content-max: var(--size-content-max);
+  --shell-max: 1680px;
+  --ease: var(--motion-easing);
+  --duration-fast: var(--motion-fast);
+  --duration: var(--motion-standard);
+  --ring-color: var(--color-focus);
+  --ring: var(--shadow-focus-ring);
+}
+
+/* Thin scrollbars for the app's inner scroll regions (tree, preview stack)
+   so a 340px rail doesn't lose 15px to a chrome-default scrollbar. */
+.scroll-area {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  overscroll-behavior: contain;
+}
+
+.scroll-area::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.scroll-area::-webkit-scrollbar-thumb {
+  background-clip: content-box;
+  border: 3px solid transparent;
+  border-radius: var(--radius-pill);
+  background-color: var(--border-strong);
+}
+
+.scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Utilities */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.stack-sm {
+  gap: var(--space-2);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.break-anywhere {
+  overflow-wrap: anywhere;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.text-sm {
+  font-size: var(--text-sm);
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------------------------
+   Buttons
+--------------------------------------------------------------------------- */
+.btn {
+  --btn-bg: transparent;
+  --btn-fg: var(--text);
+  --btn-border: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  min-height: var(--size-hit-target);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  white-space: nowrap;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.btn-primary {
+  --btn-bg: var(--accent);
+  --btn-fg: var(--text-on-accent);
+  box-shadow: var(--shadow-xs);
+}
+
+.btn-primary:hover:not(:disabled) {
+  --btn-bg: var(--accent-hover);
+}
+
+.btn-primary:active:not(:disabled) {
+  --btn-bg: var(--accent-active);
+}
+
+.btn-secondary {
+  --btn-bg: var(--surface);
+  --btn-border: var(--border-strong);
+  box-shadow: var(--shadow-xs);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  --btn-bg: var(--surface-hover);
+}
+
+.btn-ghost {
+  --btn-fg: var(--text-muted);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  --btn-bg: var(--surface-hover);
+  --btn-fg: var(--text);
+}
+
+.btn-danger {
+  --btn-bg: var(--surface);
+  --btn-fg: var(--danger-text);
+  --btn-border: var(--danger-border);
+}
+
+.btn-danger:hover:not(:disabled) {
+  --btn-bg: var(--danger-soft);
+}
+
+.btn-sm {
+  min-height: 30px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.btn-lg {
+  min-height: 42px;
+  padding: 0 var(--space-5);
+  font-size: var(--text-md);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-icon {
+  padding: 0;
+  width: 36px;
+  min-height: 36px;
+  flex: 0 0 auto;
+}
+
+.btn-icon.btn-sm {
+  width: 30px;
+  min-height: 30px;
+}
+
+.btn svg {
+  flex: 0 0 auto;
+}
+
+/* A tight cluster of related controls that reads as one instrument
+   (the crop nudge pad, the zoom pair). */
+.btn-cluster {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  gap: 2px;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.btn-cluster .btn {
+  --btn-bg: transparent;
+  --btn-border: transparent;
+  box-shadow: none;
+}
+
+.btn-cluster .btn:hover:not(:disabled) {
+  --btn-bg: var(--surface);
+}
+
+.actions-row {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ---------------------------------------------------------------------------
+   Cards and sections
+--------------------------------------------------------------------------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+}
+
+.card + .card {
+  margin-top: var(--space-4);
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.card-head-text {
+  min-width: 0;
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.card-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border: 1px solid var(--accent-soft-border);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-subtitle {
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.card-body > * + * {
+  margin-top: var(--space-4);
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.card-footer-split {
+  justify-content: space-between;
+}
+
+/* ---------------------------------------------------------------------------
+   Forms
+--------------------------------------------------------------------------- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.field + .field {
+  margin-top: var(--space-4);
+}
+
+.label,
+.field > label {
+  font-size: var(--text-sm);
+  font-weight: 550;
+  color: var(--text);
+}
+
+.field-hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-base);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-xs);
+  transition:
+    border-color var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease),
+    background-color var(--duration-fast) var(--ease);
+}
+
+.input::placeholder {
+  color: var(--text-subtle);
+}
+
+.input:hover:not(:disabled):not(:focus) {
+  border-color: var(--text-subtle);
+}
+
+.input:focus-visible,
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+.input:disabled {
+  background: var(--surface-inset);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+textarea.input {
+  padding: var(--space-2) var(--space-3);
+  min-height: 84px;
+  resize: vertical;
+}
+
+/* Native select, restyled: the chevron is painted by the wrapper so the
+   control keeps native keyboard behavior (and stays a real combobox). */
+.select-wrap {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.select-wrap .input {
+  appearance: none;
+  padding-right: var(--space-7);
+  cursor: pointer;
+}
+
+.select-wrap::after {
+  content: "";
+  position: absolute;
+  right: var(--space-3);
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -6px;
+  border-right: 1.6px solid var(--text-muted);
+  border-bottom: 1.6px solid var(--text-muted);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.input-icon {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.input-icon .input {
+  padding-left: var(--space-8);
+}
+
+.input-icon > svg {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-subtle);
+  pointer-events: none;
+}
+
+.input-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.input-row > .field,
+.input-row > .input,
+.input-row > .select-wrap,
+.input-row > .input-icon {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+
+.field-grid .field + .field {
+  margin-top: 0;
+}
+
+.plain-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+/* Checkbox laid out as a selectable row rather than a bare box plus text. */
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease);
+}
+
+.check:hover {
+  border-color: var(--border-strong);
+}
+
+.check input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin: 1px 0 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.check-text {
+  font-size: var(--text-sm);
+  font-weight: 550;
+}
+
+.check-hint {
+  display: block;
+  margin-top: 2px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* Segmented control, for switching an editor between input modes. */
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  min-height: 28px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 550;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
+}
+
+.segmented button:hover {
+  color: var(--text);
+}
+
+.segmented button[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-xs);
+}
+
+/* ---------------------------------------------------------------------------
+   Autocomplete
+--------------------------------------------------------------------------- */
+.autocomplete {
+  position: relative;
+}
+
+.autocomplete-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  padding: var(--space-1);
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.autocomplete-item {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-base);
+  cursor: pointer;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item-highlighted {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+/* ---------------------------------------------------------------------------
+   Badges and status pills
+--------------------------------------------------------------------------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  font-size: var(--text-2xs);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+.badge::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentcolor;
+  flex: 0 0 auto;
+}
+
+.badge-plain::before {
+  display: none;
+}
+
+.badge-managed,
+.badge-success {
+  background: var(--success-soft);
+  color: var(--success-text);
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+}
+
+.badge-unmanaged,
+.badge-neutral {
+  background: var(--surface-3);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
+.badge-pending,
+.badge-accent {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-color: var(--accent-soft-border);
+}
+
+.badge-warning {
+  background: var(--warning-soft);
+  color: var(--warning-text);
+  border-color: color-mix(in srgb, var(--warning) 30%, transparent);
+}
+
+.badge-danger {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+  border-color: var(--danger-border);
+}
+
+.badge-info {
+  background: var(--info-soft);
+  color: var(--info-text);
+  border-color: color-mix(in srgb, var(--info) 30%, transparent);
+}
+
+.badge-busy::before {
+  animation: pulse 1.4s var(--ease) infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Alerts
+--------------------------------------------------------------------------- */
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.alert > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.alert-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.alert-error {
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+  color: var(--danger-text);
+}
+
+.alert-info {
+  background: var(--info-soft);
+  border-color: color-mix(in srgb, var(--info) 30%, transparent);
+  color: var(--info-text);
+}
+
+.alert-success {
+  background: var(--success-soft);
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+  color: var(--success-text);
+}
+
+.alert .btn {
+  flex: 0 0 auto;
+}
+
+.spinner {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+
+.spinner-lg {
+  width: 26px;
+  height: 26px;
+  border-width: 3px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: 0 0;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Banner artwork
+--------------------------------------------------------------------------- */
+/* Banners are 500x44 PNGs that are frequently partly transparent. A
+   checkerboard behind them is the difference between "this area is empty"
+   and "this area is transparent". */
+.checkerboard {
+  background-color: var(--checker-a);
+  background-image:
+    linear-gradient(45deg, var(--checker-b) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--checker-b) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--checker-b) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--checker-b) 75%);
+  background-size: 14px 14px;
+  background-position:
+    0 0,
+    0 7px,
+    7px -7px,
+    -7px 0;
+}
+
+.banner-frame {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.banner-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* 500x44 is the exact saved banner size; keeping the aspect ratio makes the
+   preview an honest representation at any column width. */
+.banner-frame-ratio {
+  aspect-ratio: 500 / 44;
+  width: 100%;
+}
+
+.banner-frame-placeholder {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+
+/* Collapses a button's text label on narrow headers. Safe because every
+   control using it also carries an aria-label, so the accessible name does
+   not disappear along with the visible text. */
+@media (max-width: 767px) {
+  .hide-sm {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Page layouts
+--------------------------------------------------------------------------- */
+/* Two-pane editor: settings on the left, the live artifact on the right.
+   Settings come first in the DOM so tab order follows the task order. */
+.workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.workbench-side,
+.workbench-main {
+  min-width: 0;
+}
+
+.workbench-side > * + * {
+  margin-top: var(--space-4);
+}
+
+.page-sections > * + * {
+  margin-top: var(--space-4);
+}
+
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.toolbar > .field {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.toolbar > .field + .field {
+  margin-top: 0;
+}
+
+.toolbar-meta {
+  margin-left: auto;
+  padding-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------
+   Responsive
+--------------------------------------------------------------------------- */
+@media (min-width: 1024px) {
+  .workbench {
+    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+    gap: var(--space-5);
+  }
+
+  .workbench-wide {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  }
+
+  .workbench-sticky {
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-5));
+  }
+}
+
+@media (max-width: 767px) {
+  .card {
+    padding: var(--space-4);
+  }
+
+  .toolbar-meta {
+    margin-left: 0;
+    padding-bottom: 0;
+  }
+}

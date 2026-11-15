@@ -1,0 +1,39 @@
+/* FieldError and RequestError. */
+
+.ds-field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  font-size: var(--font-footnote-size);
+  line-height: var(--font-footnote-line);
+  color: var(--color-destructive);
+}
+
+.ds-field-error > svg {
+  flex: none;
+  margin-top: var(--space-half);
+}
+
+.ds-request-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--size-hairline) solid var(--color-destructive);
+  border-radius: var(--radius-card);
+  background-color: var(--color-destructive-bg);
+  color: var(--color-label);
+  font-size: var(--font-subheadline-size);
+  line-height: var(--font-subheadline-line);
+}
+
+.ds-request-error-icon {
+  flex: none;
+  color: var(--color-destructive);
+}
+
+.ds-request-error-body {
+  flex: 1 1 12em;
+  min-width: 0;
+}

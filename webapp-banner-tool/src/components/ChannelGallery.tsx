@@ -3,18 +3,22 @@ import { useAuth } from "../auth/AuthContext";
 import { apiFetch, describeApiError, UPLOAD_TIMEOUT_MS } from "../api/client";
 import { channelImageEndpoint, channelImageUrl } from "../api/channels";
 import { useChannels } from "../hooks/useChannels";
-import { useToast } from "./ToastContext";
+import {
+  BannerFrame,
+  EmptyState,
+  Icon,
+  PageHeader,
+  RequestError,
+  Skeleton,
+  UploadInput,
+  useToast,
+} from "../design";
 import SpacerBaseImageManager from "./SpacerBaseImageManager";
 import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
-import UploadInput from "./UploadInput";
 import { imageFileError } from "../api/image-file";
-import RequestError from "./RequestError";
-import Icon from "./ui/Icon";
-import PageHeader from "./ui/PageHeader";
-import BannerFrame from "./ui/BannerFrame";
-import { EmptyState, Skeleton } from "./ui/States";
 import { uploadFieldError } from "../hooks/useFieldErrors";
 import type { Channel } from "../api/types";
+import "./ChannelGallery.css";
 
 const FILTERS = [
   ["all", "All channels"],
