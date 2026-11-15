@@ -160,10 +160,20 @@ export function bannerPng(page: Page, hue: number, title = "Banner"): Promise<Bu
   return fixtureBanner(page, { kind: "artwork", title, hue });
 }
 
-/** cid -> realistic fixture banner for the channels that get an image. */
-export async function fixtureImages(page: Page, cids: string[]): Promise<Map<string, Buffer>> {
+/**
+ * cid -> realistic fixture banner for the channels that get an image. With
+ * `textFree` the banners carry no title, so the channel name is not doubled
+ * in previews, thumbnails and pills (the screenshots project, D-142F-36).
+ */
+export async function fixtureImages(
+  page: Page,
+  cids: string[],
+  { textFree = false }: { textFree?: boolean } = {},
+): Promise<Map<string, Buffer>> {
   const images = new Map<string, Buffer>();
-  for (const [i, cid] of cids.entries())
-    images.set(cid, await fixtureBanner(page, BANNER_CYCLE[i % BANNER_CYCLE.length]));
+  for (const [i, cid] of cids.entries()) {
+    const spec = BANNER_CYCLE[i % BANNER_CYCLE.length];
+    images.set(cid, await fixtureBanner(page, textFree ? { ...spec, title: "" } : spec));
+  }
   return images;
 }

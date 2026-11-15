@@ -5,7 +5,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { fixtureImages, mockApi, screenshotChannels, type ApiState } from "./fixtures/api";
-import { fixtureBanner } from "./fixtures/banners";
+import { fixtureSource } from "./fixtures/banners";
 import { SCREEN_ROUTES, SHELL_ROUTES } from "./fixtures/routes";
 
 const dir = process.env.SCREENSHOT_DIR ?? "";
@@ -33,7 +33,8 @@ async function prepare(
   await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
   await page.goto("about:blank");
   const { channels, banners } = screenshotChannels();
-  const images = await fixtureImages(page, banners);
+  // Text-free banners: channel names appear once, drawn on the pill (D-142F-36).
+  const images = await fixtureImages(page, banners, { textFree: true });
   await mockApi(page, { channels, images, state });
 }
 
@@ -59,15 +60,16 @@ for (const theme of THEMES) {
 
     // The Banner editor with an image loaded (T-142-F1 gate, T-142-F2 item 7):
     // Hytale between its neighbours, the live tree in the layer panel. The
-    // source artwork has no text, so the preview shows the channel name once
-    // and no glyphs at the banner's top edge.
+    // source is the 1000 x 400 photo-like image, so the canvas shows the crop
+    // frame inside a larger image (D-142F-36); it has no text, so the preview
+    // shows the channel name once.
     test(`Banner editor with an image loaded (${suffix})`, async ({ page }) => {
       await prepare(page, theme, viewport);
-      const source = await fixtureBanner(page, { kind: "artwork", title: "", hue: 200 });
+      const source = await fixtureSource(page);
       await page.goto("/?channel=13");
       await page
         .locator("#file-upload")
-        .setInputFiles({ name: "artwork.png", mimeType: "image/png", buffer: source });
+        .setInputFiles({ name: "source.png", mimeType: "image/png", buffer: source });
       await expect(page.getByAltText("Cropped banner for Hytale")).toBeVisible();
       await shoot(page, `route-banner-editor-loaded-${suffix}`);
     });
@@ -79,7 +81,7 @@ for (const theme of THEMES) {
       await page.setViewportSize({ width: 1100, height: 800 });
       await page.goto("/");
       await page.getByRole("button", { name: "Show layers" }).click();
-      await expect(page.getByRole("region", { name: "Live channel tree" })).toBeVisible();
+      await expect(page.getByRole("region", { name: "Channels" })).toBeVisible();
       // The drawer is fixed to the viewport, so a full-page shot would cut it.
       await page.screenshot({ path: join(dir, `layers-drawer-open-1100-${theme}.png`) });
     });
@@ -95,8 +97,8 @@ for (const theme of THEMES) {
 
     test(`toast (${suffix})`, async ({ page }) => {
       await prepare(page, theme, viewport, "error");
-      // The live tree raises the toast; it is the editor's layer panel now (D-142G-1).
-      await page.goto("/");
+      // The Wallpaper parent picker (ChannelTreePreview) raises the load-error toast.
+      await page.goto("/wallpaper");
       await expect(page.locator(".ds-toast").first()).toBeVisible();
       await page.screenshot({ path: join(dir, `toast-${suffix}.png`) });
     });

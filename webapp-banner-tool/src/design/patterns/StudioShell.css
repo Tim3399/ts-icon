@@ -219,14 +219,16 @@
   background-color: var(--color-scrim);
 }
 
-/* From 1240 px the panels stay in view while the main region scrolls. */
+/* From 1240 px the panels fill the workspace height under the top bar, as in
+   D2: background and border reach the bottom of the viewport, also while the
+   main region scrolls; their content scrolls inside the panel. */
 @media (min-width: 1240px) {
   .ds-studio[data-layout="wide"] .ds-studio-layers,
   .ds-studio[data-layout="wide"] .ds-studio-inspector {
     position: sticky;
     top: var(--size-toolbar);
     align-self: start;
-    max-height: calc(100dvh - var(--size-toolbar));
+    height: calc(100dvh - var(--size-toolbar));
     overflow-y: auto;
   }
 }
