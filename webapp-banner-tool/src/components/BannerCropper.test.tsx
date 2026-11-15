@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import BannerCropper from "./BannerCropper";
+import { StudioShell } from "../design";
 import { ApiError } from "../api/client";
 const {
   jsonMock,
@@ -13,6 +14,9 @@ const {
   canvasMock,
   destroyMock,
   setDataMock,
+  resetMock,
+  zoomMock,
+  zoomCallbacks,
   readyCallbacks,
   cropCallbacks,
   cropperBehavior,
@@ -26,6 +30,9 @@ const {
   canvasMock: vi.fn(),
   destroyMock: vi.fn(),
   setDataMock: vi.fn(),
+  resetMock: vi.fn(),
+  zoomMock: vi.fn(),
+  zoomCallbacks: [] as Array<(event: { detail: { ratio: number } }) => void>,
   readyCallbacks: [] as Array<() => void>,
   cropCallbacks: [] as Array<() => void>,
   cropperBehavior: { autoReady: true },
@@ -44,22 +51,34 @@ vi.mock("../api/client", async () => ({
 }));
 vi.mock("cropperjs", () => ({
   default: class {
-    constructor(_image: HTMLImageElement, options: { ready: () => void; crop: () => void }) {
+    constructor(
+      _image: HTMLImageElement,
+      options: {
+        ready: () => void;
+        crop: () => void;
+        zoom: (event: { detail: { ratio: number } }) => void;
+      },
+    ) {
       readyCallbacks.push(options.ready);
       cropCallbacks.push(options.crop);
+      zoomCallbacks.push(options.zoom);
       if (cropperBehavior.autoReady) queueMicrotask(() => options.ready());
     }
     destroy = destroyMock;
     setData = setDataMock;
     getData = () => ({ x: 15, y: 25, width: 500, height: 44 });
     getCroppedCanvas = canvasMock;
-    zoom() {}
+    getCropBoxData = () => ({ left: 10, top: 20, width: 400, height: 35 });
+    getImageData = () => ({ width: 640, naturalWidth: 1000 });
+    reset = resetMock;
+    zoom = zoomMock;
   },
 }));
 beforeEach(() => {
   vi.clearAllMocks();
   readyCallbacks.length = 0;
   cropCallbacks.length = 0;
+  zoomCallbacks.length = 0;
   cropperBehavior.autoReady = true;
   URL.createObjectURL = vi.fn(() => "blob:loaded-image");
   URL.revokeObjectURL = vi.fn();
@@ -77,7 +96,9 @@ afterEach(() => vi.unstubAllGlobals());
 async function load() {
   render(
     <MemoryRouter>
-      <BannerCropper />
+      <StudioShell modes={null} account={null}>
+        <BannerCropper />
+      </StudioShell>
     </MemoryRouter>,
   );
   await screen.findByRole("option", { name: "General (#42)" });
@@ -114,10 +135,43 @@ describe("banner export workflow", () => {
       expect.stringContaining("/by-id/42.png?v="),
     );
   });
-  it("offers keyboard-operable movement", async () => {
+  it("sets the crop from the X and Y fields, in source pixels", async () => {
     await load();
-    fireEvent.click(screen.getByRole("button", { name: "Move right" }));
-    expect(setDataMock).toHaveBeenCalledWith({ x: 25, y: 25 });
+    fireEvent.change(screen.getByRole("textbox", { name: "X" }), { target: { value: "40" } });
+    expect(setDataMock).toHaveBeenLastCalledWith({ x: 40, y: 25, width: 500, height: 44 });
+    fireEvent.change(screen.getByRole("textbox", { name: "Y" }), { target: { value: "60" } });
+    expect(setDataMock).toHaveBeenLastCalledWith({ x: 15, y: 60, width: 500, height: 44 });
+    // The arrow keys nudge by 1 (and Shift by 10): keyboard-operable movement.
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "X" }), { key: "ArrowUp" });
+    expect(setDataMock).toHaveBeenLastCalledWith({ x: 16, y: 25, width: 500, height: 44 });
+  });
+  it("keeps W and H at 500 : 44 (R6)", async () => {
+    await load();
+    fireEvent.change(screen.getByLabelText(/Width/), { target: { value: "250" } });
+    expect(setDataMock).toHaveBeenLastCalledWith({ x: 15, y: 25, width: 250, height: 22 });
+    fireEvent.change(screen.getByLabelText(/Height/), { target: { value: "88" } });
+    expect(setDataMock).toHaveBeenLastCalledWith({ x: 15, y: 25, width: 1000, height: 88 });
+    fireEvent.change(screen.getByLabelText(/Width/), { target: { value: "333" } });
+    expect(setDataMock).toHaveBeenLastCalledWith({ x: 15, y: 25, width: 333, height: 29 });
+  });
+  it("shows the crop numbers of the live crop", async () => {
+    await load();
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "X" })).toHaveValue("15"));
+    expect(screen.getByLabelText(/Width/)).toHaveValue("500");
+    expect(screen.getByLabelText(/Height/)).toHaveValue("44");
+  });
+  it("fits and zooms the cropper and shows the real zoom", async () => {
+    await load();
+    await waitFor(() => expect(screen.getByLabelText("Zoom level")).toHaveTextContent("64 %"));
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(zoomMock).toHaveBeenLastCalledWith(0.1);
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(zoomMock).toHaveBeenLastCalledWith(-0.1);
+    act(() => zoomCallbacks.at(-1)!({ detail: { ratio: 1.5 } }));
+    expect(screen.getByLabelText("Zoom level")).toHaveTextContent("150 %");
+    fireEvent.click(screen.getByRole("button", { name: "Fit to screen" }));
+    expect(resetMock).toHaveBeenCalled();
+    expect(setDataMock).toHaveBeenLastCalledWith({ x: 15, y: 25, width: 500, height: 44 });
   });
   it("keeps saving disabled until the newest cropper instance is ready", async () => {
     let resize: () => void = () => {};
@@ -134,7 +188,9 @@ describe("banner export workflow", () => {
     );
     render(
       <MemoryRouter>
-        <BannerCropper />
+        <StudioShell modes={null} account={null}>
+          <BannerCropper />
+        </StudioShell>
       </MemoryRouter>,
     );
     await screen.findByRole("option", { name: "General (#42)" });
@@ -173,7 +229,9 @@ describe("banner export workflow", () => {
   it("rejects an unsupported dropped file with a visible error before reading it", async () => {
     render(
       <MemoryRouter>
-        <BannerCropper />
+        <StudioShell modes={null} account={null}>
+          <BannerCropper />
+        </StudioShell>
       </MemoryRouter>,
     );
     const input = document.getElementById("file-upload")!;
@@ -186,11 +244,13 @@ describe("banner export workflow", () => {
   it("focuses the URL field for local validation and clears its message on correction", async () => {
     render(
       <MemoryRouter>
-        <BannerCropper />
+        <StudioShell modes={null} account={null}>
+          <BannerCropper />
+        </StudioShell>
       </MemoryRouter>,
     );
     const input = document.getElementById("imageUrl")!;
-    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    fireEvent.click(screen.getByRole("button", { name: "Load URL" }));
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAccessibleDescription("Enter an image URL first.");
     await waitFor(() => expect(input).toHaveFocus());
@@ -206,16 +266,18 @@ describe("banner export workflow", () => {
     );
     render(
       <MemoryRouter>
-        <BannerCropper />
+        <StudioShell modes={null} account={null}>
+          <BannerCropper />
+        </StudioShell>
       </MemoryRouter>,
     );
     const input = document.getElementById("imageUrl")!;
     fireEvent.change(input, { target: { value: "https://example.test/image.png" } });
-    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    fireEvent.click(screen.getByRole("button", { name: "Load URL" }));
     await waitFor(() => expect(input).toHaveFocus());
     expect(input).toHaveAccessibleDescription("Choose a public HTTPS image URL.");
     blobMock.mockRejectedValueOnce(new ApiError("Network connection failed.", "network"));
-    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    fireEvent.click(screen.getByRole("button", { name: "Load URL" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Network connection failed.");
     expect(input).not.toHaveAttribute("aria-invalid");
   });
@@ -224,7 +286,9 @@ describe("banner export workflow", () => {
 it("clears a rejected file when a valid URL replaces it and does not refocus it after saving", async () => {
   render(
     <MemoryRouter>
-      <BannerCropper />
+      <StudioShell modes={null} account={null}>
+        <BannerCropper />
+      </StudioShell>
     </MemoryRouter>,
   );
   await screen.findByRole("option", { name: "General (#42)" });
@@ -237,7 +301,7 @@ it("clears a rejected file when a valid URL replaces it and does not refocus it 
   fireEvent.change(document.getElementById("imageUrl")!, {
     target: { value: "https://example.test/image.png" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Load" }));
+  fireEvent.click(screen.getByRole("button", { name: "Load URL" }));
   const image = await screen.findByAltText("Preview");
   Object.defineProperties(image, {
     naturalWidth: { value: 1000 },
@@ -293,8 +357,8 @@ describe("TeamSpeak preview (T-142-F1 items 14, 15, 17)", () => {
     canvasMock.mockReturnValue(fakeCanvas("exact banner pixels"));
     await load();
     const preview = (await croppedBanner()).getAttribute("src")!;
-    // The 1:1 "Saved image (500 × 44)" line shows the same export.
-    expect(screen.getByText("Saved image (500 × 44)")).toBeInTheDocument();
+    // The 1:1 saved strip shows the same export.
+    expect(screen.getByText("Saved image · 500 × 44 · 1:1")).toBeInTheDocument();
     expect(screen.getByAltText(/^Saved image for General/)).toHaveAttribute("src", preview);
     fireEvent.click(screen.getByRole("button", { name: "Crop & send image" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
@@ -311,7 +375,9 @@ describe("image sources (T-142-F1 item 13)", () => {
   function renderEditor() {
     return render(
       <MemoryRouter>
-        <BannerCropper />
+        <StudioShell modes={null} account={null}>
+          <BannerCropper />
+        </StudioShell>
       </MemoryRouter>,
     );
   }
@@ -374,9 +440,63 @@ describe("image sources (T-142-F1 item 13)", () => {
   it("loads an image dropped anywhere on the editor", async () => {
     const { container } = renderEditor();
     const file = new File(["png"], "dropped.png", { type: "image/png" });
-    fireEvent.drop(container.querySelector(".banner-editor")!, {
+    fireEvent.drop(container.querySelector(".studio-editor")!, {
       dataTransfer: { types: ["Files"], files: [file] },
     });
     expect(await screen.findByAltText("Preview")).toBeInTheDocument();
+  });
+});
+
+describe("Studio editor (T-142-F3 items 4, 6 and the deep link)", () => {
+  function renderAt(entry = "/") {
+    return render(
+      <MemoryRouter initialEntries={[entry]}>
+        <StudioShell modes={null} account={null}>
+          <BannerCropper />
+        </StudioShell>
+      </MemoryRouter>,
+    );
+  }
+
+  it("selects a channel by clicking its layer row (the same state as the select)", async () => {
+    renderAt();
+    const row = await screen.findByRole("button", { name: /General/ });
+    expect(row).not.toHaveAttribute("aria-current");
+    fireEvent.click(row);
+    expect(screen.getByRole("combobox", { name: "Channel" })).toHaveValue("42");
+    expect(row).toHaveAttribute("aria-current", "true");
+  });
+
+  it("preselects the channel of /?channel=<cid>", async () => {
+    renderAt("/?channel=42");
+    await screen.findByRole("option", { name: "General (#42)" });
+    expect(screen.getByRole("combobox", { name: "Channel" })).toHaveValue("42");
+    expect(screen.getByRole("button", { name: /General/ })).toHaveAttribute("aria-current", "true");
+  });
+
+  it("shows the quiet empty tile as Before when the channel has no banner", async () => {
+    canvasMock.mockReturnValue(fakeCanvas("after"));
+    await load();
+    expect(screen.getByText("No banner yet")).toBeInTheDocument();
+    expect(await screen.findByAltText("New banner of General")).toHaveAttribute(
+      "src",
+      fakeCanvas("after").toDataURL(),
+    );
+    expect(screen.getByText("No current banner")).toBeInTheDocument();
+  });
+
+  it("shows the current banner as Before when the channel has one", async () => {
+    jsonMock.mockResolvedValue({
+      channels: ["General"],
+      items: [{ cid: "42", name: "General", pid: null, depth: 0, hasImage: true }],
+    });
+    canvasMock.mockReturnValue(fakeCanvas("after"));
+    await load();
+    expect(screen.getByAltText("Current banner of General")).toHaveAttribute(
+      "src",
+      expect.stringContaining("/by-id/42.png"),
+    );
+    expect(await screen.findByAltText("New banner of General")).toBeInTheDocument();
+    expect(screen.getByText("Current banner of General")).toBeInTheDocument();
   });
 });

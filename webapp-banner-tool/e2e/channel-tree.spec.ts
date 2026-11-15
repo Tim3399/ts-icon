@@ -1,4 +1,5 @@
-// Channel tree (live panel and wallpaper parent picker). Owned by T-142 part (e);
+// Channel tree rows (the editor's TeamSpeak preview and the wallpaper parent picker; the
+// editor's live tree is its layer panel since D-142F-33). Owned by T-142 part (e);
 // covers the row look of item 17 with the TS6 geometry of T-142-F1 addendum 4 in
 // both uses: 30 px pill rows, the banner covering the pill with no fade, spacer =
 // banner-only pill, group = left bold label over the banner, indented
@@ -18,8 +19,10 @@ async function setUp(page: Page, theme: (typeof THEMES)[number] = "dark", state?
   await mockApi(page, { channels, images, state });
 }
 
-// The live tree is the editor's layer panel in the Studio shell (D-142G-1).
-const livePanel = (page: Page) => page.getByRole("region", { name: "Live channel tree" });
+// D-142F-33: the editor's live tree is the layer panel (compact rows, GET channels, R4); the
+// TS6 row look on "/" lives in the dock's TeamSpeak preview.
+const previewTree = (page: Page) => page.getByRole("figure", { name: "Preview in TeamSpeak" });
+const layerPanel = (page: Page) => page.getByRole("list", { name: "Channels" });
 const picker = (page: Page) => page.getByRole("group", { name: "Parent channel" });
 
 const pillOf = (tree: Locator, name: string) =>
@@ -45,7 +48,7 @@ async function expectRowLook(tree: Locator) {
   // Pill rows: rounded, on a surface that differs from the panel behind them.
   const look = await pills.first().evaluate((el) => {
     const style = getComputedStyle(el);
-    const panel = getComputedStyle(el.closest(".channel-tree")!);
+    const panel = getComputedStyle(el.closest(".channel-tree, .ts-preview")!);
     return {
       radius: parseFloat(style.borderTopLeftRadius),
       background: style.backgroundColor,
@@ -117,13 +120,13 @@ async function expectRowLook(tree: Locator) {
 }
 
 for (const theme of THEMES) {
-  test(`live panel shows the pill rows (${theme})`, async ({ page }) => {
+  test(`the editor's TeamSpeak preview shows the pill rows (${theme})`, async ({ page }) => {
     await setUp(page, theme);
     await page.goto("/");
-    const tree = livePanel(page).locator(".channel-tree");
+    const tree = previewTree(page);
     await tree.scrollIntoViewIfNeeded();
     await expectRowLook(tree);
-    await expect(tree.locator("button")).toHaveCount(0); // not selectable in the panel
+    await expect(tree.locator("button")).toHaveCount(0); // not selectable in the preview
   });
 
   test(`wallpaper parent picker shows the same rows and selects (${theme})`, async ({ page }) => {
@@ -144,16 +147,16 @@ for (const theme of THEMES) {
   });
 }
 
-test("the live panel lists the channel tree", async ({ page }) => {
+test("the layer panel lists the channel tree", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
-  await expect(livePanel(page).locator(".channel-tree-row")).toHaveCount(2);
+  await expect(layerPanel(page).getByRole("button")).toHaveCount(2);
 });
 
-test("pill rows are not wider than the panel and do not overflow", async ({ page }) => {
+test("pill rows are not wider than the picker and do not overflow", async ({ page }) => {
   await setUp(page);
-  await page.goto("/");
-  const tree = livePanel(page).locator(".channel-tree");
+  await page.goto("/wallpaper");
+  const tree = picker(page).locator(".channel-tree");
   await expect(tree.locator(".channel-tree-pill").first()).toBeVisible();
   const overflow = await tree
     .locator(".channel-tree-scroll")
@@ -171,10 +174,12 @@ for (const state of ["ready", "empty", "error"] as const) {
       await page.goto(path);
       const route = SCREEN_ROUTES.find((r) => r.path === path)!;
       await expect(page.getByRole("heading", { level: 1, name: route.heading })).toBeVisible();
-      const scope = path === "/" ? "#live-tree-panel" : '[aria-label="Parent channel"]';
-      await expect(page.locator(`${scope} .channel-tree`)).toBeVisible();
-      if (state === "ready")
-        await expect(page.locator(`${scope} .channel-tree-pill`).first()).toBeVisible();
+      // On "/" the live tree is the layer panel (#studio-layers, D-142F-33).
+      const scope = path === "/" ? "#studio-layers" : '[aria-label="Parent channel"]';
+      const tree = path === "/" ? ".layers" : ".channel-tree";
+      const row = path === "/" ? ".layer-row" : ".channel-tree-pill";
+      await expect(page.locator(`${scope} ${tree}`)).toBeVisible();
+      if (state === "ready") await expect(page.locator(`${scope} ${row}`).first()).toBeVisible();
       if (state === "empty")
         await expect(page.locator(`${scope}`).getByText("No channels found.")).toBeVisible();
       await expectHitTargets(page, { within: scope });
@@ -254,9 +259,9 @@ test.describe("banners stay inside their row (T-142-F2 item 3)", () => {
     await page.addInitScript(() => localStorage.setItem("ts-icon-rail-open", "open"));
   });
 
-  test("in the live tree", async ({ page }) => {
-    await page.goto("/");
-    const tree = livePanel(page).locator(".channel-tree");
+  test("in the live tree (Wallpaper parent picker)", async ({ page }) => {
+    await page.goto("/wallpaper");
+    const tree = picker(page).locator(".channel-tree");
     await tree.scrollIntoViewIfNeeded();
     await expect
       .poll(() =>
@@ -271,7 +276,7 @@ test.describe("banners stay inside their row (T-142-F2 item 3)", () => {
   test("in the TeamSpeak preview", async ({ page }) => {
     await page.goto("/?channel=12");
     const preview = page.getByRole("figure", { name: "Preview in TeamSpeak" });
-    await expect(preview.locator(".channel-tree-row")).toHaveCount(3);
+    await expect(preview.locator(".channel-tree-row")).toHaveCount(7); // the whole tree
     await expect
       .poll(() =>
         preview
@@ -286,14 +291,14 @@ test.describe("banners stay inside their row (T-142-F2 item 3)", () => {
 // T-142-F2 item 6 (D-11): one row geometry. The Wallpaper parent picker rows
 // are the live tree's rows: same height, and a depth-0 pill no wider than the
 // TS6 depth-0 width (src/components/teamspeakGeometry.ts).
-test("the Wallpaper picker rows have the live tree's geometry", async ({ page }) => {
+test("the Wallpaper picker rows have the TeamSpeak preview's geometry", async ({ page }) => {
   test.skip(test.info().project.name !== "desktop", "Geometry is compared in the desktop project.");
   await page.setViewportSize({ width: 1280, height: 900 });
   await setUp(page);
-  // The live tree is the editor's layer panel in the Studio shell (D-142G-1),
-  // so its row is measured there first.
+  // The TS6 rows on "/" are the dock's TeamSpeak preview since D-142F-33 (the
+  // editor's live tree is its compact layer panel), so the row is measured there.
   await page.goto("/");
-  const liveRow = livePanel(page).locator(".channel-tree-row").filter({ hasText: "Lobby" });
+  const liveRow = previewTree(page).locator(".channel-tree-row").filter({ hasText: "Lobby" });
   await expect(liveRow).toBeVisible();
   const l = (await liveRow.boundingBox())!;
   const lp = (await liveRow.locator(".channel-tree-pill").boundingBox())!;

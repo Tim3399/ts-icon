@@ -1,123 +1,82 @@
 import { useEffect, useRef, useState } from "react";
-import { channelImageUrl } from "../api/channels";
 import type { Channel } from "../api/types";
-import { EmptyState } from "../design";
-import { BANNER_HEIGHT, BANNER_WIDTH } from "./bannerExport";
+import { channelBanner } from "./channelBanner";
 import { ChannelTreeRow } from "./ChannelTreeRow";
 import { TEAMSPEAK_GEOMETRY } from "./teamspeakGeometry";
 import "./TeamSpeakPreview.css";
 
 interface TeamSpeakPreviewProps {
   channels: Channel[];
+  /** The channel being edited; its row shows `banner`. */
   selected?: Channel;
-  /** The exported crop (exportBanner); null before an image is framed. */
+  /** What the edited row shows: the live crop, else its current banner, else nothing. */
   banner: string | null;
-  /** The channel's saved banner, shown until a crop exists. */
-  savedBanner: string | null;
+  /** Alt text for the edited row's banner. */
+  bannerAlt?: string;
+  /** Marker after the edited row's name ("New" while the crop is unsaved). */
+  marker?: string;
 }
 
-/** A neighbour's banner as the live tree shows it. */
-function bannerOf(channel: Channel) {
-  return channel.hasImage ? channelImageUrl(channel) : (channel.bannerGfxUrl ?? null);
-}
-
-/**
- * Below the TS6 tree width the whole mock is scaled down proportionally
- * (CSS zoom), so it keeps the client's proportions on narrow screens.
- */
-function useFitScale(active: boolean) {
-  const ref = useRef<HTMLElement>(null);
-  const [scale, setScale] = useState(1);
+/** True while the TS6-width tree is wider than its column (narrow screens). */
+function useOverflow(dependency: unknown) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [overflow, setOverflow] = useState(false);
   useEffect(() => {
     const element = ref.current;
     if (!element || typeof ResizeObserver === "undefined") return;
-    const measure = () => {
-      const style = getComputedStyle(element);
-      const available =
-        element.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-      setScale(Math.min(1, available / TEAMSPEAK_GEOMETRY.treeWidth));
-    };
+    const measure = () => setOverflow(element.scrollWidth > element.clientWidth + 1);
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     measure();
     return () => observer.disconnect();
-  }, [active]);
-  return [ref, scale] as const;
+  }, [dependency]);
+  return [ref, overflow] as const;
 }
 
 /**
- * The selected channel in a TeamSpeak 6 channel-tree mock, with its real
- * neighbours from the channel list as context (T-142-F1 item 14, addendum 4).
- * The rows are the live tree's ChannelTreeRow at the TS6 client size: the
- * banner is cropped and scaled into the pill the way TS6 draws it. The exact
- * saved pixels follow below at 1:1.
+ * The whole channel tree in a TeamSpeak 6 client mock (T-142-F3 item 7): the
+ * live tree's ChannelTreeRow at the TS6 client size (D-10), so the edited
+ * banner is cropped and scaled into its pill the way TS6 draws it, between
+ * its real neighbours. The tree is never scaled: on a narrow screen it
+ * scrolls sideways inside the preview, so names stay at their TS6 size
+ * (item 12).
  */
 export function TeamSpeakPreview({
   channels,
   selected,
   banner,
-  savedBanner,
+  bannerAlt = "",
+  marker,
 }: TeamSpeakPreviewProps) {
-  const index = selected ? channels.findIndex((c) => c.cid === selected.cid) : -1;
-  const [figure, scale] = useFitScale(index >= 0);
-  if (!selected || index < 0)
-    return (
-      <EmptyState
-        icon="tree"
-        title="Choose a channel to see how its banner looks in TeamSpeak."
-        className="ts-preview-empty"
-      />
-    );
-  const shown = channels.slice(Math.max(0, index - 1), index + 2);
-  const minDepth = Math.min(...shown.map((c) => c.depth));
-  const image = banner ?? savedBanner;
+  const [scroller, overflow] = useOverflow(channels.length);
   return (
     <div className="ts-preview-stack">
-      <figure ref={figure} className="ts-preview" aria-label="Preview in TeamSpeak">
-        <ul
-          className="ts-preview-tree"
-          style={{ width: TEAMSPEAK_GEOMETRY.treeWidth, zoom: scale < 1 ? scale : undefined }}
-        >
-          {shown.map((channel) => {
-            const at = channels.indexOf(channel);
-            const isSelected = channel.cid === selected.cid;
-            return (
-              <ChannelTreeRow
-                key={channel.cid}
-                name={channel.name}
-                depth={channel.depth - minDepth}
-                isSpacer={Boolean(channel.isSpacer)}
-                hasChildren={(channels[at + 1]?.depth ?? -1) > channel.depth}
-                image={isSelected ? image : bannerOf(channel)}
-                imageAlt={
-                  isSelected && image
-                    ? `${banner ? "Cropped" : "Current"} banner for ${channel.name}`
-                    : ""
-                }
-                className={isSelected ? "ts-preview-selected" : undefined}
-              />
-            );
-          })}
-        </ul>
-      </figure>
-      {scale < 1 && (
-        <p className="ts-preview-note">
-          Scaled down to fit this screen; TeamSpeak shows it larger.
-        </p>
-      )}
-      {banner && (
-        <div className="ts-preview-saved">
-          <p className="ts-preview-note">
-            Saved image ({BANNER_WIDTH} × {BANNER_HEIGHT})
-          </p>
-          <img
-            className="ts-preview-saved-image"
-            src={banner}
-            alt={`Saved image for ${selected.name}, ${BANNER_WIDTH} × ${BANNER_HEIGHT} pixels`}
-            width={BANNER_WIDTH}
-            height={BANNER_HEIGHT}
-          />
+      <figure className="ts-preview" aria-label="Preview in TeamSpeak">
+        <div className="ts-preview-scroll" ref={scroller}>
+          <ul className="ts-preview-tree" style={{ width: TEAMSPEAK_GEOMETRY.treeWidth }}>
+            {channels.map((channel, at) => {
+              const isSelected = channel.cid === selected?.cid;
+              return (
+                <ChannelTreeRow
+                  key={channel.cid}
+                  name={channel.name}
+                  depth={channel.depth}
+                  isSpacer={Boolean(channel.isSpacer)}
+                  hasChildren={(channels[at + 1]?.depth ?? -1) > channel.depth}
+                  image={isSelected ? banner : channelBanner(channel)}
+                  imageAlt={isSelected && banner ? bannerAlt : ""}
+                  marker={isSelected ? marker : undefined}
+                  className={isSelected ? "ts-preview-selected" : undefined}
+                />
+              );
+            })}
+          </ul>
         </div>
+      </figure>
+      {overflow && (
+        <p className="ts-preview-note">
+          The rows keep their TeamSpeak size; scroll sideways to see them whole.
+        </p>
       )}
     </div>
   );

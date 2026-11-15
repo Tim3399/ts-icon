@@ -24,6 +24,8 @@ export interface ChannelTreeRowProps {
   onSelect?: () => void;
   /** Lazy-load the banner (long trees). */
   lazy?: boolean;
+  /** A short marker after the name (the editor's "New" while a crop is unsaved). */
+  marker?: string;
   className?: string;
 }
 
@@ -56,6 +58,7 @@ export function ChannelTreeRow({
   selected = false,
   onSelect,
   lazy = false,
+  marker,
   className,
 }: ChannelTreeRowProps) {
   const [banner, setBanner] = useState<{ src: string; state: BannerState }>();
@@ -102,6 +105,7 @@ export function ChannelTreeRow({
         >
           {name}
         </span>
+        {marker && <span className="channel-tree-marker">{marker}</span>}
       </div>
     </div>
   );
