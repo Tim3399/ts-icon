@@ -181,3 +181,129 @@ for (const state of ["ready", "empty", "error"] as const) {
     });
   }
 }
+
+// T-142-F2 item 3: a banner never draws outside its row, whatever its aspect
+// ratio. Banners without text, so a shot of this view cannot be misread.
+async function oddBanner(page: Page, width: number, height: number, hue: number) {
+  return Buffer.from(
+    await page.evaluate(
+      ({ width, height, hue }) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const c = canvas.getContext("2d")!;
+        const g = c.createLinearGradient(0, 0, width, height);
+        g.addColorStop(0, `hsl(${hue} 35% 30%)`);
+        g.addColorStop(1, `hsl(${hue + 40} 35% 55%)`);
+        c.fillStyle = g;
+        c.fillRect(0, 0, width, height);
+        return canvas.toDataURL("image/png").split(",")[1];
+      },
+      { width, height, hue },
+    ),
+    "base64",
+  );
+}
+
+/** Each visible banner's drawn area (clipped by its clipping ancestors) vs. its pill and row. */
+async function bannerEscapes(tree: Locator) {
+  return tree.evaluate((root) => {
+    const out: string[] = [];
+    const within = (inner: DOMRect, outer: DOMRect) =>
+      inner.left >= outer.left - 0.5 &&
+      inner.top >= outer.top - 0.5 &&
+      inner.right <= outer.right + 0.5 &&
+      inner.bottom <= outer.bottom + 0.5;
+    for (const img of Array.from(root.querySelectorAll<HTMLImageElement>(".channel-tree-banner"))) {
+      if (!img.checkVisibility() || !img.naturalWidth) continue;
+      const row = img.closest("li")!;
+      const pill = img.closest(".channel-tree-pill")!;
+      let { left, top, right, bottom } = img.getBoundingClientRect();
+      for (let el = img.parentElement; el && el !== row.parentElement; el = el.parentElement) {
+        const cs = getComputedStyle(el);
+        if (cs.overflow === "visible" && cs.clipPath === "none") continue;
+        const box = el.getBoundingClientRect();
+        left = Math.max(left, box.left);
+        top = Math.max(top, box.top);
+        right = Math.min(right, box.right);
+        bottom = Math.min(bottom, box.bottom);
+      }
+      const drawn = new DOMRect(left, top, right - left, bottom - top);
+      const name = row.textContent?.trim();
+      if (!within(drawn, pill.getBoundingClientRect())) out.push(`${name}: outside its pill`);
+      if (!within(drawn, row.getBoundingClientRect())) out.push(`${name}: outside its row`);
+      const pillStyle = getComputedStyle(pill);
+      if (pillStyle.overflow !== "hidden" || pillStyle.clipPath === "none")
+        out.push(`${name}: pill does not clip (${pillStyle.overflow}, ${pillStyle.clipPath})`);
+    }
+    return out;
+  });
+}
+
+test.describe("banners stay inside their row (T-142-F2 item 3)", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("about:blank");
+    const { channels } = screenshotChannels();
+    const images = new Map([
+      ["11", await oddBanner(page, 44, 500, 260)], // very tall
+      ["12", await oddBanner(page, 2000, 20, 150)], // very wide
+      ["13", await oddBanner(page, 500, 44, 20)], // the banner size
+    ]);
+    await mockApi(page, { channels, images });
+    await page.addInitScript(() => localStorage.setItem("ts-icon-rail-open", "open"));
+  });
+
+  test("in the live tree", async ({ page }) => {
+    await page.goto("/");
+    const tree = livePanel(page).locator(".channel-tree");
+    await tree.scrollIntoViewIfNeeded();
+    await expect
+      .poll(() =>
+        tree
+          .locator(".channel-tree-banner")
+          .evaluateAll((imgs) => imgs.filter((i) => (i as HTMLImageElement).naturalWidth).length),
+      )
+      .toBe(3);
+    expect(await bannerEscapes(tree)).toEqual([]);
+  });
+
+  test("in the TeamSpeak preview", async ({ page }) => {
+    await page.goto("/?channel=12");
+    const preview = page.getByRole("figure", { name: "Preview in TeamSpeak" });
+    await expect(preview.locator(".channel-tree-row")).toHaveCount(3);
+    await expect
+      .poll(() =>
+        preview
+          .locator(".channel-tree-banner")
+          .evaluateAll((imgs) => imgs.filter((i) => (i as HTMLImageElement).naturalWidth).length),
+      )
+      .toBe(3);
+    expect(await bannerEscapes(preview)).toEqual([]);
+  });
+});
+
+// T-142-F2 item 6 (D-11): one row geometry. The Wallpaper parent picker rows
+// are the live tree's rows: same height, and a depth-0 pill no wider than the
+// TS6 depth-0 width (src/components/teamspeakGeometry.ts).
+test("the Wallpaper picker rows have the live tree's geometry", async ({ page }) => {
+  test.skip(test.info().project.name !== "desktop", "Geometry is compared in the desktop project.");
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await setUp(page);
+  await page.addInitScript(() => localStorage.setItem("ts-icon-rail-open", "open"));
+  await page.goto("/wallpaper");
+  const pickerRow = picker(page).locator(".channel-tree-row").filter({ hasText: "Lobby" });
+  const liveRow = livePanel(page).locator(".channel-tree-row").filter({ hasText: "Lobby" });
+  await expect(pickerRow).toBeVisible();
+  await expect(liveRow).toBeVisible();
+  const [p, l] = [(await pickerRow.boundingBox())!, (await liveRow.boundingBox())!];
+  expect(Math.abs(p.height - l.height)).toBeLessThanOrEqual(1);
+  const [pp, lp] = [
+    (await pickerRow.locator(".channel-tree-pill").boundingBox())!,
+    (await liveRow.locator(".channel-tree-pill").boundingBox())!,
+  ];
+  expect(Math.abs(pp.height - lp.height)).toBeLessThanOrEqual(1);
+  expect(pp.width).toBeLessThanOrEqual(456 + 1); // TS6 depth-0 width
+  // The picker keeps its C1 room and its 44 px button around the 30 px pill.
+  expect((await picker(page).boundingBox())!.width).toBeGreaterThanOrEqual(280);
+  expect((await pickerRow.getByRole("button").boundingBox())!.height).toBeGreaterThanOrEqual(43);
+});

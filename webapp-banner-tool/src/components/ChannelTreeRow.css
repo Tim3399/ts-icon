@@ -12,10 +12,14 @@
    - Spacers with a loaded banner are banner-only pills; groups carry a bold
      label over the banner; sub-channels are indented with aligned right edges. */
 
+/* At most the TS6 depth-0 width: a depth-0 pill is never wider than in the
+   client, so a banner scales the same in the preview, the live tree and the
+   Wallpaper picker (T-142-F2 item 6, D-11). */
 .channel-tree-row {
   display: flex;
   align-items: center;
   min-width: 0;
+  max-width: var(--teamspeak-tree-width);
   height: var(--teamspeak-row-pitch);
 }
 
@@ -31,7 +35,11 @@
   border-radius: var(--teamspeak-row-radius);
   background-color: var(--row-bg);
   color: var(--color-ts-label);
+  /* The pill clips its banner to its own rounded box (T-142-F2 item 3): both
+     overflow and an explicit clip-path with the pill radius, so a later change
+     to one of them cannot let a banner draw outside its row. */
   overflow: hidden;
+  clip-path: inset(0 round var(--teamspeak-row-radius));
 }
 
 .channel-tree-banner {
@@ -42,6 +50,7 @@
   height: 100%;
   object-fit: cover;
   object-position: center;
+  border-radius: inherit;
 }
 
 /* Rows spliced in from a page's not-yet-submitted PreviewOverlay: a dashed
@@ -107,13 +116,11 @@
   background-color: transparent;
 }
 
+/* The focus ring goes around the button (the whole row), not the pill: the
+   pill clips everything outside its own box. */
 .channel-tree-row .channel-tree-button:focus-visible {
-  outline: none;
-}
-
-.channel-tree-button:focus-visible .channel-tree-pill {
   outline: var(--size-focus-ring) solid var(--color-focus);
-  outline-offset: var(--size-focus-ring);
+  outline-offset: 0;
 }
 
 .channel-tree-icon {
