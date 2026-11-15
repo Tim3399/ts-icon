@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:screenshots": "playwright test --project=screenshots",
     "test:e2e:install": "playwright install chromium",
     "audit:production": "npm audit --omit=dev --audit-level=high"
   },
