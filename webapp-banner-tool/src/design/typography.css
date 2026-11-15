@@ -1,8 +1,11 @@
-/* Type scale: the iOS / iPadOS Dynamic Type "Large (default)" text styles,
-   used on every viewport (D-3). Values checked against
+/* Type scale. Below 1024 px: the iOS / iPadOS Dynamic Type "Large (default)"
+   text styles (these values). From 1024 px: the macOS built-in text styles
+   (metrics.css, the one viewport media query of the foundations; D-6).
+   Values checked against
    https://developer.apple.com/design/human-interface-guidelines/typography
-   ("Specifications" > "iOS, iPadOS Dynamic Type sizes" > Large) on
-   2026-11-15. Points are used as CSS px. Minimum text size is 11 px. */
+   ("Specifications") on 2026-11-15. Points are used as CSS px. Minimum text
+   size is 11 px on the web, so the macOS Footnote and Caption sizes (10 pt)
+   are raised to 11 px. */
 
 :root {
   --font-family-text:

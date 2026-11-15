@@ -1,0 +1,25 @@
+/* FileButton: the label is the gray button; the file input covers it but
+   ignores the pointer, so it stays a real keyboard target. */
+
+.ds-file-button {
+  position: relative;
+}
+
+.ds-file-button-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ds-file-button:focus-within {
+  outline: var(--size-focus-ring) solid var(--color-focus);
+  outline-offset: var(--size-focus-ring);
+}
+
+.ds-file-button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

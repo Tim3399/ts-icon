@@ -1,0 +1,114 @@
+/* MenuButton: gray trigger and a popover menu (the popover may have a shadow). */
+
+.ds-menu-button {
+  position: relative;
+  display: inline-flex;
+}
+
+.ds-menu-trigger {
+  max-width: 16em;
+}
+
+.ds-menu-trigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-menu-chevron {
+  color: var(--color-label-secondary);
+}
+
+.ds-menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  z-index: var(--layer-sticky);
+  min-width: var(--size-menu);
+  padding: var(--space-1);
+  border: var(--size-hairline) solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background-color: var(--color-bg-elevated);
+  box-shadow: var(--shadow-overlay);
+}
+
+.ds-menu[data-align="start"] {
+  left: 0;
+}
+
+.ds-menu[data-align="end"] {
+  right: 0;
+}
+
+.ds-menu-header,
+.ds-menu-group-label {
+  padding: var(--space-1) var(--space-3);
+  color: var(--color-label-secondary);
+  font-size: var(--font-footnote-size);
+  line-height: var(--font-footnote-line);
+}
+
+.ds-menu-header {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-semibold);
+}
+
+.ds-menu-separator {
+  height: var(--size-hairline);
+  margin: var(--space-1) var(--space-0);
+  background-color: var(--color-divider);
+}
+
+.ds-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--size-hit-target);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-label);
+  font-size: var(--font-body-size);
+  line-height: var(--font-body-line);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ds-menu-item:hover,
+.ds-menu-item:focus-visible {
+  background-color: var(--color-fill-hover);
+}
+
+.ds-menu-item:focus-visible {
+  outline-offset: calc(var(--size-focus-ring) * -1);
+}
+
+.ds-menu-item[data-destructive] {
+  color: var(--color-destructive);
+}
+
+.ds-menu-item-check {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--size-icon-small);
+  color: var(--color-label);
+}
+
+@media (max-width: 767px) {
+  .ds-menu-collapse {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .ds-menu-trigger:has(.ds-menu-collapse) {
+    padding-inline: var(--space-2);
+  }
+}

@@ -1,32 +1,20 @@
-/* PageHeader: eyebrow, Large Title, lead and page actions. */
+/* PageHeader: Large Title, one-line subtitle and the trailing toolbar. */
 
 .ds-page-header {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-7);
 }
 
 .ds-page-header-text {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
   min-width: 0;
   max-width: 48em;
-}
-
-.ds-page-eyebrow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  color: var(--color-label-secondary);
-  font-size: var(--font-footnote-size);
-  line-height: var(--font-footnote-line);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--font-tracking-section);
-  text-transform: uppercase;
 }
 
 .ds-page-title {
@@ -35,16 +23,17 @@
   font-weight: var(--font-weight-large-title);
 }
 
-.ds-page-lead {
+.ds-page-subtitle {
   color: var(--color-label-secondary);
   font-size: var(--font-callout-size);
   line-height: var(--font-callout-line);
 }
 
-.ds-page-actions {
+.ds-page-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-1);
 }
 
 @media (max-width: 767px) {

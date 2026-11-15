@@ -6,8 +6,11 @@
    --color-<role> tokens only (README, "Token naming").
 
    Palette sources: R-1 section 2.2 (TeamSpeak 6 client surfaces, sampled)
-   and 2.1 (teamspeak.com). Values marked "modified" keep the hue but move
-   the lightness until testing/contrast.test.ts passes (HIG wins, D-3). */
+   and 2.1 (teamspeak.com) for the dark theme and the accent; R-2 (GitHub
+   Primer, primer/primitives @47736486) for the light chrome neutrals, the
+   borders and the status colours (T-142-F1 addendum 2, B1-B3). Values marked
+   "modified" keep the hue but move the lightness until
+   testing/contrast.test.ts passes (HIG wins, D-3). */
 
 :root {
   /* Dark surfaces: TeamSpeak 6 client (R-1 2.2), used as sampled */
@@ -20,21 +23,29 @@
   --navy-800: #253044; /* centre column */
   --navy-750: #2b3346; /* elevated pill, toolbar card, input */
 
-  /* Dark foregrounds: cool greys on the navy hue */
+  /* Dark foregrounds: cool greys on the navy hue, close to Primer dark
+     #f0f6fc / #9198a1 (R-2, B2) */
   --gray-050: #f2f5fa;
   --gray-250: #b4bdcc;
   --gray-350: #a1abbd;
   --gray-550: #7a859c;
 
-  /* Light theme: derived from the same navy hue */
-  --gray-light-window: #e9edf3;
-  --gray-light-sidebar: #e1e6ee;
-  --gray-light-content: #f4f6f9;
-  --gray-light-panel: #eceff5;
-  --gray-light-label: #131a2c;
-  --gray-light-label-2: #3f4a5f;
-  --gray-light-label-3: #56617a;
-  --gray-light-separator: #6f798c;
+  /* Dark borders: navy-tinted neutrals with the contrast of Primer dark
+     #3d444d on #0d1117 (about 1.9:1) on the navy surfaces (B2, modified) */
+  --navy-border: #4b5670;
+  --navy-divider: #3a4358;
+
+  /* Light theme: Primer light neutrals (R-2 B1) */
+  --gray-light-window: #ffffff; /* Primer canvas.default */
+  --gray-light-sidebar: #f6f8fa; /* Primer canvas.subtle */
+  --gray-light-content: #ffffff;
+  --gray-light-panel: #f6f8fa;
+  --gray-light-label: #1f2328; /* Primer fg.default */
+  --gray-light-label-2: #59636e; /* Primer fg.muted */
+  --gray-light-label-3: #59636e;
+  --gray-light-separator: #6f798c; /* 3:1 input and control edges (HIG, WCAG 1.4.11) */
+  --gray-light-border: #d1d9e0; /* Primer border.default */
+  --gray-light-selected: #eaeef2; /* Primer neutral.muted */
 
   /* TeamSpeak blue (R-1 2.1 #1c82cc, R-1 2.2 #0458fa) */
   --blue-fill: #0458fa; /* R-1 2.2 primary button, as sampled */
@@ -47,16 +58,14 @@
   --blue-light-link: #0050d6; /* modified #0458fa: darker for 4.5:1 on light */
   --blue-light-selected: #cfe0fa; /* modified #1c82cc: light selection surface */
 
-  /* TeamSpeak green (R-1 2.1 #25eb93) */
-  --green-dark: #25eb93; /* as on teamspeak.com */
-  --green-light: #0d7a4c; /* modified: darker for 4.5:1 on light content */
-
-  /* Warning and destructive: HIG system roles, no TeamSpeak brand value */
-  --orange-dark: #f5b94a;
-  --orange-light: #8a5a00;
-  --red-dark-text: #ff7b7b;
-  --red-dark-fill: #c62f3a;
-  --red-light: #c0242f;
+  /* Status: Primer success, attention, danger (R-2 B3) */
+  --green-dark: #3fb950;
+  --green-light: #1a7f37;
+  --orange-dark: #d29922;
+  --orange-light: #9a6700;
+  --red-dark-text: #ff6b66; /* modified Primer danger #f85149: lighter for 4.5:1 on navy */
+  --red-dark-fill: #c62f3a; /* inferred: Primer danger.emphasis #da3633, darker for 4.5:1 with white */
+  --red-light: #d1242f;
 
   --white: #ffffff;
 }
@@ -75,6 +84,9 @@
   --color-label-tertiary: var(--gray-light-label-3);
   --color-placeholder: var(--gray-light-label-3);
   --color-separator: var(--gray-light-separator);
+  --color-border: var(--gray-light-border);
+  --color-divider: color-mix(in srgb, var(--gray-light-border) 70%, transparent);
+  --color-fill-gray: var(--gray-light-sidebar);
   --color-link: var(--blue-light-link);
   --color-accent: var(--blue-light-accent);
   --color-accent-fill: var(--blue-fill);
@@ -82,7 +94,7 @@
   --color-accent-fill-pressed: var(--blue-fill-pressed);
   --color-on-accent-fill: var(--white);
   --color-control-bg: var(--white);
-  --color-selected-bg: var(--blue-light-selected);
+  --color-selected-bg: var(--gray-light-selected);
   --color-focus: var(--blue-fill);
   --color-bg-window: var(--gray-light-window);
   --color-bg-sidebar: var(--gray-light-sidebar);
@@ -96,9 +108,9 @@
   --color-destructive-fill: var(--red-light);
   --color-on-destructive-fill: var(--white);
   --color-checker-a: var(--white);
-  --color-checker-b: var(--gray-light-sidebar);
-  --color-shadow: rgb(19 26 44 / 14%);
-  --color-scrim: rgb(19 26 44 / 40%);
+  --color-checker-b: var(--gray-light-border);
+  --color-shadow: rgb(31 35 40 / 16%);
+  --color-scrim: rgb(31 35 40 / 40%);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -109,6 +121,9 @@
     --color-label-tertiary: var(--gray-350);
     --color-placeholder: var(--gray-350);
     --color-separator: var(--gray-550);
+    --color-border: var(--navy-border);
+    --color-divider: var(--navy-divider);
+    --color-fill-gray: color-mix(in srgb, var(--gray-050) 10%, transparent);
     --color-link: var(--blue-dark-link);
     --color-accent: var(--blue-dark-accent);
     --color-accent-fill: var(--blue-fill);
@@ -116,7 +131,7 @@
     --color-accent-fill-pressed: var(--blue-fill-pressed);
     --color-on-accent-fill: var(--white);
     --color-control-bg: var(--navy-890);
-    --color-selected-bg: var(--blue-dark-selected);
+    --color-selected-bg: var(--navy-750);
     --color-focus: var(--blue-dark-link);
     --color-bg-window: var(--navy-950);
     --color-bg-sidebar: var(--navy-900);
@@ -143,6 +158,9 @@
   --color-label-tertiary: var(--gray-350);
   --color-placeholder: var(--gray-350);
   --color-separator: var(--gray-550);
+  --color-border: var(--navy-border);
+  --color-divider: var(--navy-divider);
+  --color-fill-gray: color-mix(in srgb, var(--gray-050) 10%, transparent);
   --color-link: var(--blue-dark-link);
   --color-accent: var(--blue-dark-accent);
   --color-accent-fill: var(--blue-fill);
@@ -150,7 +168,7 @@
   --color-accent-fill-pressed: var(--blue-fill-pressed);
   --color-on-accent-fill: var(--white);
   --color-control-bg: var(--navy-890);
-  --color-selected-bg: var(--blue-dark-selected);
+  --color-selected-bg: var(--navy-750);
   --color-focus: var(--blue-dark-link);
   --color-bg-window: var(--navy-950);
   --color-bg-sidebar: var(--navy-900);
@@ -171,8 +189,11 @@
 
 /* Derived state colours (README, "Derived surfaces"). Hover and pressed
    fills lay the label colour over whatever surface the control sits on, so
-   one token serves every surface in both themes. Status tints mix the status
-   role into the elevated background. */
+   one token serves every surface in both themes.
+   --color-positive-bg, --color-warning-bg, --color-destructive-bg and
+   --color-accent-bg are deprecated: status and accent never fill a surface
+   (colour budget, T-142-F1 items 1-3); stage-B screens still read them until
+   they are restyled. */
 
 :root {
   --color-fill-hover: color-mix(in srgb, var(--color-label) 8%, transparent);

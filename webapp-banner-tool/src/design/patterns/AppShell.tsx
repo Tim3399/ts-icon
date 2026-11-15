@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Button } from "../primitives/Button";
+import { ToolbarButton } from "../components/Toolbar";
 import { Icon, type IconName } from "../primitives/Icon";
 import "./AppShell.css";
 
@@ -30,13 +30,15 @@ function readWide() {
 }
 
 interface AppShellProps {
-  /** Brand block at the top of the sidebar. */
+  /** App name at the top of the sidebar and, on narrow viewports, in the top bar. */
   brand: ReactNode;
   /** Accessible name of the sidebar navigation. */
   navLabel: string;
+  /** One optional group header over the links. */
+  navHeading?: string;
   /** SidebarLink entries; one level only (HIG allows at most two). */
   nav: ReactNode;
-  /** Trailing toolbar controls (panel toggle, appearance, account). */
+  /** Trailing top-bar controls: the live-panel toggle and one account MenuButton. */
   toolbar: ReactNode;
   /** Optional SidePanel, placed beside (from 1200 px) or below the content. */
   panel?: ReactNode;
@@ -46,7 +48,15 @@ interface AppShellProps {
 // HIG sidebar layout: sidebar on the leading side, a toolbar over the
 // content, and an optional panel. Below 1024 px the sidebar collapses into a
 // drawer behind a toggle; while collapsed its links are inert.
-export function AppShell({ brand, navLabel, nav, toolbar, panel, children }: AppShellProps) {
+export function AppShell({
+  brand,
+  navLabel,
+  navHeading,
+  nav,
+  toolbar,
+  panel,
+  children,
+}: AppShellProps) {
   const wide = useSyncExternalStore(subscribeWide, readWide, () => true);
   const [open, setOpen] = useState(false);
   const toggle = useRef<HTMLButtonElement>(null);
@@ -83,7 +93,7 @@ export function AppShell({ brand, navLabel, nav, toolbar, panel, children }: App
 
   return (
     <div className="ds-shell" data-sidebar={wide ? "column" : open ? "open" : "collapsed"}>
-      <a className="ds-skip-link" href="#main-content">
+      <a className="ds-skip-link" data-accent="primary" href="#main-content">
         Skip to content
       </a>
       <aside
@@ -96,6 +106,7 @@ export function AppShell({ brand, navLabel, nav, toolbar, panel, children }: App
         <div className="ds-shell-sidebar-inner">
           <div className="ds-shell-brand">{brand}</div>
           <nav className="ds-shell-nav" aria-label={navLabel}>
+            {navHeading && <p className="ds-shell-nav-heading">{navHeading}</p>}
             <ul className="ds-shell-nav-list">{nav}</ul>
           </nav>
         </div>
@@ -105,13 +116,11 @@ export function AppShell({ brand, navLabel, nav, toolbar, panel, children }: App
       )}
       <div className="ds-shell-content">
         <header className="ds-shell-toolbar">
-          <Button
+          <ToolbarButton
             ref={toggle}
-            variant="plain"
             icon="sidebar"
-            iconOnly
             className="ds-shell-sidebar-toggle"
-            aria-label={open ? "Hide sidebar" : "Show sidebar"}
+            label={open ? "Hide sidebar" : "Show sidebar"}
             aria-expanded={wide || open}
             aria-controls={SIDEBAR_ID}
             onClick={() => (open ? close(false) : setOpen(true))}
@@ -145,8 +154,16 @@ export function SidebarLink({
   return (
     <li>
       <NavLink to={to} end={end} className="ds-sidebar-link">
-        <Icon name={icon} size={18} className="ds-sidebar-link-icon" />
-        <span>{children}</span>
+        {({ isActive }) => (
+          <>
+            {/* The accent marker and the selected icon are the only accent in the sidebar. */}
+            <span className="ds-sidebar-link-marker" data-accent="selection" aria-hidden="true" />
+            <span className="ds-sidebar-link-icon" data-accent={isActive ? "selection" : undefined}>
+              <Icon name={icon} size={16} />
+            </span>
+            <span>{children}</span>
+          </>
+        )}
       </NavLink>
     </li>
   );
@@ -170,7 +187,7 @@ export function SidePanel({
     <aside className="ds-side-panel" id={id} aria-label={title} hidden={!open}>
       <div className="ds-side-panel-inner">
         <h2 className="ds-side-panel-title">
-          {icon && <Icon name={icon} size={15} />}
+          {icon && <Icon name={icon} size={14} />}
           {title}
         </h2>
         <div className="ds-side-panel-body">{children}</div>
@@ -179,43 +196,19 @@ export function SidePanel({
   );
 }
 
-/** Account chip for the toolbar: initials and the signed-in name. */
-export function UserChip({ name }: { name?: string }) {
-  const source = (name ?? "").trim();
-  const parts = source.split(/[\s._-]+/).filter(Boolean);
-  const initials = !source
-    ? "?"
-    : (parts.length > 1 ? parts[0][0] + parts[1][0] : source.slice(0, 2)).toUpperCase();
-  return (
-    <span className="ds-user-chip" title={name}>
-      <span className="ds-user-avatar" aria-hidden="true">
-        {initials}
-      </span>
-      <span className="ds-user-name">
-        <span className="ds-visually-hidden">Signed in as </span>
-        {name}
-      </span>
-    </span>
-  );
-}
-
-/** App name, tagline and mark, for the sidebar and the narrow toolbar. */
+/** The app name: small text, no logo tile. */
 export function Brand({
   name,
-  tagline,
-  logoSrc,
 }: {
   name: string;
+  /** @deprecated Not shown any more. */
   tagline?: string;
-  logoSrc: string;
+  /** @deprecated Not shown any more. */
+  logoSrc?: string;
 }) {
   return (
     <span className="ds-brand">
-      <img className="ds-brand-mark" src={logoSrc} alt="" width={30} height={30} />
-      <span>
-        <span className="ds-brand-name">{name}</span>
-        {tagline && <span className="ds-brand-tagline">{tagline}</span>}
-      </span>
+      <span className="ds-brand-name">{name}</span>
     </span>
   );
 }

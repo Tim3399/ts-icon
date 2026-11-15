@@ -20,7 +20,7 @@
   gap: var(--space-3);
   width: min(100%, var(--size-panel));
   padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
-  border: var(--size-hairline) solid var(--color-separator);
+  border: var(--size-hairline) solid var(--color-border);
   border-radius: var(--radius-card);
   background-color: var(--color-bg-elevated);
   box-shadow: var(--shadow-overlay);
@@ -51,7 +51,7 @@
 }
 
 .ds-toast[data-tone="info"] .ds-toast-icon {
-  color: var(--color-link);
+  color: var(--color-label-secondary);
 }
 
 .ds-toast-message {

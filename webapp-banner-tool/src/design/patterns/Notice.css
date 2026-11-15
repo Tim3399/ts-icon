@@ -18,21 +18,14 @@
   align-items: center;
   gap: var(--space-3);
   width: min(100%, 30em);
-  padding: var(--space-7) var(--space-6);
-  border-radius: var(--radius-panel);
-  background-color: var(--color-bg-elevated);
-  box-shadow: var(--shadow-raised);
+  padding: var(--space-8) var(--space-6);
   text-align: center;
 }
 
 .ds-notice-icon {
   display: grid;
   place-items: center;
-  width: calc(var(--size-hit-target) + var(--space-2));
-  height: calc(var(--size-hit-target) + var(--space-2));
-  border-radius: var(--radius-pill);
-  background-color: var(--color-bg-row);
-  color: var(--color-accent);
+  color: var(--color-label-secondary);
 }
 
 .ds-notice-title {

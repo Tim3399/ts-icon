@@ -18,7 +18,7 @@ export function EmptyState({ title, description, icon, action, className }: Empt
     <div className={`ds-empty-state${className ? ` ${className}` : ""}`}>
       {icon && (
         <span className="ds-empty-state-icon">
-          <Icon name={icon} size={20} />
+          <Icon name={icon} size={28} strokeWidth={1.5} />
         </span>
       )}
       <p className="ds-empty-state-title">{title}</p>

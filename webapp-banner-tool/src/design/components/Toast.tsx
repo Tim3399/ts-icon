@@ -29,7 +29,7 @@ const ToastContainer: React.FC<{ toasts: Toast[]; onDismiss: (id: number) => voi
     <div className="ds-toast-region">
       {toasts.map((toast) => (
         <div key={toast.id} role="status" className="ds-toast" data-tone={toast.variant}>
-          <Icon name={VARIANT_ICONS[toast.variant]} size={17} className="ds-toast-icon" />
+          <Icon name={VARIANT_ICONS[toast.variant]} size={16} className="ds-toast-icon" />
           <span className="ds-toast-message">{toast.message}</span>
           <Button
             variant="plain"

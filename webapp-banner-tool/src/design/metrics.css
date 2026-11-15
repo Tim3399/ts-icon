@@ -1,0 +1,48 @@
+/* Viewport metrics (T-142-F1 addendum 1, D-6): the one media query of the
+   foundations. Below 1024 px the iOS values of typography.css and tokens.css
+   apply (44 px hit targets); from 1024 px the macOS values below replace them
+   (28 px hit targets, macOS built-in text styles, 11 px floor). */
+
+@media (min-width: 1024px) {
+  :root {
+    --size-hit-target: 32px; /* Primer default control; the floor is 28 px */
+    --size-hit-target-small: 28px;
+    --size-row-min: 32px;
+    --size-toolbar: 48px;
+    --size-sidebar: 240px;
+
+    --font-large-title-size: 26px;
+    --font-large-title-line: 32px;
+
+    --font-title-1-size: 22px;
+    --font-title-1-line: 26px;
+
+    --font-title-2-size: 17px;
+    --font-title-2-line: 22px;
+
+    --font-title-3-size: 15px;
+    --font-title-3-line: 20px;
+
+    --font-headline-size: 13px;
+    --font-headline-line: 16px;
+    --font-weight-headline: var(--font-weight-bold);
+
+    --font-body-size: 13px;
+    --font-body-line: 16px;
+
+    --font-callout-size: 12px;
+    --font-callout-line: 15px;
+
+    --font-subheadline-size: 11px;
+    --font-subheadline-line: 14px;
+
+    --font-footnote-size: 11px;
+    --font-footnote-line: 14px;
+
+    --font-caption-1-size: 11px;
+    --font-caption-1-line: 14px;
+
+    --font-caption-2-size: 11px;
+    --font-caption-2-line: 14px;
+  }
+}

@@ -1,5 +1,6 @@
-// T-142 item 7: the iOS type scale on every viewport, the allowed weights,
-// the 11 px floor and the system font stack.
+// T-142 item 7 and T-142-F1 addendum 1: the iOS type scale below 1024 px, the
+// macOS scale from 1024 px (one media query in metrics.css), the allowed
+// weights, the 11 px floor and the system font stack.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -8,9 +9,17 @@ import { describe, expect, it } from "vitest";
 const designDir = join(process.cwd(), "src/design");
 const srcDir = join(designDir, "..");
 const typography = readFileSync(join(designDir, "typography.css"), "utf8");
-const tokens = Object.fromEntries(
-  [...typography.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]),
-);
+const metrics = readFileSync(join(designDir, "metrics.css"), "utf8");
+const declarations = (css: string) =>
+  Object.fromEntries(
+    [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((m) => [
+      m[1],
+      m[2].trim(),
+    ]),
+  );
+const tokens = declarations(typography);
+// The only media query of the foundations switches the metrics at 1024 px.
+const desktop = declarations(metrics);
 
 // iOS / iPadOS Dynamic Type, "Large (default)": size / leading in points.
 const IOS_SCALE: Record<string, [number, number]> = {
@@ -25,6 +34,22 @@ const IOS_SCALE: Record<string, [number, number]> = {
   footnote: [13, 18],
   "caption-1": [12, 16],
   "caption-2": [11, 13],
+};
+
+// macOS built-in text styles in points; Footnote and Caption (10 pt) are
+// raised to the 11 px web floor.
+const MACOS_SCALE: Record<string, [number, number]> = {
+  "large-title": [26, 32],
+  "title-1": [22, 26],
+  "title-2": [17, 22],
+  "title-3": [15, 20],
+  headline: [13, 16],
+  body: [13, 16],
+  callout: [12, 15],
+  subheadline: [11, 14],
+  footnote: [11, 14],
+  "caption-1": [11, 14],
+  "caption-2": [11, 14],
 };
 
 function cssFiles(dir: string): string[] {
@@ -43,8 +68,24 @@ describe("type scale", () => {
     });
   }
 
-  it("uses the Headline weight 600", () => {
+  for (const [role, [size, line]] of Object.entries(MACOS_SCALE)) {
+    it(`from 1024 px ${role} is ${size}/${line} px`, () => {
+      expect(desktop[`--font-${role}-size`]).toBe(`${size}px`);
+      expect(desktop[`--font-${role}-line`]).toBe(`${line}px`);
+    });
+  }
+
+  it("switches the metrics with exactly one media query at 1024 px", () => {
+    expect(metrics.match(/@media/g)).toHaveLength(1);
+    expect(metrics).toContain("@media (min-width: 1024px)");
+    expect(tokens["--size-hit-target"]).toBeUndefined();
+    expect(desktop["--size-hit-target-small"]).toBe("28px");
+    expect(parseInt(desktop["--size-hit-target"])).toBeGreaterThanOrEqual(28);
+  });
+
+  it("uses the Headline weight 600 on iOS and bold on macOS", () => {
     expect(tokens["--font-weight-headline"]).toBe("var(--font-weight-semibold)");
+    expect(desktop["--font-weight-headline"]).toBe("var(--font-weight-bold)");
     expect(tokens["--font-weight-semibold"]).toBe("600");
   });
 
@@ -57,7 +98,7 @@ describe("type scale", () => {
   });
 
   it("has no text size below 11 px", () => {
-    const sizes = Object.entries(tokens)
+    const sizes = Object.entries({ ...tokens, ...desktop })
       .filter(([name]) => /^--font-.*-size$/.test(name))
       .map(([, value]) => parseFloat(value));
     expect(Math.min(...sizes)).toBeGreaterThanOrEqual(11);

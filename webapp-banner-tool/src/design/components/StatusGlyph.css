@@ -1,0 +1,22 @@
+/* StatusGlyph: a small coloured glyph and a secondary-label text. */
+
+.ds-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-label-secondary);
+  font-size: var(--font-subheadline-size);
+  line-height: var(--font-subheadline-line);
+}
+
+.ds-status-glyph {
+  flex: none;
+}
+
+.ds-status[data-tone="positive"] .ds-status-glyph {
+  color: var(--color-positive);
+}
+
+.ds-status[data-tone="warning"] .ds-status-glyph {
+  color: var(--color-warning);
+}
