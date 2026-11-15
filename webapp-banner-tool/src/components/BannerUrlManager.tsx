@@ -5,6 +5,7 @@ import type { Channel } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { apiFetch, apiFetchJson, describeApiError } from "../api/client";
 import {
+  Button,
   EmptyState,
   Icon,
   LoadingState,
@@ -12,6 +13,9 @@ import {
   RequestError,
   Section,
   Skeleton,
+  Spinner,
+  Stack,
+  Grid,
   useToast,
 } from "../design";
 import SpacerBaseImageManager from "./SpacerBaseImageManager";
@@ -116,150 +120,134 @@ export default function BannerUrlManager() {
   };
   const managed = channels.length - pending.length;
   return (
-    <div>
+    <Stack gap={5}>
       <PageHeader
         eyebrow="TeamSpeak"
         icon="link"
         title="Channel banner URLs"
         lead="Point each channel's TeamSpeak banner at the image this application serves. Until a channel is managed, TeamSpeak keeps showing whatever URL it had before."
         actions={
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => void load()}
-            disabled={loading}
-          >
-            <Icon name="refresh" size={15} />
+          <Button icon="refresh" onClick={() => void load()} disabled={loading}>
             Refresh
-          </button>
+          </Button>
         }
       />
 
-      <div className="page-sections">
-        <div className="stat-grid">
-          <div className="stat">
-            <p className="stat-label">
-              <Icon name="check" size={13} />
-              Managed
-            </p>
-            <p className="stat-value">{loading ? "—" : managed}</p>
-          </div>
-          <div className="stat">
-            <p className="stat-label">
-              <Icon name="alert" size={13} />
-              Not managed
-            </p>
-            <p className="stat-value">{loading ? "—" : pending.length}</p>
-          </div>
-          <div className="stat">
-            <p className="stat-label">
-              <Icon name="tree" size={13} />
-              Channels
-            </p>
-            <p className="stat-value">{loading ? "—" : channels.length}</p>
-          </div>
-        </div>
-
-        <Section
-          title="Apply to every channel"
-          icon="sparkles"
-          subtitle="Rewrites the banner URL of each channel that is not managed yet. Existing images are untouched."
-          footer={
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={Boolean(busy) || loading || Boolean(error)}
-              onClick={() => void apply()}
-            >
-              {busy === "all" ? (
-                <span className="spinner" aria-hidden="true" />
-              ) : (
-                <Icon name="link" size={15} />
-              )}
-              {busy === "all" ? "Applying…" : "Set for all channels"}
-            </button>
-          }
-        >
-          <p className="hint">
-            {loading
-              ? "Checking which channels already point at this application…"
-              : pending.length === 0
-                ? "Every channel already points at a managed banner URL."
-                : `${pending.length} channel(s) still point somewhere else.`}
+      <Grid gap={3} min="small">
+        <div className="banner-urls-stat">
+          <p className="banner-urls-stat-label">
+            <Icon name="check" size={13} />
+            Managed
           </p>
-          {result && (
-            <p role="status" className="alert alert-info">
-              <Icon name="info" size={16} />
-              <span className="alert-body">{result}</span>
-            </p>
-          )}
+          <p className="banner-urls-stat-value">{loading ? "—" : managed}</p>
+        </div>
+        <div className="banner-urls-stat">
+          <p className="banner-urls-stat-label">
+            <Icon name="alert" size={13} />
+            Not managed
+          </p>
+          <p className="banner-urls-stat-value">{loading ? "—" : pending.length}</p>
+        </div>
+        <div className="banner-urls-stat">
+          <p className="banner-urls-stat-label">
+            <Icon name="tree" size={13} />
+            Channels
+          </p>
+          <p className="banner-urls-stat-value">{loading ? "—" : channels.length}</p>
+        </div>
+      </Grid>
+
+      <Section
+        title="Apply to every channel"
+        icon="sparkles"
+        subtitle="Rewrites the banner URL of each channel that is not managed yet. Existing images are untouched."
+        footer={
+          <Button
+            variant="prominent"
+            icon={busy === "all" ? undefined : "link"}
+            disabled={Boolean(busy) || loading || Boolean(error)}
+            onClick={() => void apply()}
+          >
+            {busy === "all" && <Spinner />}
+            {busy === "all" ? "Applying…" : "Set for all channels"}
+          </Button>
+        }
+      >
+        <p className="banner-urls-hint">
+          {loading
+            ? "Checking which channels already point at this application…"
+            : pending.length === 0
+              ? "Every channel already points at a managed banner URL."
+              : `${pending.length} channel(s) still point somewhere else.`}
+        </p>
+        {result && (
+          <p role="status" className="banner-urls-result">
+            <Icon name="info" size={16} />
+            <span className="banner-urls-result-body">{result}</span>
+          </p>
+        )}
+      </Section>
+
+      <SpacerBaseImageManager />
+
+      <RequestError message={error} retry={() => void load()} />
+
+      {loading && (
+        <Section title="Per channel" icon="tree">
+          <LoadingState label="Loading channels…" />
+          <Skeleton height={54} radius="control" />
         </Section>
+      )}
 
-        <SpacerBaseImageManager />
+      {!loading && !error && channels.length === 0 && (
+        <Section title="Per channel" icon="tree">
+          <EmptyState
+            icon="inbox"
+            title="No channels found."
+            description="TeamSpeak reported no channels for this server."
+          />
+        </Section>
+      )}
 
-        <RequestError message={error} retry={() => void load()} />
-
-        {loading && (
-          <div className="card">
-            <LoadingState label="Loading channels…" />
-            <Skeleton height={54} radius={10} />
-          </div>
-        )}
-
-        {!loading && !error && channels.length === 0 && (
-          <div className="card">
-            <EmptyState
-              icon="inbox"
-              title="No channels found."
-              description="TeamSpeak reported no channels for this server."
-            />
-          </div>
-        )}
-
-        {!loading && channels.length > 0 && (
-          <section className="card">
-            <div className="card-head">
-              <div className="card-head-text">
-                <h2 className="card-title">
-                  <Icon name="tree" size={16} />
-                  Per channel
-                </h2>
-                <p className="card-subtitle">
-                  Set a single channel's banner URL without touching the rest.
-                </p>
-              </div>
-            </div>
-            <ul className="url-list">
-              {channels.map((channel) => (
-                <li className="url-row" key={channel.cid}>
-                  <div className="url-row-main">
-                    <p className="url-row-name truncate" title={channel.name}>
-                      {channel.name}
-                    </p>
-                    <p className="url-row-meta">
-                      <span
-                        className={`badge ${channel.managed ? "badge-managed" : "badge-unmanaged"}`}
-                      >
-                        {channel.managed ? "Managed" : "Not managed"}
-                      </span>
-                      <span className="muted">Channel #{channel.cid}</span>
-                    </p>
-                    <p className="url-text mono">{channel.bannerGfxUrl || "No banner URL set"}</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    disabled={Boolean(busy)}
-                    onClick={() => void apply(channel.cid)}
-                  >
-                    {busy === channel.cid ? "Setting…" : "Set banner URL"}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-      </div>
-    </div>
+      {!loading && channels.length > 0 && (
+        <Section
+          title="Per channel"
+          icon="tree"
+          subtitle="Set a single channel's banner URL without touching the rest."
+        >
+          <ul className="banner-urls-list">
+            {channels.map((channel) => (
+              <li className="banner-urls-row" key={channel.cid}>
+                <div className="banner-urls-row-main">
+                  <p className="banner-urls-row-name" title={channel.name}>
+                    {channel.name}
+                  </p>
+                  <p className="banner-urls-row-meta">
+                    <span
+                      className="banner-urls-status"
+                      data-managed={channel.managed ? "true" : "false"}
+                    >
+                      <Icon name={channel.managed ? "check" : "alert"} size={13} />
+                      {channel.managed ? "Managed" : "Not managed"}
+                    </span>
+                    <span className="banner-urls-row-id">Channel #{channel.cid}</span>
+                  </p>
+                  <p className="banner-urls-row-url">
+                    {channel.bannerGfxUrl || "No banner URL set"}
+                  </p>
+                </div>
+                <Button
+                  size="small"
+                  disabled={Boolean(busy)}
+                  onClick={() => void apply(channel.cid)}
+                >
+                  {busy === channel.cid ? "Setting…" : "Set banner URL"}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+    </Stack>
   );
 }
