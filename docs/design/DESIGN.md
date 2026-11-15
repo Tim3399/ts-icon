@@ -100,6 +100,11 @@ it rejects on a prominent button.
 | `/access-denied` | Access denied         | none                   | none ("Log out" is not destructive)                                       |
 | any other path   | Not found             | "Create a banner"      | none                                                                      |
 
+Access denied and Not found are Blankslate pages (Primer): no card and no eyebrow, a calm glyph in
+secondary label, one friendly sentence and one clear next action. Access denied: "Ask an administrator to
+give you access." with a gray "Log out". Not found: "This page doesn't exist. The banner editor is a good
+place to start." with the prominent "Create a banner".
+
 The app shell itself (sidebar, toolbar, live panel) has no prominent button.
 
 ## Channel tree look

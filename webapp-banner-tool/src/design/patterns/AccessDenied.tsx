@@ -27,13 +27,12 @@ export const AccessDenied: React.FC = () => {
       <p>
         {username ? (
           <>
-            Signed in as <strong>{username}</strong>, but this{" "}
+            <strong>{username}</strong> can't use this application yet.
           </>
         ) : (
-          "This "
-        )}
-        account doesn't have permission to use this application. Contact an administrator if you
-        believe this is a mistake.
+          "This account can't use this application yet."
+        )}{" "}
+        Ask an administrator to give you access.
       </p>
     </Notice>
   );

@@ -444,6 +444,10 @@ colour and the label in secondary label colour. There is no status chip.
 **`EmptyState`** (Primer Blankslate): a calm glyph in secondary label, one friendly short sentence
 (`title`) and one clear next action (`action`).
 
+**`Notice`** (whole-page Blankslate, used by Access denied, Not found and the sign-in splash): no card, a
+calm glyph in secondary label, a Title 2 heading, one friendly sentence in secondary label and at most
+one action. Not found offers the prominent "Create a banner"; Access denied offers a gray "Log out".
+
 **`SidebarLink`** (Primer NavList): the selected row gets the muted background, an accent marker and
 an accent icon (`data-accent="selection"`); other rows are label colour with secondary icons.
 
