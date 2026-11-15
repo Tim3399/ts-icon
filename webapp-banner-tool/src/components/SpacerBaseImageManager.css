@@ -1,6 +1,6 @@
-/* Screen styles of SpacerBaseImageManager (T-142 part b). Columns come from Grid;
-   tokens only (src/design/README.md). */
+/* Screen styles of SpacerBaseImageManager (T-142-F1, D-142F-3). The row comes
+   from ListSection and ListRow; role tokens only (src/design/README.md). */
 
-.spacer-base {
-  align-items: center;
+.spacer-base-banner {
+  max-width: 500px;
 }

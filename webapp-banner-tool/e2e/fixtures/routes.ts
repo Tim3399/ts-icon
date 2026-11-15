@@ -54,7 +54,7 @@ export const STAGE_B_ROUTES: string[] = [
  * channel images by D-142F-3. Each part removes its own route from this list
  * when its screen is done. enabled by D-142F-2/3
  */
-export const STAGE_A_SCREEN_ROUTES: string[] = ["/channels"];
+export const STAGE_A_SCREEN_ROUTES: string[] = [];
 
 /**
  * The cross-cutting specs of T-142-F1 mark a route's test `test.fixme` while

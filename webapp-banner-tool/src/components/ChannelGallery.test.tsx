@@ -54,7 +54,7 @@ function page() {
 }
 async function cards() {
   await screen.findAllByText("General");
-  return Array.from(document.querySelectorAll(".channel-card")) as HTMLElement[];
+  return Array.from(document.querySelectorAll(".channel-row")) as HTMLElement[];
 }
 const file = () => new File(["bytes"], "banner.png", { type: "image/png" });
 describe("channel image workflows", () => {
@@ -63,7 +63,7 @@ describe("channel image workflows", () => {
     const [, second] = await cards();
     const image = within(second).getByRole("img");
     const before = image.getAttribute("src");
-    fireEvent.drop(second, { dataTransfer: { files: [file()] } });
+    fireEvent.drop(second, { dataTransfer: { files: [file()], types: ["Files"] } });
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/channels/20/image"),
@@ -85,19 +85,19 @@ describe("channel image workflows", () => {
     );
     page();
     const [a, b] = await cards();
-    fireEvent.drop(a, { dataTransfer: { files: [file()] } });
-    fireEvent.drop(b, { dataTransfer: { files: [file()] } });
-    fireEvent.drop(b, { dataTransfer: { files: [file()] } });
+    fireEvent.drop(a, { dataTransfer: { files: [file()], types: ["Files"] } });
+    fireEvent.drop(b, { dataTransfer: { files: [file()], types: ["Files"] } });
+    fireEvent.drop(b, { dataTransfer: { files: [file()], types: ["Files"] } });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(within(b).getByRole("button", { name: "Delete image" })).toBeDisabled();
+    expect(within(b).getByRole("button", { name: "Remove" })).toBeDisabled();
     finishA();
     await waitFor(() =>
-      expect(within(a).getByRole("button", { name: "Delete image" })).not.toBeDisabled(),
+      expect(within(a).getByRole("button", { name: "Remove" })).not.toBeDisabled(),
     );
-    expect(within(b).getByRole("button", { name: "Delete image" })).toBeDisabled();
+    expect(within(b).getByRole("button", { name: "Remove" })).toBeDisabled();
     finishB();
     await waitFor(() =>
-      expect(within(b).getByRole("button", { name: "Delete image" })).not.toBeDisabled(),
+      expect(within(b).getByRole("button", { name: "Remove" })).not.toBeDisabled(),
     );
   });
   it("preserves a failed load as an error with retry, not an empty list", async () => {
@@ -122,12 +122,14 @@ describe("channel image workflows", () => {
     expect(screen.getByText("Music")).toBeInTheDocument();
   });
   it("does not delete an image when confirmation is declined", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     page();
     const [card] = await cards();
-    fireEvent.click(within(card).getByRole("button", { name: "Delete image" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Remove" }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cancel" }),
+    );
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
-    vi.restoreAllMocks();
   });
   it("places a rejected upload on the matching CID input and focuses it after upload ends", async () => {
     fetchMock.mockRejectedValueOnce(
@@ -135,7 +137,7 @@ describe("channel image workflows", () => {
     );
     page();
     const [first, second] = await cards();
-    fireEvent.drop(second, { dataTransfer: { files: [file()] } });
+    fireEvent.drop(second, { dataTransfer: { files: [file()], types: ["Files"] } });
     const input = second.querySelector("input[type=file]")!;
     await waitFor(() => expect(input).toHaveFocus());
     expect(input).toHaveAttribute("aria-invalid", "true");
@@ -156,13 +158,12 @@ it("reloads metadata after deleting a spacer image and displays its base fallbac
       ],
       channels: [],
     });
-  vi.spyOn(window, "confirm").mockReturnValue(true);
   page();
-  fireEvent.click(await screen.findByRole("button", { name: "Delete image" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Remove" }));
+  fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Remove" }));
   await screen.findByText(/Spacer base image/);
   expect(screen.getByRole("img", { name: "Spacer" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Delete image" })).toBeDisabled();
-  vi.restoreAllMocks();
+  expect(screen.getByRole("button", { name: "Remove" })).toBeDisabled();
 });
 
 it("replaces an input validation error when another file is dropped on the card", async () => {
@@ -175,12 +176,12 @@ it("replaces an input validation error when another file is dropped on the card"
   expect(input).toHaveAttribute("aria-invalid", "true");
   const oversized = new File(["png"], "large.png", { type: "image/png" });
   Object.defineProperty(oversized, "size", { value: 50 * 1024 * 1024 });
-  fireEvent.drop(card, { dataTransfer: { files: [oversized] } });
+  fireEvent.drop(card, { dataTransfer: { files: [oversized], types: ["Files"] } });
   expect(input).toHaveAccessibleDescription("Choose an image smaller than 10 MB.");
   expect(within(card).queryByText(/Choose a PNG, JPEG or WebP/)).not.toBeInTheDocument();
-  const remove = within(card).getByRole("button", { name: "Delete image" });
+  const remove = within(card).getByRole("button", { name: "Remove" });
   remove.focus();
-  fireEvent.drop(card, { dataTransfer: { files: [file()] } });
+  fireEvent.drop(card, { dataTransfer: { files: [file()], types: ["Files"] } });
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(remove).not.toBeDisabled());
   expect(input).not.toHaveAttribute("aria-invalid");

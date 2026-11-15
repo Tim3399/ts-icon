@@ -203,4 +203,42 @@ test.describe("TeamSpeak preview", () => {
     await expect.poll(() => banner.getAttribute("src")).not.toBe(before);
     await expectNoHorizontalOverflow(page);
   });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`stays TeamSpeak dark in the ${theme} app theme`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await mockApi(page);
+      await page.goto("/");
+      await page.getByRole("combobox", { name: "Channel", exact: true }).selectOption("43");
+      const preview = page.getByRole("figure", { name: "Preview in TeamSpeak" });
+      await expect(preview).toBeVisible();
+      const colours = await preview.evaluate((figure) => {
+        const resolve = (token: string) => {
+          const probe = document.createElement("span");
+          probe.style.color = `var(${token})`;
+          document.body.appendChild(probe);
+          const value = getComputedStyle(probe).color;
+          probe.remove();
+          return value;
+        };
+        const pill = figure.querySelector(".ts-preview-selected .channel-tree-pill")!;
+        const name = figure.querySelector(".ts-preview-selected .channel-tree-name")!;
+        return {
+          tree: getComputedStyle(figure).backgroundColor,
+          row: getComputedStyle(pill).backgroundColor,
+          label: getComputedStyle(name).color,
+          expected: {
+            tree: resolve("--color-ts-tree-bg"),
+            row: resolve("--color-ts-row-bg"),
+            label: resolve("--color-ts-label"),
+          },
+        };
+      });
+      expect({ tree: colours.tree, row: colours.row, label: colours.label }).toEqual(
+        colours.expected,
+      );
+      // The TeamSpeak navy row, not the app theme's row surface.
+      expect(colours.row).toBe("rgb(27, 35, 54)");
+    });
+  }
 });

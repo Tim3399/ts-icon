@@ -8,7 +8,8 @@ import {
   describeApiError,
   UPLOAD_TIMEOUT_MS,
 } from "../api/client";
-import { BannerFrame, Grid, RequestError, Section, UploadInput, useToast } from "../design";
+import { BannerFrame, FileButton, ListRow, ListSection, RequestError, useToast } from "../design";
+import { imageFileError } from "../api/image-file";
 import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
 import { uploadFieldError } from "../hooks/useFieldErrors";
 import "./SpacerBaseImageManager.css";
@@ -100,26 +101,38 @@ export default function SpacerBaseImageManager({
     }
   };
   return (
-    <Section
-      title="Spacer base image"
-      icon="layers"
-      subtitle="Used for every spacer channel that has no image of its own."
-    >
-      <Grid gap={4} min="large" className="spacer-base">
-        <BannerFrame
-          src={imageUrl}
-          alt="Spacer base"
-          placeholder={loading ? "Loading…" : "No spacer base image set"}
-        />
-        <UploadInput
-          id="spacer-base-image-upload"
-          error={fileError}
-          disabled={uploading}
-          label={uploading ? "Uploading…" : undefined}
-          onFile={(file) => void upload(file)}
-        />
-      </Grid>
-      <RequestError message={error} retry={() => void loadImage()} />
-    </Section>
+    <ListSection header="Spacer base image">
+      <ListRow
+        title="Used for spacer channels without an image of their own"
+        onDropFile={(file) => {
+          const issue = imageFileError(file);
+          setFileError(issue || "");
+          if (!issue) void upload(file);
+        }}
+        trailing={
+          <FileButton
+            id="spacer-base-image-upload"
+            aria-label="Replace the spacer base image"
+            label={uploading ? "Uploading…" : "Replace…"}
+            disabled={uploading}
+            error={fileError}
+            onFile={(file) => {
+              const issue = imageFileError(file);
+              setFileError(issue || "");
+              if (!issue) void upload(file);
+            }}
+          />
+        }
+      >
+        <div className="spacer-base-banner">
+          <BannerFrame
+            src={imageUrl}
+            alt="Spacer base"
+            placeholder={loading ? "Loading…" : "No spacer base image set"}
+          />
+        </div>
+        <RequestError message={error} retry={() => void loadImage()} />
+      </ListRow>
+    </ListSection>
   );
 }
