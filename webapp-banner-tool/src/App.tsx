@@ -77,7 +77,7 @@ function NotFound() {
         </LinkButton>
       }
     >
-      <p>This address does not match a page. The banner editor is the usual place to start.</p>
+      <p>This page doesn't exist. The banner editor is a good place to start.</p>
     </Notice>
   );
 }

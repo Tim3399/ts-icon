@@ -8,7 +8,7 @@ import "./Feedback.css";
 export function RequestError({ message, retry }: { message: string; retry?: () => void }) {
   return message ? (
     <div role="alert" className="ds-request-error">
-      <Icon name="alert" size={17} className="ds-request-error-icon" />
+      <Icon name="alert" size={16} className="ds-request-error-icon" />
       <span className="ds-request-error-body">{message}</span>
       {retry && (
         <Button size="small" icon="refresh" onClick={retry}>
