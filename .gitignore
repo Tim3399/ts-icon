@@ -68,3 +68,8 @@ backups/
 *.before-restore-*
 webapp-banner-tool/playwright-report/
 webapp-banner-tool/test-results/
+.claude/worktrees/
+.worktrees/
+.claude/settings.local.json
+team/team.config.local.json
+team/sync.local.json

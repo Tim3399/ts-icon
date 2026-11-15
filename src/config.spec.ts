@@ -1,5 +1,6 @@
 import {
   isAuthDisabled,
+  isTsMockMode,
   parsePort,
   parseTsProtocol,
   validateHttpUrl,
@@ -68,5 +69,41 @@ describe("isAuthDisabled", () => {
     delete process.env.AUTH_DISABLED;
     process.env.NODE_ENV = "production";
     expect(isAuthDisabled()).toBe(false);
+  });
+});
+
+describe("isTsMockMode", () => {
+  const ORIGINAL_ENV = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  it("returns false when TS_MOCK_MODE is unset", () => {
+    delete process.env.TS_MOCK_MODE;
+    expect(isTsMockMode()).toBe(false);
+  });
+
+  it('returns false for any value other than the literal string "true"', () => {
+    process.env.TS_MOCK_MODE = "1";
+    expect(isTsMockMode()).toBe(false);
+  });
+
+  it("returns true when TS_MOCK_MODE=true and NODE_ENV is not production", () => {
+    process.env.TS_MOCK_MODE = "true";
+    process.env.NODE_ENV = "development";
+    expect(isTsMockMode()).toBe(true);
+  });
+
+  it("throws when TS_MOCK_MODE=true and NODE_ENV=production", () => {
+    process.env.TS_MOCK_MODE = "true";
+    process.env.NODE_ENV = "production";
+    expect(() => isTsMockMode()).toThrow(/NODE_ENV=production/);
+  });
+
+  it("does not throw when NODE_ENV=production if TS_MOCK_MODE is not set", () => {
+    delete process.env.TS_MOCK_MODE;
+    process.env.NODE_ENV = "production";
+    expect(isTsMockMode()).toBe(false);
   });
 });
