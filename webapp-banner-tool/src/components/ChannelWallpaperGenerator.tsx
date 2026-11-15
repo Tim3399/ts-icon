@@ -10,18 +10,21 @@ import type { PreviewRow, WallpaperRun } from "../api/types";
 import {
   Button,
   Checkbox,
-  Cluster,
+  ConfirmDialog,
   EmptyState,
   FieldError,
   Grid,
+  ListRow,
+  ListSection,
   LoadingState,
   PageHeader,
   RequestError,
-  Section,
   Select,
   Spinner,
   Stack,
+  StatusGlyph,
   TextField,
+  ToolbarButton,
   UploadInput,
   useToast,
 } from "../design";
@@ -73,17 +76,20 @@ const FIELD_IDS = {
 };
 const ADVANCED_FIELDS = ["xOffset", "yOffset", "backgroundColor", "coverFitMode"];
 
-type BadgeTone = "neutral" | "accent" | "positive" | "warning" | "destructive";
-const RUN_STATUS: Record<WallpaperRun["status"], { label: string; tone: BadgeTone; busy?: true }> =
-  {
-    pending: { label: "Pending", tone: "warning" },
-    running: { label: "Running", tone: "accent", busy: true },
-    completed: { label: "Completed", tone: "positive" },
-    "partial-failure": { label: "Partial failure", tone: "destructive" },
-    undoing: { label: "Undoing", tone: "accent", busy: true },
-    "undo-partial": { label: "Undo incomplete", tone: "destructive" },
-    undone: { label: "Undone", tone: "neutral" },
-  };
+// Status is secondary-label text; a pending or failed run gets a warning
+// glyph and a completed one a positive glyph (T-142-F1 item 3).
+const RUN_STATUS: Record<
+  WallpaperRun["status"],
+  { label: string; tone?: "positive" | "warning"; busy?: true }
+> = {
+  pending: { label: "Pending", tone: "warning" },
+  running: { label: "Running", busy: true },
+  completed: { label: "Completed", tone: "positive" },
+  "partial-failure": { label: "Partial failure", tone: "warning" },
+  undoing: { label: "Undoing", busy: true },
+  "undo-partial": { label: "Undo incomplete", tone: "warning" },
+  undone: { label: "Undone" },
+};
 
 function validation(options: Options, source: string, file: File | null): FieldMessages {
   const errors: FieldMessages = {};
@@ -125,6 +131,7 @@ export default function ChannelWallpaperGenerator() {
   const [fileResetKey, setFileResetKey] = useState(0);
   const [options, setOptions] = useState(initialOptions);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [undoTarget, setUndoTarget] = useState<WallpaperRun | null>(null);
   const [preview, setPreview] = useState<{ draft: string; rows: PreviewRow[] } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
@@ -322,15 +329,6 @@ export default function ChannelWallpaperGenerator() {
   };
   const mutateRun = async (run: WallpaperRun, action: "resume" | "undo") => {
     if (locked.current) return;
-    if (
-      action === "undo" &&
-      !window.confirm(
-        run.createdChannels.length
-          ? `Delete the ${run.createdChannels.length} channel(s) from this operation?`
-          : "Discard this incomplete operation? The server will check for any channels created by it before cleanup.",
-      )
-    )
-      return;
     locked.current = true;
     setBusy(`${action}:${run.runId}`);
     setActionError("");
@@ -387,64 +385,84 @@ export default function ChannelWallpaperGenerator() {
   };
 
   const blocked = Object.keys(fieldErrors).length > 0;
+  const undoCopy = undoTarget && {
+    title:
+      undoTarget.createdChannels.length === 0
+        ? "Discard this operation?"
+        : undoTarget.status === "undo-partial"
+          ? "Retry the undo?"
+          : "Undo this generation?",
+    message: undoTarget.createdChannels.length
+      ? `Delete the ${undoTarget.createdChannels.length} channel(s) from this operation?`
+      : "Discard this incomplete operation? The server will check for any channels created by it before cleanup.",
+    confirmLabel: undoTarget.createdChannels.length === 0 ? "Discard" : "Delete channels",
+  };
 
   return (
-    <div className="wallpaper-page">
+    <Stack gap={7}>
       <PageHeader
-        eyebrow="Bulk operation"
-        icon="sparkles"
         title="Channel wallpaper generator"
-        lead="Slice one large image into 500 × 44 rows and create a channel per row, so the artwork reads as a single wallpaper down the channel list. Every run can be undone."
+        subtitle="Slice one large image into 500 × 44 rows and create a channel per row."
+        toolbar={
+          <ToolbarButton
+            icon="refresh"
+            label="Refresh operations"
+            onClick={() => void loadRuns()}
+          />
+        }
       />
 
-      <div className="wallpaper-workbench">
-        <div className="wallpaper-main">
-          <Section
-            title="Source image"
-            step={1}
-            subtitle="One image is sliced top to bottom into banner-sized rows."
-          >
-            <UploadInput
-              id="wallpaper-file-upload"
-              resetKey={fileResetKey}
-              error={fieldErrors.file}
-              disabled={Boolean(busy)}
-              label={file ? `Selected: ${file.name}` : undefined}
-              onFile={(chosen) => {
-                fields.clear("file");
-                fields.clear("sourceImageUrl");
-                setFile(chosen);
-                setSourceImageUrl("");
-              }}
-            />
-            <TextField
-              id="wallpaper-source-url"
-              label="Or load from a URL instead"
-              error={fieldErrors.sourceImageUrl}
-              type="url"
-              value={sourceImageUrl}
-              disabled={Boolean(busy)}
-              placeholder="https://example.com/wallpaper.png"
-              onChange={(e) => {
-                fields.clear("sourceImageUrl");
-                fields.clear("file");
-                setFileResetKey((previous) => previous + 1);
-                setSourceImageUrl(e.target.value);
-                if (e.target.value) setFile(null);
-              }}
-            />
-          </Section>
+      <Stack gap={7}>
+        <ListSection
+          header="Source image"
+          footer="One image is sliced top to bottom into banner-sized rows."
+        >
+          <ListRow title="Image">
+            <Stack gap={4}>
+              <UploadInput
+                id="wallpaper-file-upload"
+                resetKey={fileResetKey}
+                error={fieldErrors.file}
+                disabled={Boolean(busy)}
+                label={file ? `Selected: ${file.name}` : undefined}
+                onFile={(chosen) => {
+                  fields.clear("file");
+                  fields.clear("sourceImageUrl");
+                  setFile(chosen);
+                  setSourceImageUrl("");
+                }}
+              />
+              <TextField
+                id="wallpaper-source-url"
+                label="Or load from a URL instead"
+                error={fieldErrors.sourceImageUrl}
+                type="url"
+                value={sourceImageUrl}
+                disabled={Boolean(busy)}
+                placeholder="https://example.com/wallpaper.png"
+                onChange={(e) => {
+                  fields.clear("sourceImageUrl");
+                  fields.clear("file");
+                  setFileResetKey((previous) => previous + 1);
+                  setSourceImageUrl(e.target.value);
+                  if (e.target.value) setFile(null);
+                }}
+              />
+            </Stack>
+          </ListRow>
+        </ListSection>
 
-          <Section
-            title="Parent channel"
-            step={2}
-            subtitle="The generated channels are created below this channel, or at the top level."
-          >
+        <ListSection
+          header="Parent channel"
+          footer="The generated channels are created below this channel, or at the top level."
+        >
+          <ListRow title="Parent channel">
             <div
               id={FIELD_IDS.parentCid}
               tabIndex={-1}
               role="group"
               aria-label="Parent channel"
+              className="wallpaper-parent"
               {...fieldProps("parentCid")}
             >
               <ChannelTreePreview
@@ -457,230 +475,204 @@ export default function ChannelWallpaperGenerator() {
               />
             </div>
             {fieldError("parentCid")}
-          </Section>
+          </ListRow>
+        </ListSection>
 
-          <Section
-            title="Options"
-            step={3}
-            icon="sliders"
-            subtitle="Naming and layout of the channels that will be created."
+        <fieldset disabled={Boolean(busy)} className="wallpaper-options">
+          <ListSection
+            header="Options"
+            footer="Naming and layout of the channels that will be created."
           >
-            <fieldset disabled={Boolean(busy)} className="wallpaper-options">
-              <Stack gap={4}>
-                <Grid min="medium">
-                  <TextField
-                    id="wallpaper-name-prefix"
-                    label="Channel name prefix"
-                    error={fieldErrors.namePrefix}
-                    value={options.namePrefix}
-                    maxLength={88}
-                    onChange={(e) => setOption("namePrefix", e.target.value)}
-                  />
-                  <Select
-                    id={FIELD_IDS.spacerMode}
-                    label="Spacer mode"
-                    error={fieldErrors.spacerMode}
-                    value={options.spacerMode}
-                    onChange={(e) =>
-                      setOption("spacerMode", e.target.value as Options["spacerMode"])
-                    }
-                  >
-                    <option value="flat">Flat</option>
-                    <option value="nested-spacer">Nested spacer</option>
-                  </Select>
-                </Grid>
-                <div className="wallpaper-advanced">
-                  <Button
-                    variant="plain"
-                    size="small"
-                    icon={advancedOpen ? "up" : "down"}
-                    aria-expanded={advancedOpen}
-                    aria-controls="wallpaper-advanced"
-                    onClick={() => setAdvancedOpen((v) => !v)}
-                  >
-                    Advanced options
-                  </Button>
-                  {advancedOpen && (
-                    <div id="wallpaper-advanced" className="wallpaper-advanced-body">
-                      <Stack gap={4}>
-                        <Grid min="medium">
-                          {(["xOffset", "yOffset"] as const).map((key) => (
-                            <TextField
-                              key={key}
-                              id={FIELD_IDS[key]}
-                              label={key === "xOffset" ? "X offset (px)" : "Y offset (px)"}
-                              error={fieldErrors[key]}
-                              type="number"
-                              step="1"
-                              min="-20000"
-                              max="20000"
-                              value={options[key]}
-                              onChange={(e) => setOption(key, e.target.value)}
-                            />
-                          ))}
-                          <TextField
-                            id={FIELD_IDS.backgroundColor}
-                            label="Background color (#RRGGBBAA)"
-                            error={fieldErrors.backgroundColor}
-                            value={options.backgroundColor}
-                            onChange={(e) => setOption("backgroundColor", e.target.value)}
-                          />
-                        </Grid>
-                        <Checkbox
-                          id={FIELD_IDS.coverFitMode}
-                          label="Cover-fit mode"
-                          hint="Fills nested rows with image content instead of letterboxing them."
-                          error={fieldErrors.coverFitMode}
-                          checked={options.coverFitMode}
-                          onChange={(e) => setOption("coverFitMode", e.target.checked)}
+            <ListRow title="Name prefix">
+              <TextField
+                id="wallpaper-name-prefix"
+                label="Channel name prefix"
+                error={fieldErrors.namePrefix}
+                value={options.namePrefix}
+                maxLength={88}
+                onChange={(e) => setOption("namePrefix", e.target.value)}
+              />
+            </ListRow>
+            <ListRow title="Spacer mode">
+              <Select
+                id={FIELD_IDS.spacerMode}
+                label="Spacer mode"
+                error={fieldErrors.spacerMode}
+                value={options.spacerMode}
+                onChange={(e) => setOption("spacerMode", e.target.value as Options["spacerMode"])}
+              >
+                <option value="flat">Flat</option>
+                <option value="nested-spacer">Nested spacer</option>
+              </Select>
+            </ListRow>
+            <ListRow
+              title={
+                <Button
+                  variant="plain"
+                  size="small"
+                  icon={advancedOpen ? "up" : "down"}
+                  aria-expanded={advancedOpen}
+                  aria-controls="wallpaper-advanced"
+                  onClick={() => setAdvancedOpen((v) => !v)}
+                >
+                  Advanced options
+                </Button>
+              }
+            >
+              {advancedOpen && (
+                <div id="wallpaper-advanced">
+                  <Stack gap={4}>
+                    <Grid min="medium">
+                      {(["xOffset", "yOffset"] as const).map((key) => (
+                        <TextField
+                          key={key}
+                          id={FIELD_IDS[key]}
+                          label={key === "xOffset" ? "X offset (px)" : "Y offset (px)"}
+                          error={fieldErrors[key]}
+                          type="number"
+                          step="1"
+                          min="-20000"
+                          max="20000"
+                          value={options[key]}
+                          onChange={(e) => setOption(key, e.target.value)}
                         />
-                      </Stack>
-                    </div>
-                  )}
-                </div>
-              </Stack>
-            </fieldset>
-          </Section>
-        </div>
-
-        <div className="wallpaper-side">
-          <Section
-            title="Preview"
-            step={4}
-            className="wallpaper-preview-section"
-            subtitle="Exactly the rows that will be created, at their real proportions."
-            actions={
-              rows.length > 0 ? (
-                <span className="wallpaper-badge" data-tone="neutral">
-                  {rows.length} rows
-                </span>
-              ) : undefined
-            }
-            footer={
-              <Button
-                variant="prominent"
-                className="wallpaper-generate"
-                icon={busy === "generate" ? undefined : "sparkles"}
-                onClick={() => void generate()}
-                disabled={Boolean(busy) || previewLoading || rows.length === 0 || blocked}
-              >
-                {busy === "generate" && <Spinner />}
-                {busy === "generate" ? "Generating…" : "Generate channels"}
-              </Button>
-            }
-          >
-            {blocked && (
-              <Button
-                size="small"
-                icon="alert"
-                onClick={() => {
-                  if (ADVANCED_FIELDS.some((key) => fieldErrors[key])) setAdvancedOpen(true);
-                  fields.focusFirst(fieldErrors);
-                }}
-              >
-                Review highlighted fields
-              </Button>
-            )}
-            <RequestError message={previewError} retry={() => setPreviewRetry((v) => v + 1)} />
-            {previewLoading && <LoadingState label="Slicing preview…" />}
-            {!hasSource && (
-              <EmptyState
-                icon="image"
-                title="No source image yet"
-                description="Add a source image to see the rows that would be created."
-              />
-            )}
-            {!previewLoading && hasSource && !previewError && !issue && rows.length === 0 && (
-              <EmptyState
-                icon="refresh"
-                title="No current preview"
-                description="The last preview no longer matches these settings."
-                action={
-                  <Button size="small" onClick={() => setPreviewRetry((v) => v + 1)}>
-                    Refresh preview
-                  </Button>
-                }
-              />
-            )}
-            {rows.length > 0 && (
-              <div className="wallpaper-preview-stack">
-                {rows.map((row, i) => (
-                  <img
-                    key={i}
-                    src={row.imageDataUrl}
-                    alt={row.isSpacer ? "spacer row" : "channel row"}
-                    style={{ marginInlineStart: `calc(${row.depth} * var(--size-channel-indent))` }}
-                    className="wallpaper-preview-row"
-                  />
-                ))}
-              </div>
-            )}
-          </Section>
-        </div>
-      </div>
-
-      <div className="wallpaper-after">
-        <RequestError message={actionError} />
-        <Section
-          title="Recent operations"
-          icon="undo"
-          subtitle="Results stay available after leaving this page. Resume an incomplete generation, or undo one that finished."
-          actions={
-            <Button size="small" icon="refresh" onClick={() => void loadRuns()}>
-              Refresh operations
-            </Button>
-          }
-        >
-          <RequestError message={runsError} retry={() => void loadRuns()} />
-          {runsLoading && <LoadingState label="Loading operations…" />}
-          {!runsLoading && !runsError && runs.length === 0 && (
-            <EmptyState
-              icon="inbox"
-              title="No operations yet"
-              description="Generated runs appear here with their created channels."
-            />
-          )}
-          {runs.length > 0 && (
-            <ul className="wallpaper-run-list">
-              {runs.map((run) => {
-                const status = RUN_STATUS[run.status] ?? {
-                  label: run.status,
-                  tone: "neutral" as const,
-                };
-                return (
-                  <li className="wallpaper-run" key={run.runId}>
-                    <div className="wallpaper-run-head">
-                      <h3 className="wallpaper-run-title">
-                        {run.createdAt
-                          ? new Date(run.createdAt).toLocaleString()
-                          : `Operation ${run.runId.slice(0, 8)}`}
-                      </h3>
-                      <span
-                        className="wallpaper-badge"
-                        data-tone={status.tone}
-                        data-busy={"busy" in status ? "true" : undefined}
-                      >
-                        {status.label}
-                      </span>
-                    </div>
-                    <p role="status" className="wallpaper-run-status">
-                      Status: {run.status}. {run.rowCount} channel(s) remaining.
-                    </p>
-                    {(run.error || run.failedAt) && (
-                      <RequestError
-                        message={run.error || `${run.failedAt?.name}: ${run.failedAt?.error}`}
+                      ))}
+                      <TextField
+                        id={FIELD_IDS.backgroundColor}
+                        label="Background color (#RRGGBBAA)"
+                        error={fieldErrors.backgroundColor}
+                        value={options.backgroundColor}
+                        onChange={(e) => setOption("backgroundColor", e.target.value)}
                       />
-                    )}
-                    {run.createdChannels.length > 0 && (
-                      <ul className="wallpaper-run-channels">
-                        {run.createdChannels.map((c) => (
-                          <li key={c.cid}>
-                            {c.name} (#{c.cid})
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <Cluster gap={2}>
+                    </Grid>
+                    <Checkbox
+                      id={FIELD_IDS.coverFitMode}
+                      label="Cover-fit mode"
+                      hint="Fills nested rows with image content instead of letterboxing them."
+                      error={fieldErrors.coverFitMode}
+                      checked={options.coverFitMode}
+                      onChange={(e) => setOption("coverFitMode", e.target.checked)}
+                    />
+                  </Stack>
+                </div>
+              )}
+            </ListRow>
+          </ListSection>
+        </fieldset>
+
+        <Stack gap={4}>
+          <ListSection
+            header="Preview"
+            footer={rows.length > 0 ? `${rows.length} rows` : undefined}
+          >
+            <ListRow
+              title="Rows to create"
+              subtitle="Exactly as they will be created, at their real proportions."
+            >
+              {blocked && (
+                <Button
+                  size="small"
+                  icon="alert"
+                  onClick={() => {
+                    if (ADVANCED_FIELDS.some((key) => fieldErrors[key])) setAdvancedOpen(true);
+                    fields.focusFirst(fieldErrors);
+                  }}
+                >
+                  Review highlighted fields
+                </Button>
+              )}
+              <RequestError message={previewError} retry={() => setPreviewRetry((v) => v + 1)} />
+              {previewLoading && <LoadingState label="Slicing preview…" />}
+              {!hasSource && (
+                <EmptyState
+                  icon="image"
+                  title="No source image yet"
+                  description="Add a source image to see the rows that would be created."
+                />
+              )}
+              {!previewLoading && hasSource && !previewError && !issue && rows.length === 0 && (
+                <EmptyState
+                  icon="refresh"
+                  title="No current preview"
+                  description="The last preview no longer matches these settings."
+                  action={
+                    <Button size="small" onClick={() => setPreviewRetry((v) => v + 1)}>
+                      Refresh preview
+                    </Button>
+                  }
+                />
+              )}
+              {rows.length > 0 && (
+                <div className="wallpaper-preview-stack">
+                  {rows.map((row, i) => (
+                    <img
+                      key={i}
+                      src={row.imageDataUrl}
+                      alt={row.isSpacer ? "spacer row" : "channel row"}
+                      style={{
+                        marginInlineStart: `calc(${row.depth} * var(--size-channel-indent))`,
+                      }}
+                      className="wallpaper-preview-row"
+                    />
+                  ))}
+                </div>
+              )}
+            </ListRow>
+          </ListSection>
+          <Button
+            variant="prominent"
+            className="wallpaper-generate"
+            icon={busy === "generate" ? undefined : "sparkles"}
+            onClick={() => void generate()}
+            disabled={Boolean(busy) || previewLoading || rows.length === 0 || blocked}
+          >
+            {busy === "generate" && <Spinner />}
+            {busy === "generate" ? "Generating…" : "Generate channels"}
+          </Button>
+        </Stack>
+      </Stack>
+
+      <Stack gap={4}>
+        <RequestError message={actionError} />
+        <RequestError message={runsError} retry={() => void loadRuns()} />
+        {runsLoading && <LoadingState label="Loading operations…" />}
+        {!runsLoading && !runsError && runs.length === 0 && (
+          <EmptyState
+            icon="inbox"
+            title="No operations yet"
+            description="Generated runs appear here with their created channels."
+          />
+        )}
+        {runs.length > 0 && (
+          <ListSection
+            header="Recent operations"
+            footer="Results stay available after leaving this page."
+          >
+            {runs.map((run) => {
+              const status = RUN_STATUS[run.status] ?? { label: run.status };
+              return (
+                <ListRow
+                  key={run.runId}
+                  title={
+                    run.createdAt
+                      ? new Date(run.createdAt).toLocaleString()
+                      : `Operation ${run.runId.slice(0, 8)}`
+                  }
+                  subtitle={
+                    <span role="status">
+                      {status.tone ? (
+                        <StatusGlyph tone={status.tone} label={status.label} />
+                      ) : (
+                        <span>
+                          {"busy" in status && <Spinner />}
+                          {status.label}
+                        </span>
+                      )}
+                      <span>{` · ${run.rowCount} channel(s) remaining`}</span>
+                    </span>
+                  }
+                  trailing={
+                    <>
                       {["pending", "partial-failure"].includes(run.status) && (
                         <Button
                           size="small"
@@ -693,11 +685,12 @@ export default function ChannelWallpaperGenerator() {
                       )}
                       {!["running", "undoing", "undone"].includes(run.status) && (
                         <Button
-                          variant="destructive"
+                          variant="plain"
+                          destructive
                           size="small"
                           icon="undo"
                           disabled={Boolean(busy)}
-                          onClick={() => void mutateRun(run, "undo")}
+                          onClick={() => setUndoTarget(run)}
                         >
                           {run.createdChannels.length === 0
                             ? "Discard operation"
@@ -706,14 +699,43 @@ export default function ChannelWallpaperGenerator() {
                               : "Undo this generation"}
                         </Button>
                       )}
-                    </Cluster>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Section>
-      </div>
-    </div>
+                    </>
+                  }
+                >
+                  {(run.error || run.failedAt) && (
+                    <RequestError
+                      message={run.error || `${run.failedAt?.name}: ${run.failedAt?.error}`}
+                    />
+                  )}
+                  {run.createdChannels.length > 0 && (
+                    <ul className="wallpaper-run-channels">
+                      {run.createdChannels.map((c) => (
+                        <li key={c.cid}>
+                          {c.name} (#{c.cid})
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </ListRow>
+              );
+            })}
+          </ListSection>
+        )}
+      </Stack>
+
+      <ConfirmDialog
+        open={Boolean(undoTarget)}
+        title={undoCopy?.title ?? ""}
+        message={undoCopy?.message ?? ""}
+        confirmLabel={undoCopy?.confirmLabel ?? ""}
+        destructive
+        onCancel={() => setUndoTarget(null)}
+        onConfirm={() => {
+          const run = undoTarget;
+          setUndoTarget(null);
+          if (run) void mutateRun(run, "undo");
+        }}
+      />
+    </Stack>
   );
 }

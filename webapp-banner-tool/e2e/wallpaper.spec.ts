@@ -155,6 +155,18 @@ test("error states (preview and operations) meet the design rules", async ({ pag
   await expectDesignRules(page);
 });
 
+test("Undo asks for confirmation in a dialog, and Cancel keeps the run", async ({ page }) => {
+  await mockWallpaper(page, { runs: RUNS });
+  await open(page);
+  await page.getByRole("button", { name: "Undo this generation" }).first().click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Delete channels" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("button", { name: "Undo this generation" })).toHaveCount(2);
+});
+
 test("the prominent button is Generate channels, never an Undo or Discard action", async ({
   page,
 }) => {
