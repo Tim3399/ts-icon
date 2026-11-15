@@ -57,14 +57,17 @@ test("banner creation, gallery navigation and deletion work using Tab and keyboa
   await page.keyboard.press("Enter");
   await expect(page.locator(".channel-row")).toHaveCount(2);
   await expect(channelsLink).toHaveAttribute("aria-current", "page");
-  const status = page.getByLabel("Image status");
-  await tabTo(page, status);
+  // D2 (D-142F-34): the image filter is a segmented radio group; the arrow keys move the choice.
+  const status = page.getByRole("radiogroup", { name: "Image status" });
+  await tabTo(page, status.getByRole("radio", { checked: true }));
   await page.keyboard.press("Home");
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("Enter");
-  await expect(status).toHaveValue("own");
+  await page.keyboard.press("ArrowRight");
+  await expect(status.getByRole("radio", { name: "With image" })).toBeChecked();
   await expect(page.locator(".channel-row")).toHaveCount(1);
-  const remove = page.locator(".channel-row").getByRole("button", { name: "Remove" });
+  // Remove… sits in the inspector of the selected (only visible) row.
+  const remove = page
+    .getByRole("complementary", { name: "Inspector" })
+    .getByRole("button", { name: "Remove…" });
   await tabTo(page, remove);
   await page.keyboard.press("Enter");
   // The confirmation dialog starts on Cancel; Tab reaches the destructive confirm button.

@@ -76,7 +76,7 @@ describe("SpacerBaseImageManager", () => {
 
     render(<SpacerBaseImageManager />);
     const dropzone = (await screen.findByText(/Used for spacer channels/i)).closest(
-      "li",
+      ".spacer-base",
     ) as HTMLElement;
 
     const file = new File(["bytes"], "base.png", { type: "image/png" });
@@ -96,7 +96,7 @@ describe("SpacerBaseImageManager", () => {
 
     render(<SpacerBaseImageManager />);
     const dropzone = (await screen.findByText(/Used for spacer channels/i)).closest(
-      "li",
+      ".spacer-base",
     ) as HTMLElement;
 
     fireEvent.dragOver(dropzone, { dataTransfer: { files: [], types: ["Files"] } });

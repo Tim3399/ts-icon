@@ -16,6 +16,9 @@ export interface MockChannel {
   managed: boolean;
   isSpacer?: boolean;
   bannerGfxUrl?: string | null;
+  /** Byte size and last change of the channel's own image (R1, D-142F-34). */
+  size?: number;
+  updatedAt?: string;
 }
 
 /** The two equally named channels of the original workflow tests. */
@@ -24,6 +27,11 @@ export function basicChannels(): MockChannel[] {
     { cid: "42", name: "General", pid: null, depth: 0, hasImage: false, managed: true },
     { cid: "43", name: "General", pid: "42", depth: 1, hasImage: false, managed: true },
   ];
+}
+
+/** `size` and `updatedAt` of a channel's own image, as GET channels returns them (R1). */
+function imageMeta(size: number, updatedAt: string) {
+  return { size, updatedAt };
 }
 
 /**
@@ -41,10 +49,35 @@ export function screenshotChannels(): { channels: MockChannel[]; banners: string
       hasImage: true,
       managed: true,
       isSpacer: true,
+      ...imageMeta(12_288, "2026-11-12T08:30:00Z"),
     },
-    { cid: "11", name: "Gaming Area", pid: null, depth: 0, hasImage: true, managed: true },
-    { cid: "12", name: "Counter-Strike", pid: "11", depth: 1, hasImage: true, managed: true },
-    { cid: "13", name: "Hytale", pid: "11", depth: 1, hasImage: true, managed: true },
+    {
+      cid: "11",
+      name: "Gaming Area",
+      pid: null,
+      depth: 0,
+      hasImage: true,
+      managed: true,
+      ...imageMeta(18_432, "2026-11-13T19:05:00Z"),
+    },
+    {
+      cid: "12",
+      name: "Counter-Strike",
+      pid: "11",
+      depth: 1,
+      hasImage: true,
+      managed: true,
+      ...imageMeta(21_504, "2026-11-14T21:47:00Z"),
+    },
+    {
+      cid: "13",
+      name: "Hytale",
+      pid: "11",
+      depth: 1,
+      hasImage: true,
+      managed: true,
+      ...imageMeta(19_456, "2026-11-15T14:02:00Z"),
+    },
     { cid: "14", name: "Squad 1", pid: "13", depth: 2, hasImage: false, managed: true },
     { cid: "15", name: "Squad 2", pid: "13", depth: 2, hasImage: false, managed: false },
     { cid: "16", name: "Lobby", pid: null, depth: 0, hasImage: false, managed: false },
@@ -98,13 +131,20 @@ export async function mockApi(page: Page, options: MockApiOptions = {}) {
       const png = payload.subarray(start, end);
       images.set(cid, png);
       uploads.push({ cid, png });
-      items.find((item) => item.cid === cid)!.hasImage = true;
+      Object.assign(items.find((item) => item.cid === cid)!, {
+        hasImage: true,
+        ...imageMeta(png.length, new Date().toISOString()),
+      });
       return route.fulfill({ json: { message: "Image saved successfully" } });
     }
     if (cid && request.method() === "DELETE") {
       images.delete(cid);
       deleted.push(cid);
-      items.find((item) => item.cid === cid)!.hasImage = false;
+      Object.assign(items.find((item) => item.cid === cid)!, {
+        hasImage: false,
+        size: undefined,
+        updatedAt: undefined,
+      });
       return route.fulfill({ json: { message: "Image deleted" } });
     }
     return route.fulfill({ status: 404, json: { message: `Unmocked request: ${pathname}` } });

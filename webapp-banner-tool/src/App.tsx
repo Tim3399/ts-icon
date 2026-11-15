@@ -157,9 +157,7 @@ export default function App() {
             path="/channels"
             element={
               <RequireUpload>
-                <Page>
-                  <ChannelGallery />
-                </Page>
+                <ChannelGallery />
               </RequireUpload>
             }
           />

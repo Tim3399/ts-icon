@@ -1,44 +1,51 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { apiFetch, describeApiError, UPLOAD_TIMEOUT_MS } from "../api/client";
 import { channelImageEndpoint, channelImageUrl } from "../api/channels";
 import { useChannels } from "../hooks/useChannels";
 import {
-  BannerFrame,
   Button,
-  Cluster,
   ConfirmDialog,
-  EmptyState,
+  DataTable,
   FileButton,
-  ListRow,
-  ListSection,
-  PageHeader,
-  RequestError,
-  Select,
-  Skeleton,
-  Stack,
+  FilterBar,
+  Icon,
+  SegmentedControl,
+  Spinner,
+  StateTile,
   StatusGlyph,
+  StudioInspector,
+  StudioToolbar,
   TextField,
   ToolbarButton,
   useToast,
+  type DataColumn,
 } from "../design";
 import SpacerBaseImageManager from "./SpacerBaseImageManager";
+import ChannelInspector from "./ChannelInspector";
 import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
 import { imageFileError } from "../api/image-file";
 import { uploadFieldError } from "../hooks/useFieldErrors";
+import { formatImageSize } from "./channelImageFormat";
 import type { Channel } from "../api/types";
 import "./ChannelGallery.css";
 
-const FILTERS = [
-  ["all", "All channels"],
-  ["own", "Own image"],
-  ["missing", "Missing image"],
-  ["spacer", "Spacer channels"],
-] as const;
+// Manage channel images as concept D2 draws it (T-142-F3 item 9): a filter
+// bar, the channel table with a row action and row drop-to-replace, and an
+// inspector for the selected row with the spacer base image below it.
 
-function imageState(channel: Channel) {
+type ImageFilter = "all" | "with" | "without";
+
+const FILTERS: { value: ImageFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "with", label: "With image" },
+  { value: "without", label: "Without" },
+];
+
+function ImageState({ channel }: { channel: Channel }) {
   if (channel.hasImage) return <StatusGlyph tone="positive" label="Own image" />;
-  return <span>{channel.hasFallback ? "Fallback" : "No image"}</span>;
+  if (channel.hasFallback) return <span className="channel-image-state">Spacer base image</span>;
+  return <StatusGlyph tone="warning" label="No image" />;
 }
 
 export default function ChannelGallery() {
@@ -52,8 +59,10 @@ export default function ChannelGallery() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileErrors, setFileErrors] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState<ImageFilter>("all");
+  const [selectedCid, setSelectedCid] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+
   const changeImage = async (cid: string, file?: File) => {
     if (locks.current.has(cid)) return;
     const channel = channels.find((c) => c.cid === cid);
@@ -100,188 +109,229 @@ export default function ChannelGallery() {
       });
     }
   };
+
   const visible = channels.filter(
     (c) =>
-      c.name.toLowerCase().includes(query.toLowerCase()) &&
-      (filter === "all" ||
-        (filter === "own" && c.hasImage) ||
-        (filter === "missing" && !c.hasImage && !c.hasFallback) ||
-        (filter === "spacer" && c.isSpacer)),
+      c.name.toLowerCase().includes(query.trim().toLowerCase()) &&
+      (filter === "all" || (filter === "with") === Boolean(c.hasImage)),
   );
   const filtered = query.trim() !== "" || filter !== "all";
+  // The selection follows the filter: a hidden row hands it to the first visible one.
+  const selected = visible.find((c) => c.cid === selectedCid) ?? visible[0] ?? null;
   const pending = channels.find((c) => c.cid === removing);
-  return (
-    <Stack gap={7}>
-      <PageHeader
-        title="Manage channel images"
-        subtitle="Replace a banner by dropping a file on its row, or remove it again."
-        toolbar={
-          <ToolbarButton
-            icon="refresh"
-            label="Refresh"
-            onClick={() => void reload()}
-            disabled={loading}
-          />
-        }
-      />
-      <SpacerBaseImageManager onChanged={reload} />
+  const withImage = channels.filter((c) => c.hasImage).length;
+  const imageSrc = (channel: Channel) =>
+    channel.hasImage || channel.hasFallback
+      ? channelImageUrl(channel, revisions[channel.cid])
+      : null;
+  const loadError = (cid: string) =>
+    setErrors((prev) => ({
+      ...prev,
+      [cid]: "This image could not be loaded. Refresh the channel list to try again.",
+    }));
 
-      <Stack gap={4}>
-        <Cluster gap={3} align="end" className="channel-filters">
+  const columns: DataColumn<Channel>[] = [
+    {
+      key: "channel",
+      header: "Channel",
+      className: "channel-cell-name",
+      render: (channel) => (
+        <span className="channel-name" style={{ "--depth": channel.depth } as CSSProperties}>
+          <Icon name={channel.isSpacer ? "sliders" : "layers"} size={14} />
+          <span className="channel-name-text" title={channel.name}>
+            {channel.name}
+          </span>
+          {channel.isSpacer && <span className="channel-tag">Spacer</span>}
+          {channel.managed === false && <span className="channel-tag">Not managed</span>}
+        </span>
+      ),
+    },
+    {
+      key: "banner",
+      header: "Banner",
+      className: "channel-cell-banner",
+      render: (channel) => {
+        const src = imageSrc(channel);
+        return src ? (
+          <img
+            key={revisions[channel.cid]}
+            className="channel-thumb"
+            src={src}
+            alt={channel.name}
+            loading="lazy"
+            onError={() => loadError(channel.cid)}
+          />
+        ) : (
+          <span className="channel-thumb channel-thumb-empty">No image</span>
+        );
+      },
+    },
+    {
+      key: "image",
+      header: "Image",
+      className: "channel-cell-state",
+      render: (channel) => (
+        <span className="channel-state">
+          <ImageState channel={channel} />
+          {errors[channel.cid] && (
+            <span className="channel-row-error" role="alert">
+              {errors[channel.cid]}
+            </span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "id",
+      header: "ID",
+      wideOnly: true,
+      className: "channel-cell-number",
+      render: (channel) => `#${channel.cid}`,
+    },
+    {
+      key: "size",
+      header: "Size",
+      wideOnly: true,
+      className: "channel-cell-number",
+      render: (channel) => (channel.hasImage && formatImageSize(channel.size)) || "—",
+    },
+    {
+      key: "action",
+      header: <span className="ds-visually-hidden">Action</span>,
+      align: "end",
+      className: "channel-cell-action",
+      render: (channel) => {
+        const busy = operations[channel.cid];
+        const verb = channel.hasImage ? "Replace" : "Upload";
+        return (
+          <span className="channel-action">
+            {busy && <Spinner />}
+            <FileButton
+              id={`file-upload-${channel.cid}`}
+              aria-label={`${verb} image of ${channel.name}`}
+              label={busy ?? `${verb}…`}
+              disabled={Boolean(busy)}
+              error={fileErrors[channel.cid]}
+              onFile={(file) => void changeImage(channel.cid, file)}
+            />
+          </span>
+        );
+      },
+    },
+  ];
+
+  return (
+    <div className="channel-images">
+      <h1 className="ds-visually-hidden">Manage channel images</h1>
+      <StudioToolbar>
+        <ToolbarButton
+          icon="refresh"
+          label="Refresh channels"
+          onClick={() => void reload()}
+          disabled={loading}
+        />
+      </StudioToolbar>
+
+      <FilterBar
+        search={
           <TextField
             id="channel-search"
             type="search"
-            className="channel-filter"
             label="Search channels"
+            labelHidden
             value={query}
-            placeholder="Filter by name"
+            placeholder="Filter channels"
             onChange={(e) => setQuery(e.target.value)}
           />
-          <Select
-            id="channel-image-status"
-            className="channel-filter"
+        }
+        filter={
+          <SegmentedControl
             label="Image status"
+            options={FILTERS}
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          >
-            {FILTERS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </Select>
-        </Cluster>
-
-        <RequestError message={error} retry={() => void reload()} />
-
-        {loading && (
-          <>
-            <p role="status" className="ds-visually-hidden">
-              Loading channels…
-            </p>
-            {/* Deliberately not `.channel-row`: placeholders must never be
-                counted as real channels by anything selecting on that class. */}
-            <ListSection header="Loading…">
-              {[0, 1, 2, 3].map((key) => (
-                <ListRow
-                  key={key}
-                  aria-hidden="true"
-                  title={<Skeleton height={14} width="40%" />}
-                  subtitle={<Skeleton height={10} width="25%" />}
-                />
-              ))}
-            </ListSection>
-          </>
-        )}
-
-        {!loading && !error && visible.length === 0 && (
-          <EmptyState
-            icon="inbox"
-            title={channels.length ? "No channels match these filters." : "No channels found."}
-            description={
-              channels.length
-                ? "Clear the search or choose a different image status."
-                : "TeamSpeak reported no channels for this server."
-            }
-            action={
-              filtered && channels.length ? (
-                <Button
-                  size="small"
-                  onClick={() => {
-                    setQuery("");
-                    setFilter("all");
-                  }}
-                >
-                  Reset filters
-                </Button>
-              ) : undefined
-            }
+            onChange={setFilter}
           />
-        )}
+        }
+        count={
+          loading || error
+            ? undefined
+            : `${visible.length} of ${channels.length} channel${channels.length === 1 ? "" : "s"} · ${withImage} with an image`
+        }
+      />
 
-        {!loading && visible.length > 0 && (
-          <ListSection
-            header={`${visible.length} of ${channels.length} channel${channels.length === 1 ? "" : "s"}`}
-          >
-            {visible.map((channel) => {
-              const busy = operations[channel.cid];
-              const parent = channel.pid
-                ? (channels.find((c) => c.cid === channel.pid)?.name ?? "parent channel")
-                : null;
-              return (
-                <ListRow
-                  key={channel.cid}
-                  className="channel-row"
-                  onDropFile={(file) => {
-                    if (!locks.current.has(channel.cid)) void changeImage(channel.cid, file);
-                  }}
-                  title={<span title={channel.name}>{channel.name}</span>}
-                  subtitle={
-                    <>
-                      {imageState(channel)}
-                      <span>
-                        {" · "}
-                        {parent ? `Under ${parent} · ` : ""}
-                        Channel #{channel.cid}
-                        {channel.hasFallback && !channel.hasImage ? " · Spacer base image" : ""}
-                      </span>
-                    </>
-                  }
-                  trailing={
-                    <>
-                      <FileButton
-                        id={`file-upload-${channel.cid}`}
-                        aria-label={`Replace image of ${channel.name}`}
-                        label={busy === "Uploading…" ? busy : "Replace…"}
-                        disabled={Boolean(busy)}
-                        error={fileErrors[channel.cid]}
-                        onFile={(file) => void changeImage(channel.cid, file)}
-                      />
-                      <Button
-                        variant="plain"
-                        destructive
-                        disabled={!channel.hasImage || Boolean(busy)}
-                        onClick={() => setRemoving(channel.cid)}
-                      >
-                        {busy === "Removing…" ? busy : "Remove"}
-                      </Button>
-                    </>
-                  }
-                >
-                  <div className="channel-banner">
-                    <BannerFrame
-                      src={
-                        channel.hasImage || channel.hasFallback
-                          ? channelImageUrl(channel, revisions[channel.cid])
-                          : null
-                      }
-                      alt={channel.name}
-                      imageKey={revisions[channel.cid]}
-                      lazy
-                      placeholder="No image available"
-                      onError={() =>
-                        setErrors((prev) => ({
-                          ...prev,
-                          [channel.cid]:
-                            "This image could not be loaded. Refresh the channel list to try again.",
-                        }))
-                      }
-                    />
-                  </div>
-                  <RequestError
-                    message={errors[channel.cid] || ""}
-                    retry={() => {
-                      setErrors((prev) => ({ ...prev, [channel.cid]: "" }));
-                      setRevisions((prev) => ({ ...prev, [channel.cid]: Date.now() }));
-                      void reload();
-                    }}
-                  />
-                </ListRow>
-              );
-            })}
-          </ListSection>
-        )}
-      </Stack>
+      {loading && <StateTile icon="refresh" title="Loading channels…" role="status" />}
+
+      {!loading && error && (
+        <StateTile
+          icon="alert"
+          title="Couldn't load the channels."
+          role="alert"
+          action={<Button onClick={() => void reload()}>Try again</Button>}
+        >
+          {error}
+        </StateTile>
+      )}
+
+      {!loading && !error && visible.length === 0 && (
+        <StateTile
+          icon="inbox"
+          title={channels.length ? "No channels match these filters." : "No channels found."}
+          action={
+            filtered && channels.length ? (
+              <Button
+                onClick={() => {
+                  setQuery("");
+                  setFilter("all");
+                }}
+              >
+                Reset filters
+              </Button>
+            ) : (
+              <Button onClick={() => void reload()}>Refresh</Button>
+            )
+          }
+        >
+          {channels.length
+            ? "Clear the search or choose a different image status."
+            : "TeamSpeak reported no channels for this server."}
+        </StateTile>
+      )}
+
+      {!loading && !error && visible.length > 0 && (
+        <DataTable
+          label="Channels"
+          columns={columns}
+          rows={visible}
+          rowKey={(channel) => channel.cid}
+          selectedKey={selected?.cid ?? null}
+          onSelect={(channel) => setSelectedCid(channel.cid)}
+          onDropFile={(channel, file) => {
+            if (!locks.current.has(channel.cid)) void changeImage(channel.cid, file);
+          }}
+          rowProps={(channel) => ({ className: "channel-row", "data-cid": channel.cid })}
+          footer="Drop an image on a row to replace that channel's banner. Spacer channels without their own image use the spacer base image."
+        />
+      )}
+
+      <StudioInspector>
+        <div className="channel-inspector">
+          <div className="channel-inspector-head" aria-hidden="true">
+            Inspector
+          </div>
+          {selected && (
+            <ChannelInspector
+              channel={selected}
+              channels={channels}
+              imageSrc={imageSrc(selected)}
+              busy={operations[selected.cid]}
+              fileError={fileErrors[selected.cid]}
+              onFile={(file) => void changeImage(selected.cid, file)}
+              onRemove={() => setRemoving(selected.cid)}
+            />
+          )}
+          <SpacerBaseImageManager onChanged={reload} />
+        </div>
+      </StudioInspector>
 
       <ConfirmDialog
         open={Boolean(pending)}
@@ -296,6 +346,6 @@ export default function ChannelGallery() {
           if (cid) void changeImage(cid);
         }}
       />
-    </Stack>
+    </div>
   );
 }
