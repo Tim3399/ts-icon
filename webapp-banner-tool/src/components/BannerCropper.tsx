@@ -8,17 +8,22 @@ import { channelImageEndpoint, channelImageUrl } from "../api/channels";
 import { useChannels } from "../hooks/useChannels";
 import {
   BannerFrame,
+  Button,
+  Cluster,
   EmptyState,
-  FieldError,
   Icon,
   PageHeader,
   RequestError,
   Section,
+  Select,
+  Spinner,
+  Stack,
+  TextField,
   UploadInput,
   useToast,
 } from "../design";
 import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
-import { fieldAttributes, uploadFieldError, useFieldErrors } from "../hooks/useFieldErrors";
+import { uploadFieldError, useFieldErrors } from "../hooks/useFieldErrors";
 import "./BannerCropper.css";
 
 const FIELD_IDS = { cid: "banner-channel", file: "file-upload", url: "imageUrl" };
@@ -262,49 +267,43 @@ export default function BannerCropper() {
         title="Create a channel banner"
         lead={`Pick the channel, choose artwork, frame the ${TARGET_WIDTH} × ${TARGET_HEIGHT} pixel crop and save it straight to TeamSpeak.`}
       />
-      <div className="workbench">
-        <div className="workbench-side">
+      <div className="crop-workbench">
+        <Stack gap={4} className="crop-side">
           <Section
             title="Target channel"
             step={1}
             subtitle="The saved banner replaces this channel's current image."
           >
             <RequestError message={channelsError} retry={() => void reload()} />
-            <label className="field">
-              Channel
-              <span className="select-wrap">
-                <select
-                  id={FIELD_IDS.cid}
-                  {...fieldAttributes(FIELD_IDS.cid, fields.errors.cid)}
-                  className="input"
-                  value={cid}
-                  disabled={loading || uploading}
-                  onChange={(e) => {
-                    fields.clear("cid");
-                    setCid(e.target.value);
-                    setSavedRevision(undefined);
-                  }}
-                >
-                  <option value="">{loading ? "Loading channels…" : "Choose a channel"}</option>
-                  {channels.map((c) => (
-                    <option key={c.cid} value={c.cid}>
-                      {c.name}
-                      {c.pid
-                        ? ` — under ${channels.find((p) => p.cid === c.pid)?.name ?? "parent"}`
-                        : ""}{" "}
-                      (#{c.cid})
-                    </option>
-                  ))}
-                </select>
-              </span>
-            </label>
-            <FieldError id={FIELD_IDS.cid} message={fields.errors.cid} />
+            <Select
+              id={FIELD_IDS.cid}
+              label="Channel"
+              error={fields.errors.cid}
+              value={cid}
+              disabled={loading || uploading}
+              onChange={(e) => {
+                fields.clear("cid");
+                setCid(e.target.value);
+                setSavedRevision(undefined);
+              }}
+            >
+              <option value="">{loading ? "Loading channels…" : "Choose a channel"}</option>
+              {channels.map((c) => (
+                <option key={c.cid} value={c.cid}>
+                  {c.name}
+                  {c.pid
+                    ? ` — under ${channels.find((p) => p.cid === c.pid)?.name ?? "parent"}`
+                    : ""}{" "}
+                  (#{c.cid})
+                </option>
+              ))}
+            </Select>
             {selected && hasSavedArt && (
               <div className="saved-preview">
                 <p className="saved-preview-label">
                   <span>{savedRevision ? "Saved banner" : "Current banner"}</span>
                   {savedRevision && (
-                    <span className="badge badge-success">
+                    <span className="saved-live">
                       <Icon name="check" size={11} />
                       Live
                     </span>
@@ -331,47 +330,38 @@ export default function BannerCropper() {
               disabled={uploading}
               onFile={selectFile}
             />
-            <div className="field">
-              <label htmlFor="imageUrl">Or load from a URL</label>
-              <div className="input-row">
-                <input
-                  className="input"
-                  id="imageUrl"
-                  {...fieldAttributes(FIELD_IDS.url, fields.errors.url)}
-                  type="url"
-                  value={imageUrl}
-                  onChange={(e) => {
-                    fields.clear("url");
-                    setImageUrl(e.target.value);
-                  }}
-                  placeholder="https://example.com/banner.png"
-                  disabled={uploading}
-                />
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={loadingImage || uploading}
-                  onClick={() => void loadUrl()}
-                >
-                  {loadingImage ? (
-                    <span className="spinner" aria-hidden="true" />
-                  ) : (
-                    <Icon name="link" size={15} />
-                  )}
-                  {loadingImage ? "Loading…" : "Load"}
-                </button>
-              </div>
-              <FieldError id={FIELD_IDS.url} message={fields.errors.url} />
-            </div>
+            <TextField
+              id="imageUrl"
+              label="Or load from a URL"
+              error={fields.errors.url}
+              type="url"
+              value={imageUrl}
+              onChange={(e) => {
+                fields.clear("url");
+                setImageUrl(e.target.value);
+              }}
+              placeholder="https://example.com/banner.png"
+              disabled={uploading}
+            />
+            <Cluster>
+              <Button
+                disabled={loadingImage || uploading}
+                icon={loadingImage ? undefined : "link"}
+                onClick={() => void loadUrl()}
+              >
+                {loadingImage && <Spinner />}
+                {loadingImage ? "Loading…" : "Load"}
+              </Button>
+            </Cluster>
           </Section>
-        </div>
+        </Stack>
 
-        <div className="workbench-main">
+        <Stack gap={4} className="crop-main">
           <RequestError message={error} />
           <Section
             title="Frame the crop"
             step={3}
-            className="workbench-sticky"
+            className="crop-sticky"
             subtitle={
               <span id="crop-help">
                 Drag the image to choose the visible area, or nudge it with the controls. The saved
@@ -379,43 +369,39 @@ export default function BannerCropper() {
               </span>
             }
             actions={
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
+              <Button
+                variant="plain"
+                size="small"
+                icon={isZoomed ? "collapse" : "expand"}
                 aria-expanded={isZoomed}
                 onClick={() => setIsZoomed((v) => !v)}
               >
-                <Icon name={isZoomed ? "collapse" : "expand"} size={15} />
                 {isZoomed ? "Shrink view" : "Enlarge view"}
-              </button>
+              </Button>
             }
             footer={
               <>
-                <p className="hint">
+                <p className="crop-hint">
                   {selected
                     ? `Saving replaces the banner of ${selected.name}.`
                     : "Choose a channel to enable saving."}
                 </p>
-                <button
-                  type="button"
-                  className="btn btn-primary btn-lg"
+                <Button
+                  variant="prominent"
+                  icon={uploading ? undefined : "send"}
                   onClick={() => void upload()}
                   disabled={uploading || !ready || !selected}
                 >
-                  {uploading ? (
-                    <span className="spinner" aria-hidden="true" />
-                  ) : (
-                    <Icon name="send" size={15} />
-                  )}
+                  {uploading && <Spinner />}
                   {uploading ? "Uploading…" : "Crop & send image"}
-                </button>
+                </Button>
               </>
             }
           >
-            <div className="crop-stage">
+            <Stack gap={4} className="crop-stage">
               <div
                 ref={boxRef}
-                className={`preview-box checkerboard${isZoomed ? " preview-box-enlarged" : ""}`}
+                className={`preview-box crop-checker${isZoomed ? " preview-box-enlarged" : ""}`}
                 aria-describedby="crop-help"
               >
                 {source ? (
@@ -439,6 +425,7 @@ export default function BannerCropper() {
                   />
                 ) : (
                   <EmptyState
+                    className="crop-empty"
                     icon="image"
                     title="No image loaded"
                     description="Upload a file or load a URL to start cropping."
@@ -446,59 +433,49 @@ export default function BannerCropper() {
                 )}
               </div>
 
-              <div className="crop-toolbar">
-                <div className="nudge-pad" aria-label="Move the crop area" role="group">
+              <Cluster gap={3} justify="between" className="crop-toolbar">
+                <Cluster gap={1} role="group" aria-label="Move the crop area">
                   {NUDGE.map(([label, icon, x, y]) => (
-                    <button
-                      type="button"
-                      className="btn"
+                    <Button
+                      variant="plain"
+                      iconOnly
                       key={label}
+                      icon={icon}
                       aria-label={label}
-                      title={label}
                       disabled={!ready || uploading}
                       onClick={() => adjust(x, y)}
-                    >
-                      <Icon name={icon} size={15} />
-                    </button>
+                    />
                   ))}
-                </div>
-                <div className="btn-cluster" role="group" aria-label="Zoom">
-                  <button
-                    type="button"
-                    className="btn btn-icon btn-sm"
+                </Cluster>
+                <Cluster gap={1} role="group" aria-label="Zoom">
+                  <Button
+                    variant="plain"
+                    iconOnly
+                    icon="zoomIn"
                     aria-label="Zoom in"
-                    title="Zoom in"
                     disabled={!ready || uploading}
                     onClick={() => cropper.current?.zoom(0.1)}
-                  >
-                    <Icon name="zoomIn" size={15} />
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-icon btn-sm"
+                  />
+                  <Button
+                    variant="plain"
+                    iconOnly
+                    icon="zoomOut"
                     aria-label="Zoom out"
-                    title="Zoom out"
                     disabled={!ready || uploading}
                     onClick={() => cropper.current?.zoom(-0.1)}
-                  >
-                    <Icon name="zoomOut" size={15} />
-                  </button>
-                </div>
-              </div>
+                  />
+                </Cluster>
+              </Cluster>
 
               <div className="saved-preview">
                 <p className="saved-preview-label">
                   <span>Exact output · {`${TARGET_WIDTH} × ${TARGET_HEIGHT}`}</span>
                 </p>
-                <div
-                  ref={outputRef}
-                  className="banner-frame checkerboard banner-frame-ratio crop-output"
-                  aria-hidden="true"
-                />
+                <div ref={outputRef} className="crop-checker crop-output" aria-hidden="true" />
               </div>
-            </div>
+            </Stack>
           </Section>
-        </div>
+        </Stack>
       </div>
     </div>
   );
