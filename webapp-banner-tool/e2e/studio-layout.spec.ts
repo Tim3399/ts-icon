@@ -128,3 +128,27 @@ for (const width of WIDTHS) {
     }
   });
 }
+
+// D-142F-36: from 1240 px the layer panel and the inspector fill the workspace
+// height as in D2; their bottom is the viewport bottom with the page at scroll 0.
+for (const width of [1240, 1440]) {
+  for (const route of ROUTES) {
+    test(`${width} px ${route.path}: the side panels reach the bottom of the viewport`, async ({
+      page,
+    }) => {
+      await open(page, width, route.path, route.heading);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      const viewport = page.viewportSize()!;
+      const regions = [page.locator(".ds-studio-inspector")];
+      if (route.path === "/") regions.push(page.locator("#studio-layers"));
+      for (const region of regions) {
+        await expect(region).toBeVisible();
+        const box = (await region.boundingBox())!;
+        expect(
+          Math.abs(box.y + box.height - viewport.height),
+          "panel bottom vs viewport bottom",
+        ).toBeLessThanOrEqual(1);
+      }
+    });
+  }
+}
