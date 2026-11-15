@@ -57,7 +57,7 @@ test("banner creation, gallery navigation and deletion work using Tab and keyboa
   if (await sidebarIsCollapsible(page)) await openSidebarByKeyboard(page);
   await tabTo(page, page.getByRole("link", { name: "Manage channel images" }));
   await page.keyboard.press("Enter");
-  await expect(page.locator(".channel-card")).toHaveCount(2);
+  await expect(page.locator(".channel-row")).toHaveCount(2);
   // On narrow viewports the sidebar closes after the navigation, so address the link by its target.
   await expect(page.locator('#app-sidebar a[href="/channels"]')).toHaveAttribute(
     "aria-current",
@@ -69,13 +69,15 @@ test("banner creation, gallery navigation and deletion work using Tab and keyboa
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(status).toHaveValue("own");
-  await expect(page.locator(".channel-card")).toHaveCount(1);
-  const remove = page.locator(".channel-card").getByRole("button", { name: "Delete image" });
+  await expect(page.locator(".channel-row")).toHaveCount(1);
+  const remove = page.locator(".channel-row").getByRole("button", { name: "Remove" });
   await tabTo(page, remove);
-  page.once("dialog", (dialog) => dialog.accept());
+  await page.keyboard.press("Enter");
+  // The confirmation dialog starts on Cancel; Tab reaches the destructive confirm button.
+  await tabTo(page, page.getByRole("alertdialog").getByRole("button", { name: "Remove" }));
   await page.keyboard.press("Enter");
   await expect.poll(() => api.deleted).toEqual(["43"]);
-  await expect(page.locator(".channel-card")).toHaveCount(0);
+  await expect(page.locator(".channel-row")).toHaveCount(0);
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     .toBe(true);

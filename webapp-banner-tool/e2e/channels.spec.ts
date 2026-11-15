@@ -13,8 +13,8 @@ test("gallery keeps equal names distinct by CID and supports native keyboard upl
 }) => {
   const api = await mockApi(page);
   await page.goto("/channels");
-  await expect(page.locator(".channel-card")).toHaveCount(2);
-  const second = page.locator(".channel-card").filter({ hasText: "Channel #43" });
+  await expect(page.locator(".channel-row")).toHaveCount(2);
+  const second = page.locator(".channel-row").filter({ hasText: "Channel #43" });
   await second.locator("input[type=file]").focus();
   await expect(second.locator("input[type=file]")).toBeFocused();
   await second
@@ -25,16 +25,16 @@ test("gallery keeps equal names distinct by CID and supports native keyboard upl
   await expect(second.getByRole("img", { name: "General" })).toBeVisible();
   await expect(
     page
-      .locator(".channel-card")
+      .locator(".channel-row")
       .filter({ hasText: "Channel #42" })
-      .getByRole("button", { name: "Delete image" }),
+      .getByRole("button", { name: "Remove" }),
   ).toBeDisabled();
   await page.getByLabel("Image status").selectOption("own");
-  await expect(page.locator(".channel-card")).toHaveCount(1);
-  page.once("dialog", (dialog) => dialog.accept());
-  await second.getByRole("button", { name: "Delete image" }).click();
+  await expect(page.locator(".channel-row")).toHaveCount(1);
+  await second.getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Remove" }).click();
   await expect.poll(() => api.deleted).toEqual(["43"]);
-  await expect(page.locator(".channel-card")).toHaveCount(0);
+  await expect(page.locator(".channel-row")).toHaveCount(0);
   await page.getByLabel("Image status").selectOption("all");
   await page.getByLabel("Search channels").fill("absent");
   await expect(page.getByText("No channels match these filters.")).toBeVisible();
@@ -49,7 +49,7 @@ for (const state of ["ready", "empty", "loading", "error"] as const) {
     await expect(
       page.getByRole("heading", { level: 1, name: "Manage channel images" }),
     ).toBeVisible();
-    if (state === "ready") await expect(page.locator(".channel-card")).toHaveCount(2);
+    if (state === "ready") await expect(page.locator(".channel-row")).toHaveCount(2);
     if (state === "empty")
       await expect(page.locator("#main-content").getByText("No channels found.")).toBeVisible();
     if (state === "loading") await expect(page.getByText("Loading…")).toBeVisible();
