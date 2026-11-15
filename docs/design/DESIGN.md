@@ -104,7 +104,24 @@ The app shell itself (sidebar, toolbar, live panel) has no prominent button.
 
 ## Channel tree look
 
-The live panel's channel tree follows the reference screenshot (T-142 item 17): rounded pill rows on a
-surface darker than the panel, the channel icon on the left and the name in medium weight; banners behind
-their row, fading into the row colour; spacer rows as banner-only pills; group rows with a bold label
-over the banner; indented sub-channels; no chevron unless it collapses something.
+The channel tree follows the TeamSpeak 6 client as drawn in the reference screenshot (T-142 item 17,
+T-142-F1 addendum 4, D-10). One row component (`ChannelTreeRow`) draws the live panel, the Wallpaper
+parent picker and the Banner editor's "Preview in TeamSpeak", always in the TeamSpeak client colours
+(`--color-ts-*`, both app themes):
+
+- rows are 30 px rounded pills on the client's pill colour, one every 44 px (14 px apart);
+- a banner covers the whole pill (cover, centred) with **no fade**; the name (semi-bold, white, with a
+  soft shadow in the tree colour so it stays readable on bright banners) and the channel icon sit on top;
+- spacer rows are banner-only pills; a spacer without a loadable banner shows its name;
+- a parent channel is a group row (bold label over the banner) only while its banner has loaded;
+  otherwise it is a normal channel row with its icon;
+- sub-channels are indented 10 px per depth with their right edges aligned; no chevron unless it
+  collapses something.
+
+The Banner editor's preview draws these rows at the client size: a depth-0 pill is 456 px wide, so the
+admin sees the banner cropped and scaled the way TS6 shows it. Below that width the mock scales down
+and says so. A "Saved image (500 × 44)" line under it shows the exact saved pixels at 1:1.
+
+All sizes are measured from the reference screenshot, whose display scale is unknown. They live in
+`webapp-banner-tool/src/components/teamspeakGeometry.ts` as "TS6 reference, estimated, calibrate";
+calibrating against a real TS6 screenshot of a ruler banner is an optional later step.

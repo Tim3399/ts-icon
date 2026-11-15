@@ -193,14 +193,14 @@ app theme (T-142-F1 item 14). These roles are declared once in the raw `:root` b
 and in neither theme block, so they never switch. Only the TeamSpeak preview container uses them; it
 maps them onto the channel-tree row's local properties. The live channel tree keeps the themed roles.
 
-| Token                        | Value (both themes) | Source (R-1 2.2)                |
-| ---------------------------- | ------------------- | ------------------------------- |
-| `--color-ts-tree-bg`         | `#253044`           | centre column with channel tree |
-| `--color-ts-row-bg`          | `#1b2336`           | channel row pill                |
-| `--color-ts-header-bg`       | `#232b40`           | header / spacer pill            |
-| `--color-ts-label`           | `#f2f5fa`           | dark label                      |
-| `--color-ts-label-secondary` | `#b4bdcc`           | dark secondary label (icons)    |
-| `--color-ts-divider`         | `#3a4358`           | dark divider                    |
+| Token                        | Value (both themes) | Source (R-1 2.2)                                |
+| ---------------------------- | ------------------- | ----------------------------------------------- |
+| `--color-ts-tree-bg`         | `#263046`           | TS6 reference tree column, measured (D-142F-4)  |
+| `--color-ts-row-bg`          | `#191f32`           | TS6 reference channel pill, measured (D-142F-4) |
+| `--color-ts-header-bg`       | `#232b40`           | header / spacer pill                            |
+| `--color-ts-label`           | `#f2f5fa`           | dark label                                      |
+| `--color-ts-label-secondary` | `#b4bdcc`           | dark secondary label (icons)                    |
+| `--color-ts-divider`         | `#3a4358`           | dark divider                                    |
 
 ## Contrast pairs
 

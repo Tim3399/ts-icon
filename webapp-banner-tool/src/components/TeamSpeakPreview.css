@@ -1,11 +1,18 @@
-/* TeamSpeakPreview: the selected channel's banner in a TeamSpeak channel-tree
-   mock, at 1:1 (T-142-F1 item 14). The rows are ChannelTreeRow; this file
-   gives them the TeamSpeak client surface, in the theme-independent
-   --color-ts-* roles: the preview is TeamSpeak dark in both app themes. */
+/* TeamSpeakPreview: the selected channel's banner in a TeamSpeak 6
+   channel-tree mock at the TS6 client size (T-142-F1 item 14, addendum 4).
+   The rows are ChannelTreeRow; this file gives them the client's tree column
+   (--color-ts-tree-bg, theme-independent) at the depth-0 pill width from
+   teamspeakGeometry.ts, and shows the exact saved pixels below at 1:1. */
+
+.ts-preview-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
 
 .ts-preview {
   margin: 0;
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border: var(--size-hairline) solid var(--color-ts-divider);
   border-radius: var(--radius-card);
   background-color: var(--color-ts-tree-bg);
@@ -13,29 +20,33 @@
   overflow: hidden;
 }
 
-.ts-preview .channel-tree-row {
-  --tree-row-bg: var(--color-ts-row-bg);
-  --tree-label: var(--color-ts-label);
-  --tree-label-secondary: var(--color-ts-label-secondary);
-}
-
-/* A spacer without a banner sits on the header surface, as in the client. */
-.ts-preview .channel-tree-pill[data-kind="spacer-text"] {
-  --row-bg: var(--color-ts-header-bg);
-}
-
+/* Width: the client's depth-0 pill width, set inline from
+   teamspeakGeometry.ts; deeper rows indent inside it, so all right edges
+   line up. */
 .ts-preview-tree {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* The context rows are quieter than the row being edited. */
-.ts-preview-context {
-  opacity: 0.72;
+.ts-preview-note {
+  color: var(--color-label-secondary);
+  font-size: var(--font-footnote-size);
+  line-height: var(--font-footnote-line);
+}
+
+.ts-preview-saved {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* 1:1: the image's own 500 x 44 pixels, scaled only when the column is narrower. */
+.ts-preview-saved-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-small);
 }
 
 .ts-preview-empty {

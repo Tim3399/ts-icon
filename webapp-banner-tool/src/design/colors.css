@@ -74,8 +74,8 @@
      Declared here and nowhere else, so neither theme block switches them.
      Used only by the TeamSpeak preview container (README, "TeamSpeak client
      roles"). */
-  --color-ts-tree-bg: var(--navy-800);
-  --color-ts-row-bg: var(--navy-890);
+  --color-ts-tree-bg: #263046; /* TS6 reference tree column, measured (D-142F-4) */
+  --color-ts-row-bg: #191f32; /* TS6 reference channel pill, measured (D-142F-4) */
   --color-ts-header-bg: var(--navy-840);
   --color-ts-label: var(--gray-050);
   --color-ts-label-secondary: var(--gray-250);

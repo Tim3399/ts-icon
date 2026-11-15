@@ -109,17 +109,6 @@
    TeamSpeak preview and the save action
 --------------------------------------------------------------------------- */
 
-/* The preview is 1:1 from 600 px; below that it scales and says so. */
-.ts-preview-scaled {
-  display: none;
-}
-
-@media (max-width: 599px) {
-  .ts-preview-scaled {
-    display: inline;
-  }
-}
-
 .editor-actions {
   display: flex;
   flex-wrap: wrap;

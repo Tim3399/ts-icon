@@ -46,7 +46,7 @@ describe("ChannelTreePreview", () => {
     expect(await screen.findByText("General")).toBeInTheDocument();
     expect(screen.getByText("Music")).toBeInTheDocument();
     const musicRow = screen.getByText("Music").closest(".channel-tree-row") as HTMLElement;
-    expect(musicRow.style.paddingLeft).toBe("32px");
+    expect(musicRow.style.paddingLeft).toBe("10px"); // TS6 indent per depth (D-142F-4)
   });
 
   it("shows no state chips: the managed state lives on the Banner URLs screen (F1 item 10)", async () => {

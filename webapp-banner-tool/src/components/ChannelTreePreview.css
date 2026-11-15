@@ -1,27 +1,31 @@
-/* ChannelTreePreview: the TeamSpeak 6 channel tree (T-142 item 17,
-   docs/design/DESIGN.md "Channel tree look"). The rows are ChannelTreeRow
-   (ChannelTreeRow.css); this file lays out the list on a surface darker than
-   the rows. Roles and tokens only (src/design/README.md). */
+/* ChannelTreePreview: the TeamSpeak 6 channel tree (T-142 item 17, T-142-F1
+   addendum 4, docs/design/DESIGN.md "Channel tree look"). The rows are
+   ChannelTreeRow (ChannelTreeRow.css) with the TS6 geometry; this file lays
+   the list out on the client's tree-column colour, in both app themes. The
+   rows carry their own 44 px pitch, so the list has no gap. */
 
 .channel-tree {
   border-radius: var(--radius-card);
-  background-color: var(--color-bg-panel);
   overflow: hidden;
 }
 
+/* Only the rows sit on the client colour; loading, empty and error states
+   stay on the app surface in the app's own label colours. */
 .channel-tree-scroll {
-  max-height: calc(var(--size-hit-target) * 8);
+  border-radius: var(--radius-card);
+  background-color: var(--color-ts-tree-bg);
+  color: var(--color-ts-label);
+  max-height: calc(var(--size-thumb) * 8);
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: var(--color-separator) transparent;
+  scrollbar-color: var(--color-ts-divider) transparent;
 }
 
 .channel-tree-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   margin: var(--space-0);
-  padding: var(--space-2);
+  padding: var(--space-1) var(--space-3);
   list-style: none;
 }
 
@@ -45,6 +49,6 @@
    it, so the tree gets a bounded height of its own. */
 @media (max-width: 1199px) {
   .channel-tree-live .channel-tree-scroll {
-    max-height: calc(var(--size-hit-target) * 8);
+    max-height: calc(var(--size-thumb) * 8);
   }
 }

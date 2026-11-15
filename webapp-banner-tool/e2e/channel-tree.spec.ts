@@ -1,7 +1,8 @@
 // Channel tree (live panel and wallpaper parent picker). Owned by T-142 part (e);
-// covers the row look of item 17 in both uses: pill rows, banner behind the row
-// fading into the row colour, spacer = banner-only pill, group = left bold label
-// over the banner, indented sub-channels, no chevron.
+// covers the row look of item 17 with the TS6 geometry of T-142-F1 addendum 4 in
+// both uses: 30 px pill rows, the banner covering the pill with no fade, spacer =
+// banner-only pill, group = left bold label over the banner, indented
+// sub-channels, no chevron.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { fixtureImages, mockApi, screenshotChannels, type ApiState } from "./fixtures/api";
 import { DESTRUCTIVE_VERBS, SCREEN_ROUTES } from "./fixtures/routes";
@@ -57,12 +58,18 @@ async function expectRowLook(tree: Locator) {
   const channel = pillOf(tree, "Counter-Strike");
   await expect(channel).toHaveAttribute("data-kind", "channel");
   await expect(channel.locator(".channel-tree-icon svg")).toHaveCount(1);
-  await expect(channel.locator(".channel-tree-name")).toHaveCSS("font-weight", "500");
+  await expect(channel.locator(".channel-tree-name")).toHaveCSS("font-weight", "600");
 
-  // A banner fades into the row colour (gradient overlay) and the name sits on top of it.
-  expect(await channel.evaluate((el) => getComputedStyle(el, "::after").backgroundImage)).toContain(
-    "linear-gradient",
+  // TS6 look (D-142F-4): the banner covers the whole pill with no fade, the name sits on top.
+  expect(await channel.evaluate((el) => getComputedStyle(el, "::after").backgroundImage)).toBe(
+    "none",
   );
+  const [channelBox, channelBanner] = await Promise.all([
+    channel.boundingBox(),
+    channel.locator(".channel-tree-banner").boundingBox(),
+  ]);
+  expect(channelBanner!.width).toBeGreaterThanOrEqual(channelBox!.width - 2);
+  expect(Math.abs(channelBox!.height - 30)).toBeLessThanOrEqual(1); // TS6 pill height
   expect(
     await channel
       .locator(".channel-tree-content, .channel-tree-button")

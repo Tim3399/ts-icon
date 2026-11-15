@@ -293,6 +293,9 @@ describe("TeamSpeak preview (T-142-F1 items 14, 15, 17)", () => {
     canvasMock.mockReturnValue(fakeCanvas("exact banner pixels"));
     await load();
     const preview = (await croppedBanner()).getAttribute("src")!;
+    // The 1:1 "Saved image (500 × 44)" line shows the same export.
+    expect(screen.getByText("Saved image (500 × 44)")).toBeInTheDocument();
+    expect(screen.getByAltText(/^Saved image for General/)).toHaveAttribute("src", preview);
     fireEvent.click(screen.getByRole("button", { name: "Crop & send image" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const uploaded = (fetchMock.mock.calls[0][1].body as FormData).get("file") as File;
