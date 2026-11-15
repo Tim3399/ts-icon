@@ -6,16 +6,19 @@ import { useAuth } from "../auth/AuthContext";
 import { apiFetch, apiFetchJson, describeApiError } from "../api/client";
 import {
   Button,
+  ConfirmDialog,
   EmptyState,
   Icon,
+  ListRow,
+  ListSection,
   LoadingState,
   PageHeader,
   RequestError,
-  Section,
   Skeleton,
   Spinner,
   Stack,
-  Grid,
+  StatusGlyph,
+  ToolbarButton,
   useToast,
 } from "../design";
 import SpacerBaseImageManager from "./SpacerBaseImageManager";
@@ -28,6 +31,7 @@ export default function BannerUrlManager() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
+  const [confirming, setConfirming] = useState(false);
   const lock = useRef(false);
   const mounted = useRef(true);
   const request = useRef<AbortController | null>(null);
@@ -67,8 +71,6 @@ export default function BannerUrlManager() {
   const pending = channels.filter((c) => !c.managed);
   const apply = async (cid?: string) => {
     if (lock.current) return;
-    if (!cid && !window.confirm(`Set managed banner URLs for ${pending.length} channel(s)?`))
-      return;
     lock.current = true;
     const controller = new AbortController();
     actionRequest.current = controller;
@@ -120,122 +122,97 @@ export default function BannerUrlManager() {
   };
   const managed = channels.length - pending.length;
   return (
-    <Stack gap={5}>
+    <Stack gap={7}>
       <PageHeader
-        eyebrow="TeamSpeak"
-        icon="link"
         title="Channel banner URLs"
-        lead="Point each channel's TeamSpeak banner at the image this application serves. Until a channel is managed, TeamSpeak keeps showing whatever URL it had before."
-        actions={
-          <Button icon="refresh" onClick={() => void load()} disabled={loading}>
-            Refresh
-          </Button>
+        subtitle="Point each channel's TeamSpeak banner at the image this application serves."
+        toolbar={
+          <ToolbarButton
+            icon="refresh"
+            label="Refresh"
+            onClick={() => void load()}
+            disabled={loading}
+          />
         }
       />
 
-      <Grid gap={3} min="small">
-        <div className="banner-urls-stat">
-          <p className="banner-urls-stat-label">
-            <Icon name="check" size={13} />
-            Managed
-          </p>
-          <p className="banner-urls-stat-value">{loading ? "—" : managed}</p>
-        </div>
-        <div className="banner-urls-stat">
-          <p className="banner-urls-stat-label">
-            <Icon name="alert" size={13} />
-            Not managed
-          </p>
-          <p className="banner-urls-stat-value">{loading ? "—" : pending.length}</p>
-        </div>
-        <div className="banner-urls-stat">
-          <p className="banner-urls-stat-label">
-            <Icon name="tree" size={13} />
-            Channels
-          </p>
-          <p className="banner-urls-stat-value">{loading ? "—" : channels.length}</p>
-        </div>
-      </Grid>
-
-      <Section
-        title="Apply to every channel"
-        icon="sparkles"
-        subtitle="Rewrites the banner URL of each channel that is not managed yet. Existing images are untouched."
-        footer={
-          <Button
-            variant="prominent"
-            icon={busy === "all" ? undefined : "link"}
-            disabled={Boolean(busy) || loading || Boolean(error)}
-            onClick={() => void apply()}
-          >
-            {busy === "all" && <Spinner />}
-            {busy === "all" ? "Applying…" : "Set for all channels"}
-          </Button>
-        }
-      >
-        <p className="banner-urls-hint">
-          {loading
-            ? "Checking which channels already point at this application…"
-            : pending.length === 0
-              ? "Every channel already points at a managed banner URL."
-              : `${pending.length} channel(s) still point somewhere else.`}
-        </p>
-        {result && (
-          <p role="status" className="banner-urls-result">
-            <Icon name="info" size={16} />
-            <span className="banner-urls-result-body">{result}</span>
-          </p>
-        )}
-      </Section>
+      <ListSection header="Apply to all">
+        <ListRow
+          title={
+            loading
+              ? "Checking which channels already point at this application…"
+              : pending.length === 0
+                ? "Every channel already points at a managed banner URL."
+                : `${pending.length} channel(s) still point somewhere else.`
+          }
+          subtitle="Existing images stay as they are."
+          trailing={
+            <Button
+              variant="prominent"
+              icon={busy === "all" ? undefined : "link"}
+              disabled={Boolean(busy) || loading || Boolean(error)}
+              onClick={() => setConfirming(true)}
+            >
+              {busy === "all" && <Spinner />}
+              {busy === "all" ? "Applying…" : "Set for all channels"}
+            </Button>
+          }
+        >
+          {result && (
+            <p role="status" className="banner-urls-result">
+              <Icon name="info" size={16} />
+              <span className="banner-urls-result-body">{result}</span>
+            </p>
+          )}
+        </ListRow>
+      </ListSection>
 
       <SpacerBaseImageManager />
 
       <RequestError message={error} retry={() => void load()} />
 
       {loading && (
-        <Section title="Per channel" icon="tree">
+        <>
           <LoadingState label="Loading channels…" />
-          <Skeleton height={54} radius="control" />
-        </Section>
+          <ListSection header="Per channel">
+            {[0, 1, 2].map((key) => (
+              <ListRow
+                key={key}
+                aria-hidden="true"
+                title={<Skeleton height={14} width="40%" />}
+                subtitle={<Skeleton height={10} width="25%" />}
+              />
+            ))}
+          </ListSection>
+        </>
       )}
 
       {!loading && !error && channels.length === 0 && (
-        <Section title="Per channel" icon="tree">
-          <EmptyState
-            icon="inbox"
-            title="No channels found."
-            description="TeamSpeak reported no channels for this server."
-          />
-        </Section>
+        <EmptyState
+          icon="inbox"
+          title="No channels found."
+          description="TeamSpeak reported no channels for this server."
+        />
       )}
 
       {!loading && channels.length > 0 && (
-        <Section
-          title="Per channel"
-          icon="tree"
-          subtitle="Set a single channel's banner URL without touching the rest."
-        >
-          <ul className="banner-urls-list">
-            {channels.map((channel) => (
-              <li className="banner-urls-row" key={channel.cid}>
-                <div className="banner-urls-row-main">
-                  <p className="banner-urls-row-name" title={channel.name}>
-                    {channel.name}
-                  </p>
-                  <p className="banner-urls-row-meta">
-                    <span
-                      className="banner-urls-status"
-                      data-managed={channel.managed ? "true" : "false"}
-                    >
-                      <Icon name={channel.managed ? "check" : "alert"} size={13} />
-                      {channel.managed ? "Managed" : "Not managed"}
-                    </span>
-                    <span className="banner-urls-row-id">Channel #{channel.cid}</span>
-                  </p>
-                  <p className="banner-urls-row-url">
-                    {channel.bannerGfxUrl || "No banner URL set"}
-                  </p>
-                </div>
+        <ListSection header={`${managed} of ${channels.length} managed`}>
+          {channels.map((channel) => (
+            <ListRow
+              key={channel.cid}
+              title={<span title={channel.name}>{channel.name}</span>}
+              subtitle={
+                <>
+                  <StatusGlyph
+                    tone={channel.managed ? "positive" : "warning"}
+                    label={channel.managed ? "Managed" : "Not managed"}
+                  />
+                  <span>
+                    {" · "}Channel #{channel.cid}
+                  </span>
+                </>
+              }
+              trailing={
                 <Button
                   size="small"
                   disabled={Boolean(busy)}
@@ -243,11 +220,29 @@ export default function BannerUrlManager() {
                 >
                   {busy === channel.cid ? "Setting…" : "Set banner URL"}
                 </Button>
-              </li>
-            ))}
-          </ul>
-        </Section>
+              }
+            >
+              {channel.bannerGfxUrl ? (
+                <p className="banner-urls-row-url">{channel.bannerGfxUrl}</p>
+              ) : (
+                <p className="banner-urls-row-empty">No banner URL set</p>
+              )}
+            </ListRow>
+          ))}
+        </ListSection>
       )}
+
+      <ConfirmDialog
+        open={confirming}
+        title="Set banner URLs?"
+        message={`Set managed banner URLs for ${pending.length} channel(s)?`}
+        confirmLabel="Set URLs"
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => {
+          setConfirming(false);
+          void apply();
+        }}
+      />
     </Stack>
   );
 }
