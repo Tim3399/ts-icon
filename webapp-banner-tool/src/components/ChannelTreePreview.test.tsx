@@ -56,8 +56,8 @@ describe("ChannelTreePreview", () => {
     await screen.findByText("General");
     const generalRow = screen.getByText("General").closest(".channel-tree-row") as HTMLElement;
     const musicRow = screen.getByText("Music").closest(".channel-tree-row") as HTMLElement;
-    expect(generalRow.querySelector(".badge-managed")).not.toBeNull();
-    expect(musicRow.querySelector(".badge-managed")).toBeNull();
+    expect(generalRow.querySelector('[data-badge="managed"]')).not.toBeNull();
+    expect(musicRow.querySelector('[data-badge="managed"]')).toBeNull();
   });
 
   it("is not clickable when selectable is false (the default)", async () => {
@@ -124,7 +124,7 @@ describe("ChannelTreePreview", () => {
       expect.stringContaining("Music"),
     ]);
     expect(rows[1].className).toContain("channel-tree-row-pending");
-    expect(rows[1].querySelector(".badge-pending")).not.toBeNull();
+    expect(rows[1].querySelector('[data-badge="pending"]')).not.toBeNull();
   });
 
   it("inserts overlay rows at the very start for a null (top-level) parent", async () => {
