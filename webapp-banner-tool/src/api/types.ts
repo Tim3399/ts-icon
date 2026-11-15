@@ -10,6 +10,9 @@ export interface Channel {
   depth: number;
   bannerGfxUrl?: string | null;
   managed?: boolean;
+  /** Only with the channel's own stored image: byte size and last change (ISO 8601). */
+  size?: number;
+  updatedAt?: string;
 }
 export interface ChannelList {
   channels: string[];
