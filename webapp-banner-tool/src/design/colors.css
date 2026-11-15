@@ -201,21 +201,9 @@
 
 /* Derived state colours (README, "Derived surfaces"). Hover and pressed
    fills lay the label colour over whatever surface the control sits on, so
-   one token serves every surface in both themes.
-   --color-positive-bg, --color-warning-bg, --color-destructive-bg and
-   --color-accent-bg are deprecated: status and accent never fill a surface
-   (colour budget, T-142-F1 items 1-3); stage-B screens still read them until
-   they are restyled. */
+   one token serves every surface in both themes. */
 
 :root {
   --color-fill-hover: color-mix(in srgb, var(--color-label) 8%, transparent);
   --color-fill-pressed: color-mix(in srgb, var(--color-label) 14%, transparent);
-  --color-positive-bg: color-mix(in srgb, var(--color-positive) 14%, var(--color-bg-elevated));
-  --color-warning-bg: color-mix(in srgb, var(--color-warning) 14%, var(--color-bg-elevated));
-  --color-destructive-bg: color-mix(
-    in srgb,
-    var(--color-destructive) 14%,
-    var(--color-bg-elevated)
-  );
-  --color-accent-bg: color-mix(in srgb, var(--color-accent) 16%, var(--color-bg-elevated));
 }

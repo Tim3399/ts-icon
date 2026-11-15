@@ -197,15 +197,7 @@ export function SidePanel({
 }
 
 /** The app name: small text, no logo tile. */
-export function Brand({
-  name,
-}: {
-  name: string;
-  /** @deprecated Not shown any more. */
-  tagline?: string;
-  /** @deprecated Not shown any more. */
-  logoSrc?: string;
-}) {
+export function Brand({ name }: { name: string }) {
   return (
     <span className="ds-brand">
       <span className="ds-brand-name">{name}</span>

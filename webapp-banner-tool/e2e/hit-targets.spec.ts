@@ -16,8 +16,7 @@ test.beforeEach(async ({ page }) => {
 test("shell controls (sidebar, toolbar, live panel) meet the hit target", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Create a channel banner" })).toBeVisible();
-  // The screen inside <main> is pending its restyle; the shell around it is not.
-  await expectHitTargets(page, { exclude: "#main-content" });
+  await expectHitTargets(page);
   if (await sidebarIsCollapsible(page)) {
     await openSidebarByKeyboard(page);
     await expectHitTargets(page, { within: "#app-sidebar" });

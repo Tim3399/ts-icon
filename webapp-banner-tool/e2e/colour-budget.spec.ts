@@ -4,7 +4,7 @@
 // separately below because it is a global `:focus-visible` rule.
 import { expect, test, type Page } from "@playwright/test";
 import { mockApi } from "./fixtures/api";
-import { ALL_ROUTES, SCREEN_OWNED_SCOPES, pendingReason } from "./fixtures/routes";
+import { ALL_ROUTES } from "./fixtures/routes";
 import { colourBudgetViolations, resolveToken } from "./helpers/colourBudget";
 import { openSidebarByKeyboard, sidebarIsCollapsible } from "./helpers/assertions";
 
@@ -22,7 +22,7 @@ for (const theme of THEMES) {
     test("the shell stays within the colour budget", async ({ page }) => {
       await page.goto("/");
       await expect(page.getByRole("heading", { name: "Create a channel banner" })).toBeVisible();
-      expect(await colourBudgetViolations(page, { exclude: SCREEN_OWNED_SCOPES })).toEqual([]);
+      expect(await colourBudgetViolations(page)).toEqual([]);
     });
 
     test("the open sidebar and the open account menu stay within the colour budget", async ({
@@ -31,17 +31,16 @@ for (const theme of THEMES) {
       await page.goto("/");
       await expect(page.getByRole("heading", { name: "Create a channel banner" })).toBeVisible();
       if (await sidebarIsCollapsible(page)) await openSidebarByKeyboard(page);
-      expect(await colourBudgetViolations(page, { exclude: SCREEN_OWNED_SCOPES })).toEqual([]);
+      expect(await colourBudgetViolations(page)).toEqual([]);
       // The drawer covers the top bar; closing it returns focus to the toggle.
       if (await sidebarIsCollapsible(page)) await page.keyboard.press("Escape");
       await accountMenu(page).click();
       await expect(page.getByRole("menu")).toBeVisible();
-      expect(await colourBudgetViolations(page, { exclude: SCREEN_OWNED_SCOPES })).toEqual([]);
+      expect(await colourBudgetViolations(page)).toEqual([]);
     });
 
     for (const route of ALL_ROUTES) {
       test(`${route.name} stays within the colour budget`, async ({ page }) => {
-        test.fixme(Boolean(pendingReason(route.path)), pendingReason(route.path));
         await page.goto(route.path);
         await expect(page.getByRole("heading", { level: 1, name: route.heading })).toBeVisible();
         expect(await colourBudgetViolations(page)).toEqual([]);
