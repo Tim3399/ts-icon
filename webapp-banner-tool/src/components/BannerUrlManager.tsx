@@ -222,7 +222,11 @@ export default function BannerUrlManager() {
                 </Button>
               }
             >
-              <p className="banner-urls-row-url">{channel.bannerGfxUrl || "No banner URL set"}</p>
+              {channel.bannerGfxUrl ? (
+                <p className="banner-urls-row-url">{channel.bannerGfxUrl}</p>
+              ) : (
+                <p className="banner-urls-row-empty">No banner URL set</p>
+              )}
             </ListRow>
           ))}
         </ListSection>

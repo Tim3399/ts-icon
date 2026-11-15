@@ -10,6 +10,12 @@
   overflow-wrap: anywhere;
 }
 
+.banner-urls-row-empty {
+  color: var(--color-label-secondary);
+  font-size: var(--font-footnote-size);
+  line-height: var(--font-footnote-line);
+}
+
 /* Banner-style inline message: neutral box, no tint (colour budget). */
 .banner-urls-result {
   display: flex;

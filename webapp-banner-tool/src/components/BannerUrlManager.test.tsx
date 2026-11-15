@@ -113,3 +113,19 @@ it("aborts the status reload and skips completion effects after unmount", async 
   expect(showToast).not.toHaveBeenCalled();
   expect(bumpRefresh).not.toHaveBeenCalled();
 });
+
+it("shows a real banner URL in monospace and the missing-URL placeholder as plain text", async () => {
+  apiFetchJsonMock.mockResolvedValue({
+    channels: [
+      { ...channels.channels[0], managed: true, bannerGfxUrl: "https://example.test/42.png" },
+      { ...channels.channels[0], cid: "43", name: "Lobby" },
+    ],
+  });
+  render(<BannerUrlManager />);
+
+  const url = await screen.findByText("https://example.test/42.png");
+  expect(url).toHaveClass("banner-urls-row-url");
+  const placeholder = screen.getByText("No banner URL set");
+  expect(placeholder).not.toHaveClass("banner-urls-row-url");
+  expect(placeholder.closest(".banner-urls-row-url")).toBeNull();
+});
