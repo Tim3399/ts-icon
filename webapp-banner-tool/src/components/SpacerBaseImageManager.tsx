@@ -8,7 +8,7 @@ import {
   describeApiError,
   UPLOAD_TIMEOUT_MS,
 } from "../api/client";
-import { BannerFrame, RequestError, Section, UploadInput, useToast } from "../design";
+import { BannerFrame, Grid, RequestError, Section, UploadInput, useToast } from "../design";
 import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
 import { uploadFieldError } from "../hooks/useFieldErrors";
 import "./SpacerBaseImageManager.css";
@@ -105,22 +105,20 @@ export default function SpacerBaseImageManager({
       icon="layers"
       subtitle="Used for every spacer channel that has no image of its own."
     >
-      <div className="spacer-base">
+      <Grid gap={4} min="large" className="spacer-base">
         <BannerFrame
           src={imageUrl}
           alt="Spacer base"
           placeholder={loading ? "Loading…" : "No spacer base image set"}
         />
-        <div className="spacer-base-upload">
-          <UploadInput
-            id="spacer-base-image-upload"
-            error={fileError}
-            disabled={uploading}
-            label={uploading ? "Uploading…" : undefined}
-            onFile={(file) => void upload(file)}
-          />
-        </div>
-      </div>
+        <UploadInput
+          id="spacer-base-image-upload"
+          error={fileError}
+          disabled={uploading}
+          label={uploading ? "Uploading…" : undefined}
+          onFile={(file) => void upload(file)}
+        />
+      </Grid>
       <RequestError message={error} retry={() => void loadImage()} />
     </Section>
   );

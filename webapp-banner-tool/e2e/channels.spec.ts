@@ -1,7 +1,12 @@
 // Manage channel images (route "/channels"). Owned by T-142 part (b).
 import { expect, test } from "@playwright/test";
 import { mockApi, sourcePng } from "./fixtures/api";
-import { expectNoHorizontalOverflow } from "./helpers/assertions";
+import { DESTRUCTIVE_VERBS } from "./fixtures/routes";
+import {
+  expectHitTargets,
+  expectNoHorizontalOverflow,
+  expectProminentRule,
+} from "./helpers/assertions";
 
 test("gallery keeps equal names distinct by CID and supports native keyboard upload and delete", async ({
   page,
@@ -35,3 +40,22 @@ test("gallery keeps equal names distinct by CID and supports native keyboard upl
   await expect(page.getByText("No channels match these filters.")).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
+
+// T-142 items 8 and 18 on every reachable state of /channels.
+for (const state of ["ready", "empty", "loading", "error"] as const) {
+  test(`channels (${state}) meets the hit target and the prominent rule`, async ({ page }) => {
+    await mockApi(page, { state });
+    await page.goto("/channels");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Manage channel images" }),
+    ).toBeVisible();
+    if (state === "ready") await expect(page.locator(".channel-card")).toHaveCount(2);
+    if (state === "empty")
+      await expect(page.locator("#main-content").getByText("No channels found.")).toBeVisible();
+    if (state === "loading") await expect(page.getByText("Loading…")).toBeVisible();
+    if (state === "error")
+      await expect(page.locator("#main-content").getByRole("alert")).toBeVisible();
+    await expectHitTargets(page);
+    await expectProminentRule(page, [...DESTRUCTIVE_VERBS, "Delete"]);
+  });
+}
