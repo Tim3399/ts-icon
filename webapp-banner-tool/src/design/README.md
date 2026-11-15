@@ -371,6 +371,12 @@ to 0.01 ms, and `base.css` caps any other transition or animation the same way.
 <StudioInspector>…</StudioInspector>
 ```
 
+**Banner editor canvas tools (T-142-F3 item 5).** The editor's `StudioToolbar` holds only tools the
+cropper really supports: **Fit to screen**, **Zoom out**, **Zoom in** and the live **zoom readout**. D2's
+Select, Crop and Pan tools are left out: the crop stage has one interaction (drag the image, move or resize
+the crop frame), so a mode switch would be a control without an effect. Precise framing is done with the
+inspector's X / Y / W / H fields (W and H locked to 500 : 44).
+
 ## Studio building blocks
 
 The editor (D-142G-3) and Channel images (D-142G-4) are built from these. The examples are the markup
