@@ -110,6 +110,10 @@ const PAIRS: Pair[] = [
   ),
   { fg: "--color-focus", bg: "--color-bg-panel", min: NON_TEXT },
   { fg: "--color-separator", bg: "--color-bg-panel", min: NON_TEXT },
+  // TeamSpeak client roles (theme-independent, the TeamSpeak preview)
+  { fg: "--color-ts-label", bg: "--color-ts-row-bg", min: TEXT },
+  { fg: "--color-ts-label", bg: "--color-ts-tree-bg", min: TEXT },
+  { fg: "--color-ts-label-secondary", bg: "--color-ts-row-bg", min: TEXT },
 ];
 
 const key = (p: Pair) => `${p.fg} on ${p.bg} >= ${p.min}`;

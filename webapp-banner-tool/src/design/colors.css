@@ -68,6 +68,18 @@
   --red-light: #d1242f;
 
   --white: #ffffff;
+
+  /* TeamSpeak client roles: theme-independent on purpose (T-142-F1 item 14,
+     the "Preview in TeamSpeak" always shows the TeamSpeak 6 dark client).
+     Declared here and nowhere else, so neither theme block switches them.
+     Used only by the TeamSpeak preview container (README, "TeamSpeak client
+     roles"). */
+  --color-ts-tree-bg: var(--navy-800);
+  --color-ts-row-bg: var(--navy-890);
+  --color-ts-header-bg: var(--navy-840);
+  --color-ts-label: var(--gray-050);
+  --color-ts-label-secondary: var(--gray-250);
+  --color-ts-divider: var(--navy-divider);
 }
 
 /* Colour roles. Each value aliases the raw palette above; the README token
@@ -86,7 +98,7 @@
   --color-separator: var(--gray-light-separator);
   --color-border: var(--gray-light-border);
   --color-divider: color-mix(in srgb, var(--gray-light-border) 70%, transparent);
-  --color-fill-gray: var(--gray-light-sidebar);
+  --color-fill-neutral: var(--gray-light-sidebar);
   --color-link: var(--blue-light-link);
   --color-accent: var(--blue-light-accent);
   --color-accent-fill: var(--blue-fill);
@@ -123,7 +135,7 @@
     --color-separator: var(--gray-550);
     --color-border: var(--navy-border);
     --color-divider: var(--navy-divider);
-    --color-fill-gray: color-mix(in srgb, var(--gray-050) 10%, transparent);
+    --color-fill-neutral: color-mix(in srgb, var(--gray-050) 10%, transparent);
     --color-link: var(--blue-dark-link);
     --color-accent: var(--blue-dark-accent);
     --color-accent-fill: var(--blue-fill);
@@ -160,7 +172,7 @@
   --color-separator: var(--gray-550);
   --color-border: var(--navy-border);
   --color-divider: var(--navy-divider);
-  --color-fill-gray: color-mix(in srgb, var(--gray-050) 10%, transparent);
+  --color-fill-neutral: color-mix(in srgb, var(--gray-050) 10%, transparent);
   --color-link: var(--blue-dark-link);
   --color-accent: var(--blue-dark-accent);
   --color-accent-fill: var(--blue-fill);

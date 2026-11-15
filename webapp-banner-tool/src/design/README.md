@@ -133,7 +133,7 @@ HIG.
 | `--color-separator`           | `#6f798c`             | `#7a859c`             | derived; opaque 3:1 edge of inputs and controls                      |
 | `--color-border`              | `#d1d9e0`             | `#4b5670`             | R-2 border.default / navy-tinted, about 1.9:1 like Primer dark       |
 | `--color-divider`             | `#d1d9e0` at 70 %     | `#3a4358`             | R-2 border.muted / navy-tinted                                       |
-| `--color-fill-gray`           | `#f6f8fa`             | label at 10 %         | R-2 canvas.subtle: the gray button fill                              |
+| `--color-fill-neutral`        | `#f6f8fa`             | label at 10 %         | R-2 canvas.subtle: the gray button fill                              |
 | `--color-link`                | `#0050d6`             | `#5cb0f2`             | mod. `#0458fa` (R-1 2.2) / mod. `#1c82cc` (R-1 2.1)                  |
 | `--color-accent`              | `#1c6fcc`             | `#3d9be0`             | mod. `#1c82cc` (R-1 2.1)                                             |
 | `--color-accent-fill`         | `#0458fa`             | `#0458fa`             | `#0458fa` primary button (R-1 2.2), as sampled                       |
@@ -163,16 +163,16 @@ HIG.
 Every dark base surface takes its value from this list (R-1 2.2, T-142 item 5); the contrast test
 fails otherwise.
 
-| Value     | R-1 2.2 role                              | Used by                                          |
-| --------- | ----------------------------------------- | ------------------------------------------------ |
-| `#131a2c` | window top bar                            | `--color-bg-window`                              |
-| `#1b2334` | left column background                    | `--color-bg-sidebar`                             |
-| `#1b2336` | channel row / sub-channel pill            | `--color-bg-row`, `--color-control-bg`           |
-| `#1d253a` | darker card (server-management panel)     | `--color-checker-a`                              |
-| `#232a3c` | right panel / page background             | `--color-bg-content`                             |
-| `#232b40` | header / spacer pill                      | palette `--navy-840`, for the channel-tree parts |
-| `#253044` | centre column background                  | `--color-bg-panel`                               |
-| `#2b3346` | elevated pill, toolbar card, input, badge | `--color-bg-elevated`, `--color-checker-b`       |
+| Value     | R-1 2.2 role                              | Used by                                    |
+| --------- | ----------------------------------------- | ------------------------------------------ |
+| `#131a2c` | window top bar                            | `--color-bg-window`                        |
+| `#1b2334` | left column background                    | `--color-bg-sidebar`                       |
+| `#1b2336` | channel row / sub-channel pill            | `--color-bg-row`, `--color-control-bg`     |
+| `#1d253a` | darker card (server-management panel)     | `--color-checker-a`                        |
+| `#232a3c` | right panel / page background             | `--color-bg-content`                       |
+| `#232b40` | header / spacer pill                      | `--color-ts-header-bg`                     |
+| `#253044` | centre column background                  | `--color-bg-panel`                         |
+| `#2b3346` | elevated pill, toolbar card, input, badge | `--color-bg-elevated`, `--color-checker-b` |
 
 ### Derived surfaces
 
@@ -185,6 +185,22 @@ Hover, pressed, selected and status surfaces are derived, never sampled:
   marker, not a blue surface, shows the selection.
 - `--color-positive-bg`, `--color-warning-bg`, `--color-destructive-bg` and `--color-accent-bg` are
   **deprecated**: status and accent never fill a surface. Only stage-B screens still read them.
+
+### TeamSpeak client roles (theme-independent)
+
+The "Preview in TeamSpeak" in the Banner editor always shows the TeamSpeak 6 dark client, whatever the
+app theme (T-142-F1 item 14). These roles are declared once in the raw `:root` block of `colors.css`
+and in neither theme block, so they never switch. Only the TeamSpeak preview container uses them; it
+maps them onto the channel-tree row's local properties. The live channel tree keeps the themed roles.
+
+| Token                        | Value (both themes) | Source (R-1 2.2)                |
+| ---------------------------- | ------------------- | ------------------------------- |
+| `--color-ts-tree-bg`         | `#253044`           | centre column with channel tree |
+| `--color-ts-row-bg`          | `#1b2336`           | channel row pill                |
+| `--color-ts-header-bg`       | `#232b40`           | header / spacer pill            |
+| `--color-ts-label`           | `#f2f5fa`           | dark label                      |
+| `--color-ts-label-secondary` | `#b4bdcc`           | dark secondary label (icons)    |
+| `--color-ts-divider`         | `#3a4358`           | dark divider                    |
 
 ## Contrast pairs
 
@@ -252,6 +268,9 @@ against the background it is drawn on. Translucent tokens are composited on the 
 | `--color-separator`           | `--color-control-bg`       | 3       | non-text UI                          |
 | `--color-focus`               | `--color-bg-panel`         | 3       | non-text UI                          |
 | `--color-separator`           | `--color-bg-panel`         | 3       | non-text UI                          |
+| `--color-ts-label`            | `--color-ts-row-bg`        | 4.5     | TeamSpeak preview text               |
+| `--color-ts-label`            | `--color-ts-tree-bg`       | 4.5     | TeamSpeak preview text               |
+| `--color-ts-label-secondary`  | `--color-ts-row-bg`        | 4.5     | TeamSpeak preview icons              |
 
 <!-- contrast-pairs:end -->
 
