@@ -25,14 +25,14 @@ once from `main.tsx`. Design components import their own colocated stylesheet.
 src (app, screens) -> patterns -> components -> primitives -> foundations
 ```
 
-| Layer       | Where                                                                                                           | Contents                                                                                                                                                                                                                                                                                                        |
-| ----------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Foundations | design root: `colors.css`, `tokens.css`, `typography.css`, `metrics.css`, `motion.css`, `base.css`, `index.css` | raw palette and colour roles, geometry, iOS type scale, the one viewport media query (macOS metrics), motion, document defaults                                                                                                                                                                                 |
-| Primitives  | `primitives/`                                                                                                   | `Icon`, `Button`, `LinkButton`, `TextField`, `TextArea`, `Select`, `Checkbox`, `Stack`, `Cluster`, `Grid`                                                                                                                                                                                                       |
-| Components  | `components/`                                                                                                   | `Toolbar`, `ToolbarButton`, `PageHeader`, `ListSection`, `ListRow`, `FileButton`, `MenuButton`, `ConfirmDialog`, `StatusGlyph`, `TextLink`, `FieldError`, `RequestError`, `ToastProvider`/`useToast`, `UploadInput`, `EmptyState`, `LoadingState`, `Spinner`, `Skeleton`, `BannerFrame`, `Section` (deprecated) |
-| Patterns    | `patterns/`                                                                                                     | `AppShell`, `SidebarLink`, `SidePanel`, `Brand`, `Notice`, `Splash`, `AccessDenied`                                                                                                                                                                                                                             |
-| Internal    | `internal/`                                                                                                     | not exported (`fieldDescription`)                                                                                                                                                                                                                                                                               |
-| Tests       | `testing/`                                                                                                      | contrast, typography and layout contract tests                                                                                                                                                                                                                                                                  |
+| Layer       | Where                                                                                                           | Contents                                                                                                                                                                                                                                                                                |
+| ----------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Foundations | design root: `colors.css`, `tokens.css`, `typography.css`, `metrics.css`, `motion.css`, `base.css`, `index.css` | raw palette and colour roles, geometry, iOS type scale, the one viewport media query (macOS metrics), motion, document defaults                                                                                                                                                         |
+| Primitives  | `primitives/`                                                                                                   | `Icon`, `Button`, `LinkButton`, `TextField`, `TextArea`, `Select`, `Checkbox`, `Stack`, `Cluster`, `Grid`                                                                                                                                                                               |
+| Components  | `components/`                                                                                                   | `Toolbar`, `ToolbarButton`, `PageHeader`, `ListSection`, `ListRow`, `FileButton`, `MenuButton`, `ConfirmDialog`, `StatusGlyph`, `TextLink`, `FieldError`, `RequestError`, `ToastProvider`/`useToast`, `UploadInput`, `EmptyState`, `LoadingState`, `Spinner`, `Skeleton`, `BannerFrame` |
+| Patterns    | `patterns/`                                                                                                     | `AppShell`, `SidebarLink`, `SidePanel`, `Brand`, `Notice`, `Splash`, `AccessDenied`                                                                                                                                                                                                     |
+| Internal    | `internal/`                                                                                                     | not exported (`fieldDescription`)                                                                                                                                                                                                                                                       |
+| Tests       | `testing/`                                                                                                      | contrast, typography and layout contract tests                                                                                                                                                                                                                                          |
 
 A layer imports only from the layers to its right. Design code imports no product module, with two
 named exceptions: `UploadInput` reads the pure file check `api/image-file`, and `AccessDenied` reads
@@ -109,11 +109,7 @@ same way against `data-destructive`, dialogs and the 16 px limit. `e2e/structure
 structure rules (no `box-shadow` except on menus, dialogs and toasts; button borders; at most one
 dashed drop zone per view).
 
-Both specs list their routes from `e2e/fixtures/routes.ts`: Banner URLs, Wallpaper, Access denied and
-Not found are in `STAGE_B_ROUTES` (`enabled in stage B`), the Banner editor and Manage channel images in
-`STAGE_A_SCREEN_ROUTES` (`enabled by D-142F-2/3`); their tests are `test.fixme` until the route leaves
-the list. `TS_ICON_CHECK_PENDING=1` runs them anyway. The shell (sidebar, top bar, account menu) is
-checked now; the live tree is a screen-owned scope (`SCREEN_OWNED_SCOPES`).
+Both specs run on every route listed in `e2e/fixtures/routes.ts`, the shell included.
 
 ## Colour roles
 
@@ -183,8 +179,6 @@ Hover, pressed, selected and status surfaces are derived, never sampled:
   surface in both themes.
 - `--color-selected-bg` is a neutral step (Primer neutral.muted, or the elevated navy); the accent
   marker, not a blue surface, shows the selection.
-- `--color-positive-bg`, `--color-warning-bg`, `--color-destructive-bg` and `--color-accent-bg` are
-  **deprecated**: status and accent never fill a surface. Only stage-B screens still read them.
 
 ### TeamSpeak client roles (theme-independent)
 
@@ -294,7 +288,7 @@ against the background it is drawn on. Translucent tokens are composited on the 
 
 The values marked "from 1024 px" are set by the one media query of the foundations, in `metrics.css`
 (addendum 1, D-6). 1 px borders replace shadows; `--shadow-overlay` is for menus, dialogs and toasts
-only and `--shadow-raised` is deprecated (`none`).
+only.
 
 ## App shell layout
 
@@ -351,16 +345,14 @@ Only the HIG styles exist (T-142-F1 item 8). `Button` and `LinkButton` render `d
 `destructive` adds red text and glyph to `gray` or `plain` (`data-destructive`, never a fill). Every
 button has `border-width: 0`, except `gray` with a 1 px border in `--color-border` (Primer default
 button, addendum 1); the structure spec checks exactly that. Both sizes keep the viewport hit target.
-`iconOnly` requires an `aria-label` by type. `variant="bordered"` and `variant="destructive"` are
-**deprecated** aliases (gray; plain + destructive) for the stage-B screens and go away in stage B.
+`iconOnly` requires an `aria-label` by type. Use `destructive` with `gray` or `plain` for a destructive action.
 
 ## Patterns
 
 Every screen is built from these. The examples are the markup a screen writes.
 
 **`PageHeader`**: one per view. The Large Title, an optional one-line subtitle in secondary label and
-a trailing toolbar slot for page-level actions. `eyebrow`, `icon`, `lead` and `actions` are deprecated
-(`eyebrow` renders nothing).
+a trailing toolbar slot for page-level actions.
 
 ```tsx
 <PageHeader

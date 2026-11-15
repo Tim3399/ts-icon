@@ -20,7 +20,6 @@ export { ToastProvider } from "./components/Toast";
 export { useToast, type ToastVariant } from "./components/ToastContext";
 export * from "./components/UploadInput";
 export * from "./components/States";
-export * from "./components/Section";
 export * from "./components/PageHeader";
 export * from "./components/BannerFrame";
 export * from "./components/Toolbar";

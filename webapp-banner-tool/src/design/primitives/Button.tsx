@@ -11,17 +11,12 @@ import "./Button.css";
 /**
  * HIG button styles (T-142-F1 item 8): prominent (accent fill), gray (neutral
  * fill) and plain (borderless text). Toolbar icons use ToolbarButton.
- * `"bordered"` and `"destructive"` are deprecated aliases for stage-B screens.
  */
-export type ButtonVariant = "prominent" | "gray" | "plain" | "bordered" | "destructive";
+export type ButtonVariant = "prominent" | "gray" | "plain";
 export type ButtonSize = "regular" | "small";
 
 interface ButtonLook {
-  /**
-   * At most one prominent button per view. `"bordered"` is a deprecated alias
-   * of `"gray"`; `"destructive"` is a deprecated alias of
-   * `variant="plain" destructive`. Both aliases go away in stage B.
-   */
+  /** At most one prominent button per view. */
   variant?: ButtonVariant;
   /** Red text and glyph (never a red fill); only with `gray` or `plain`. */
   destructive?: boolean;
@@ -46,10 +41,8 @@ export type LinkButtonProps = LinkProps &
 type Resolved = { variant: "prominent" | "gray" | "plain"; destructive: boolean };
 
 function resolve(variant: ButtonVariant, destructive: boolean | undefined): Resolved {
-  if (variant === "destructive") return { variant: "plain", destructive: true };
-  const base = variant === "bordered" ? "gray" : variant;
   // A red fill exists only inside ConfirmDialog; prominent is never destructive.
-  return { variant: base, destructive: Boolean(destructive) && base !== "prominent" };
+  return { variant, destructive: Boolean(destructive) && variant !== "prominent" };
 }
 
 function classes(

@@ -60,8 +60,7 @@
   --size-grid-large: 320px;
 
   /* Elevation: only popovers, menus, toasts and dialogs cast a shadow
-     (T-142-F1 item 6). --shadow-raised is deprecated and renders nothing. */
-  --shadow-raised: none;
+     (T-142-F1 item 6). */
   --shadow-overlay: 0 8px 28px var(--color-shadow);
   --shadow-focus-ring: 0 0 0 var(--size-focus-ring) var(--color-focus);
 

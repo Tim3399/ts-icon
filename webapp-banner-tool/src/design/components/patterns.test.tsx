@@ -20,8 +20,6 @@ describe("Button", () => {
         <Button variant="plain" destructive>
           Remove
         </Button>
-        <Button variant="destructive">Old remove</Button>
-        <Button variant="bordered">Old gray</Button>
       </MemoryRouter>,
     );
     expect(screen.getByText("Gray")).toHaveAttribute("data-variant", "gray");
@@ -30,9 +28,6 @@ describe("Button", () => {
     expect(screen.getByText("Link")).toHaveAttribute("data-accent", "link");
     expect(screen.getByText("Remove")).toHaveAttribute("data-destructive");
     expect(screen.getByText("Remove")).not.toHaveAttribute("data-accent");
-    expect(screen.getByText("Old remove")).toHaveAttribute("data-variant", "plain");
-    expect(screen.getByText("Old remove")).toHaveAttribute("data-destructive");
-    expect(screen.getByText("Old gray")).toHaveAttribute("data-variant", "gray");
   });
 });
 
@@ -45,18 +40,16 @@ describe("ToolbarButton", () => {
 });
 
 describe("PageHeader", () => {
-  it("renders the title, the subtitle and the toolbar and no eyebrow", () => {
+  it("renders the title, the subtitle and the toolbar", () => {
     render(
       <PageHeader
         title="Channels"
         subtitle="One sentence."
-        eyebrow="HIDDEN"
         toolbar={<ToolbarButton icon="refresh" label="Refresh" />}
       />,
     );
     expect(screen.getByRole("heading", { level: 1, name: "Channels" })).toBeVisible();
     expect(screen.getByText("One sentence.")).toBeVisible();
-    expect(screen.queryByText("HIDDEN")).toBeNull();
     expect(screen.getByRole("button", { name: "Refresh" })).toBeVisible();
   });
 });
