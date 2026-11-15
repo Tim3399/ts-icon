@@ -181,10 +181,10 @@ export default function BannerCropper() {
         aspectRatio: TARGET_WIDTH / TARGET_HEIGHT,
         viewMode: 1,
         autoCropArea: 1,
-        // One interaction on the stage: drag moves the image under the
-        // fixed-ratio frame, the wheel zooms. Mode tools would be no-ops.
+        // Drag moves the image under the frame, the wheel zooms, the handles
+        // resize the frame at the locked ratio. Mode tools would be no-ops.
         dragMode: "move",
-        cropBoxResizable: false,
+        cropBoxResizable: true,
         responsive: true,
         // No dashed guide lines: the page keeps one dashed element, the drop zone.
         guides: false,

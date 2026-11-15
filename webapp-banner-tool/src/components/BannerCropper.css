@@ -17,7 +17,9 @@
 .artboard {
   display: block;
   width: 100%;
+  max-width: calc(var(--size-grid-large) * 2);
   min-width: 0;
+  margin: 0 auto;
   overflow: hidden;
 }
 
@@ -34,7 +36,7 @@
 .preview-box {
   position: relative;
   width: 100%;
-  height: calc(var(--size-thumb) * 8);
+  height: calc(var(--size-thumb) * 6);
 }
 
 .preview-box > img {
@@ -52,6 +54,11 @@
 
 /* Cropper.js paints its own chrome: the frame and handles in the crop role,
    the shade outside the crop from its modal. */
+/* The image sits on the canvas dot grid, not on the cropper's own checkerboard. */
+.preview-box .cropper-bg {
+  background-image: none;
+}
+
 .preview-box .cropper-view-box {
   outline-color: var(--color-crop);
 }
