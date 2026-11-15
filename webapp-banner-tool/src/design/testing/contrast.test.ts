@@ -10,7 +10,7 @@ type Pair = { fg: string; bg: string; min: number };
 
 // Vitest runs from webapp-banner-tool/ (jsdom has no file: import.meta.url).
 const read = (name: string) => readFileSync(join(process.cwd(), "src/design", name), "utf8");
-const colors = read("colors.css");
+const colors = read("foundations/colors.css");
 const readme = read("README.md");
 
 function declarations(block: string): Record<string, string> {
@@ -28,7 +28,7 @@ function block(source: string, selector: RegExp): string {
   return body;
 }
 
-// The raw palette is the first plain `:root {` block of colors.css.
+// The raw palette is the first plain `:root {` block of foundations/colors.css.
 const raw = declarations(block(colors, /:root\s*\{([^}]*)\}/));
 const light = declarations(block(colors, /:root,\s*:root\[data-theme="light"\]\s*\{([^}]*)\}/));
 const darkExplicit = declarations(block(colors, /\n:root\[data-theme="dark"\]\s*\{([^}]*)\}/));
@@ -101,7 +101,6 @@ const PAIRS: Pair[] = [
   ),
   { fg: "--color-on-accent-fill", bg: "--color-accent-fill", min: TEXT },
   { fg: "--color-on-destructive-fill", bg: "--color-destructive-fill", min: TEXT },
-  { fg: "--color-label", bg: "--color-selected-bg", min: TEXT },
   ...["--color-positive", "--color-warning", "--color-destructive"].flatMap((fg) =>
     ["--color-bg-content", "--color-bg-elevated"].map((bg) => ({ fg, bg, min: TEXT })),
   ),
@@ -110,6 +109,13 @@ const PAIRS: Pair[] = [
   ),
   { fg: "--color-focus", bg: "--color-bg-panel", min: NON_TEXT },
   { fg: "--color-separator", bg: "--color-bg-panel", min: NON_TEXT },
+  // D2 Studio surfaces: hover and selected rows, the canvas, the crop label
+  ...["--color-label", "--color-label-secondary"].flatMap((fg) =>
+    ["--color-hover-bg", "--color-selected-bg"].map((bg) => ({ fg, bg, min: TEXT })),
+  ),
+  { fg: "--color-canvas-label", bg: "--color-bg-canvas", min: TEXT },
+  { fg: "--color-on-crop-label", bg: "--color-crop-label-bg", min: TEXT },
+  { fg: "--color-focus", bg: "--color-bg-canvas", min: NON_TEXT },
   // TeamSpeak client roles (theme-independent, the TeamSpeak preview)
   { fg: "--color-ts-label", bg: "--color-ts-row-bg", min: TEXT },
   { fg: "--color-ts-label", bg: "--color-ts-tree-bg", min: TEXT },
@@ -137,18 +143,10 @@ describe("colour roles", () => {
     expect(readmePairs().map(key).sort()).toEqual(PAIRS.map(key).sort());
   });
 
-  // T-142 item 5: dark base surfaces come from the sampled TeamSpeak list.
-  it("takes every dark base surface from the allowed TeamSpeak values", () => {
-    const allowed = [
-      "#131a2c",
-      "#1b2334",
-      "#1b2336",
-      "#1d253a",
-      "#232a3c",
-      "#232b40",
-      "#253044",
-      "#2b3346",
-    ];
+  // T-142-F3 R3 (replaces T-142 item 5): dark base surfaces come from D2's
+  // dark variant; the TeamSpeak navy stays in the --color-ts-* roles.
+  it("takes every dark base surface from the D2 dark variant", () => {
+    const allowed = ["#12161e", "#161b24", "#1a1f29", "#1e2430", "#232a36", "#2a313e"];
     for (const token of [
       "--color-bg-window",
       "--color-bg-sidebar",

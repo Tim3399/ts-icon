@@ -1,18 +1,21 @@
 # ts-icon design system
 
 This folder is the binding source of the admin UI's visual language, its building blocks and their
-quality contract. Product decisions (sources and their order, the HIG/TeamSpeak conflicts, the screen
-table) are in [`docs/design/DESIGN.md`](../../../docs/design/DESIGN.md) and are not repeated here.
-The structure follows quiltor's `packages/client/src/design` (layers, one barrel, a written contract);
-its colours, fonts and palettes are not used.
+quality contract. Since T-142-F3 the look is concept **D2 "Studio Light"** (D-15): a light-first Studio
+workspace with a derived dark theme. The binding visual reference is
+`ts-icon-kb/implementer/T-142-concepts-D/D2/` (`editor.html`, `channels.html`, `concept.css`). Product
+decisions (sources and their order, the override table of R3, the screen table) are in
+[`docs/design/DESIGN.md`](../../../docs/design/DESIGN.md) and are not repeated here. The structure
+follows quiltor's `packages/client/src/design` (layers, one barrel, a written contract); its colours,
+fonts and palettes are not used.
 
 ## Public entry
 
 App code imports from the barrel only:
 
 ```tsx
-import { Button, PageHeader, ListSection, ListRow, useToast } from "../design"; // from src/components/*
-import { AppShell, MenuButton } from "./design"; // from src/*
+import { Panel, PropertyRow, NumberField, DataTable } from "../design"; // from src/components/*
+import { StudioShell, ModeSwitcher, ModeLink, MenuButton } from "./design"; // from src/*
 ```
 
 `eslint.config.js` forbids deep imports (`**/design/*`) from outside this folder
@@ -25,14 +28,14 @@ once from `main.tsx`. Design components import their own colocated stylesheet.
 src (app, screens) -> patterns -> components -> primitives -> foundations
 ```
 
-| Layer       | Where                                                                                                           | Contents                                                                                                                                                                                                                                                                                |
-| ----------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Foundations | design root: `colors.css`, `tokens.css`, `typography.css`, `metrics.css`, `motion.css`, `base.css`, `index.css` | raw palette and colour roles, geometry, iOS type scale, the one viewport media query (macOS metrics), motion, document defaults                                                                                                                                                         |
-| Primitives  | `primitives/`                                                                                                   | `Icon`, `Button`, `LinkButton`, `TextField`, `TextArea`, `Select`, `Checkbox`, `Stack`, `Cluster`, `Grid`                                                                                                                                                                               |
-| Components  | `components/`                                                                                                   | `Toolbar`, `ToolbarButton`, `PageHeader`, `ListSection`, `ListRow`, `FileButton`, `MenuButton`, `ConfirmDialog`, `StatusGlyph`, `TextLink`, `FieldError`, `RequestError`, `ToastProvider`/`useToast`, `UploadInput`, `EmptyState`, `LoadingState`, `Spinner`, `Skeleton`, `BannerFrame` |
-| Patterns    | `patterns/`                                                                                                     | `AppShell`, `SidebarLink`, `SidePanel`, `Brand`, `Notice`, `Splash`, `AccessDenied`                                                                                                                                                                                                     |
-| Internal    | `internal/`                                                                                                     | not exported (`fieldDescription`)                                                                                                                                                                                                                                                       |
-| Tests       | `testing/`                                                                                                      | contrast, typography and layout contract tests                                                                                                                                                                                                                                          |
+| Layer       | Where          | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Foundations | `foundations/` | `colors.css` (raw palette and colour roles), `tokens.css` (geometry), `typography.css` (D2 type scale, phone values), `metrics.css` (the one viewport media query: D2 desktop values), `motion.css`, `base.css`; `index.css` at the design root imports them                                                                                                                                                                                                                                                        |
+| Primitives  | `primitives/`  | `Icon`, `Button`, `LinkButton`, `TextField`, `TextArea`, `Select`, `Checkbox`, `Stack`, `Cluster`, `Grid`                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Components  | `components/`  | Studio building blocks (`Panel`, `InspectorSection`, `PropertyRow`, `NumberField`, `SegmentedControl`, `FilterBar`, `DataTable`, `Canvas`, `Dock`, `StateTile`, `StudioPage`), `Toolbar`, `ToolbarButton`, `FileButton`, `MenuButton`, `ConfirmDialog`, `UploadInput`, `StatusGlyph`, `TextLink`, `FieldError`, `RequestError`, `ToastProvider`/`useToast`, `EmptyState`, `LoadingState`, `Spinner`, `Skeleton`, `BannerFrame`; kept for the screens until they are rebuilt: `PageHeader`, `ListSection`, `ListRow` |
+| Patterns    | `patterns/`    | `StudioShell`, `StudioToolbar`, `StudioLayers`, `StudioInspector`, `ModeSwitcher`, `ModeLink`, `StudioMark`, `useStudioLayout`, `Notice`, `Splash`, `AccessDenied`                                                                                                                                                                                                                                                                                                                                                  |
+| Internal    | `internal/`    | not exported (`fieldDescription`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Tests       | `testing/`     | contrast, typography and layout contract tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 A layer imports only from the layers to its right. Design code imports no product module, with two
 named exceptions: `UploadInput` reads the pure file check `api/image-file`, and `AccessDenied` reads
@@ -53,12 +56,12 @@ These hold for the primitive, component and pattern stylesheets here and for eve
 - **Colours** only as `var(--color-<role>)`. No hex, `rgb()`, `hsl()`, `oklch()`, `color-mix()` or
   named colour (`white`, `black`, …). `transparent` and `currentColor` are keywords, not colours.
 - **Spacing** (`padding`, `margin`, `gap`, `inset`, `top`/`left`/`right`/`bottom`) only from
-  `--space-<n>`; layout with `Stack`, `Cluster` and `Grid` where possible.
-- **Radius, shadow, font size, weight, line height and durations** only through their tokens. A line
-  whose numbers all sit inside `var(...)` is allowed.
-- **Token names describe roles.** The raw palette at the top of `colors.css` is the one place with
-  hue names (`--navy-*`, `--gray-*`, `--blue-*`, `--green-*`, `--orange-*`, `--red-*`); only the role
-  blocks in the same file read them.
+  `--space-<n>`.
+- **Radius, shadow, font size, weight, line height, sizes and durations** only through their tokens. A
+  line whose numbers all sit inside `var(...)` is allowed.
+- **Token names describe roles.** The raw palette at the top of `foundations/colors.css` is the one place
+  with hue names (`--gray-*`, `--slate-*`, `--blue-*`, `--green-*`, `--orange-*`, `--red-*`); only the
+  role blocks in the same file read them.
 - **Building blocks only.** App code renders `button`, `input`, `select` and `textarea` through the
   components here. The file inputs inside `UploadInput` and `FileButton` are the only native controls
   a component renders for the app.
@@ -86,367 +89,417 @@ separate decision).
 
 ## Colour budget
 
-Colour marks highlights only (T-142-F1 items 1-3). Everything else is neutral: label, secondary
-label, borders and surfaces.
+Colour marks highlights only (T-142-F1 items 1-3, kept by F3 item 2). Everything else is neutral:
+label, secondary label, borders and surfaces.
 
-1. **Accent** (the TeamSpeak blue) is used for five things: the fill of at most one prominent button
-   per view (`primary`), the selected sidebar row (`selection`), the focus ring (`focus`), links and
-   plain text buttons (`link`) and the crop selection frame (`crop`). Every element that renders an
-   accent token carries `data-accent="primary|selection|focus|link|crop"` on itself or an ancestor.
-   `Button`, `LinkButton`, `TextLink` and `SidebarLink` set it; a screen marks its crop frame itself.
+1. **Accent** (D2's softer TeamSpeak blue) is used for five things: the fill of at most one prominent
+   button per view (`primary`), the current mode and selected rows (`selection`), the focus ring
+   (`focus`), links and plain text buttons (`link`) and the crop frame (`crop`). Every element that
+   renders an accent token carries `data-accent="primary|selection|focus|link|crop"` on itself or an
+   ancestor. `Button`, `LinkButton`, `TextLink` and `ModeLink` set it; a screen marks its crop frame
+   itself. D2 draws the "ts-icon Studio" mark glyph in the accent; here it is neutral, so the accent
+   keeps to these five uses.
 2. **Destructive red** is text or a glyph on a destructive action (`data-destructive`) or on an error
    message (`role="alert"`). The only red fill is the confirm button of a destructive `ConfirmDialog`.
-3. **Status colours** (positive, warning) are a glyph of at most 16 px next to a text label
-   (`StatusGlyph`). They are never a chip, a pill or a background.
+3. **Status colours** (positive, warning) are a glyph of at most 16 px next to a text label (D2's 7 px
+   dot, `StatusGlyph`). They are never a chip, a pill or a background.
 
 `e2e/colour-budget.spec.ts` enforces this in both themes and all four projects. It walks every visible
 element and compares computed `color`, `background-color`, `border-*-color` and SVG `fill`/`stroke`
 with the resolved accent, accent-fill and link tokens (found by painting a probe element with each
 token); a match without `data-accent` on the element or an ancestor fails. The focus ring is a global
 `:focus-visible` rule in `base.css`, so the walk ignores `outline-color` and a separate test tabs to a
-control and asserts a `2px solid` outline in the focus token. Red and status colours are checked the
-same way against `data-destructive`, dialogs and the 16 px limit. `e2e/structure.spec.ts` checks the
-structure rules (no `box-shadow` except on menus, dialogs and toasts; button borders; at most one
-dashed drop zone per view).
-
-Both specs run on every route listed in `e2e/fixtures/routes.ts`, the shell included.
+control and asserts a `2px solid` outline in the focus token. `e2e/structure.spec.ts` checks the
+structure rules: no `box-shadow` except on menus, dialogs, toasts and the open layer drawer; button
+borders only as a 1 px edge in `--color-border` or `--color-border-strong` (D2's `--line-strong`);
+at most one dashed drop target per view (D2's dashed style, R3).
 
 ## Colour roles
 
-Values are `light / dark`. Sources: **R-1 2.2** = TeamSpeak 6 client, sampled from the official
-screenshots (estimates); **R-1 2.1** = teamspeak.com stylesheet; **R-2** = GitHub Primer
-(primer/primitives @47736486: light neutrals, borders and status colours, T-142-F1 addendum 2);
-**mod.** = same hue, lightness moved until the contrast test passes (HIG wins over colour fidelity,
-D-3); **derived** = from the dark navy hue; **inferred** = R-2 marks the value as inferred, chosen by
-HIG.
+Values are `light / dark`, all from D2's `concept.css` (light block and derived dark block) unless
+marked **derived** (a step of a D2 value: pressed fills, the dark red fill, the 3:1 control edge). The
+earlier role names stay, so the screens that are rebuilt later keep working.
 
-| Token                         | Light                 | Dark                  | Source (light / dark)                                                |
-| ----------------------------- | --------------------- | --------------------- | -------------------------------------------------------------------- |
-| `--color-label`               | `#1f2328`             | `#f2f5fa`             | R-2 fg.default / derived, close to Primer dark `#f0f6fc`             |
-| `--color-label-secondary`     | `#59636e`             | `#b4bdcc`             | R-2 fg.muted / derived, brighter than Primer dark `#9198a1`          |
-| `--color-label-tertiary`      | `#59636e`             | `#a1abbd`             | = secondary label (light) / derived                                  |
-| `--color-placeholder`         | `#59636e`             | `#a1abbd`             | = tertiary label                                                     |
-| `--color-separator`           | `#6f798c`             | `#7a859c`             | derived; opaque 3:1 edge of inputs and controls                      |
-| `--color-border`              | `#d1d9e0`             | `#4b5670`             | R-2 border.default / navy-tinted, about 1.9:1 like Primer dark       |
-| `--color-divider`             | `#d1d9e0` at 70 %     | `#3a4358`             | R-2 border.muted / navy-tinted                                       |
-| `--color-fill-neutral`        | `#f6f8fa`             | label at 10 %         | R-2 canvas.subtle: the gray button fill                              |
-| `--color-link`                | `#0050d6`             | `#5cb0f2`             | mod. `#0458fa` (R-1 2.2) / mod. `#1c82cc` (R-1 2.1)                  |
-| `--color-accent`              | `#1c6fcc`             | `#3d9be0`             | mod. `#1c82cc` (R-1 2.1)                                             |
-| `--color-accent-fill`         | `#0458fa`             | `#0458fa`             | `#0458fa` primary button (R-1 2.2), as sampled                       |
-| `--color-accent-fill-hover`   | `#1a68ff`             | `#1a68ff`             | mod. `#0458fa`                                                       |
-| `--color-accent-fill-pressed` | `#0349d4`             | `#0349d4`             | mod. `#0458fa`                                                       |
-| `--color-on-accent-fill`      | `#ffffff`             | `#ffffff`             | white text, R-1 2.1 `--text-primary`                                 |
-| `--color-control-bg`          | `#ffffff`             | `#1b2336`             | R-2 canvas / channel row pill (R-1 2.2)                              |
-| `--color-selected-bg`         | `#eaeef2`             | `#2b3346`             | R-2 neutral.muted / elevated pill (R-1 2.2); marked by accent        |
-| `--color-focus`               | `#0458fa`             | `#5cb0f2`             | = accent fill / = link                                               |
-| `--color-bg-window`           | `#ffffff`             | `#131a2c`             | R-2 canvas.default / window top bar (R-1 2.2)                        |
-| `--color-bg-sidebar`          | `#f6f8fa`             | `#1b2334`             | R-2 canvas.subtle / left column (R-1 2.2)                            |
-| `--color-bg-content`          | `#ffffff`             | `#232a3c`             | R-2 canvas.default / right panel, page background (R-1 2.2)          |
-| `--color-bg-elevated`         | `#ffffff`             | `#2b3346`             | R-2 canvas / elevated pill, toolbar card, input (R-1 2.2)            |
-| `--color-bg-panel`            | `#f6f8fa`             | `#253044`             | R-2 canvas.subtle / centre column (R-1 2.2)                          |
-| `--color-bg-row`              | `#ffffff`             | `#1b2336`             | R-2 canvas / channel row pill (R-1 2.2)                              |
-| `--color-positive`            | `#1a7f37`             | `#3fb950`             | R-2 success                                                          |
-| `--color-warning`             | `#9a6700`             | `#d29922`             | R-2 attention                                                        |
-| `--color-destructive`         | `#d1242f`             | `#ff6b66`             | R-2 danger / mod. `#f85149`, lighter for 4.5:1 on navy               |
-| `--color-destructive-fill`    | `#d1242f`             | `#c62f3a`             | R-2 danger / inferred (Primer `#da3633` is too light for white text) |
-| `--color-on-destructive-fill` | `#ffffff`             | `#ffffff`             | white                                                                |
-| `--color-checker-a` / `-b`    | `#ffffff` / `#d1d9e0` | `#1d253a` / `#2b3346` | R-2 canvas, border / darker card, elevated (R-1 2.2)                 |
-| `--color-shadow`              | `rgb(31 35 40 / 16%)` | `rgb(0 0 0 / 40%)`    | menus, dialogs and toasts only                                       |
-| `--color-scrim`               | `rgb(31 35 40 / 40%)` | `rgb(0 0 0 / 55%)`    | backdrop behind the sidebar drawer and dialogs                       |
+| Token                         | Light                 | Dark                  | D2 source                                    |
+| ----------------------------- | --------------------- | --------------------- | -------------------------------------------- |
+| `--color-label`               | `#1d2330`             | `#e7eaf0`             | `--text`                                     |
+| `--color-label-secondary`     | `#535d6e`             | `#a7b0c0`             | `--text-2`                                   |
+| `--color-label-tertiary`      | `#5f6878`             | `#99a3b4`             | `--text-3`                                   |
+| `--color-placeholder`         | `#5f6878`             | `#99a3b4`             | `--text-3`                                   |
+| `--color-separator`           | `#6f798c`             | `#7a859c`             | derived: opaque 3:1 control edge             |
+| `--color-border`              | `#e2e5ea`             | `#2a313e`             | `--line`: panel borders, row dividers        |
+| `--color-border-strong`       | `#cbd0d8`             | `#3a4352`             | `--line-strong`: control edges, dashed slots |
+| `--color-divider`             | `#e2e5ea`             | `#2a313e`             | `--line`                                     |
+| `--color-fill-neutral`        | `#f7f8fa`             | `#1e2430`             | `--panel-2`: tool and segment groups         |
+| `--color-hover-bg`            | `#f0f2f5`             | `#232a36`             | `--hover`                                    |
+| `--color-link`                | `#2f64c4`             | `#86b0f5`             | `--accent`                                   |
+| `--color-accent`              | `#2f64c4`             | `#86b0f5`             | `--accent`                                   |
+| `--color-accent-fill`         | `#2f64c4`             | `#2f5eb6`             | `--accent-fill`                              |
+| `--color-accent-fill-hover`   | `#2957ac`             | `#2a549f`             | `--accent-fill-hover`                        |
+| `--color-accent-fill-pressed` | `#244c96`             | `#244a8c`             | derived: one step darker                     |
+| `--color-on-accent-fill`      | `#ffffff`             | `#ffffff`             | `--on-accent`                                |
+| `--color-control-bg`          | `#ffffff`             | `#1a1f29`             | `--panel` (controls sit on panels)           |
+| `--color-selected-bg`         | `#e9f0fc`             | `#22324f`             | `--selected`                                 |
+| `--color-focus`               | `#2f64c4`             | `#86b0f5`             | `--focus`                                    |
+| `--color-bg-window`           | `#f3f4f6`             | `#12161e`             | `--app`                                      |
+| `--color-bg-sidebar`          | `#ffffff`             | `#1a1f29`             | `--panel`: layer panel, inspector            |
+| `--color-bg-content`          | `#ffffff`             | `#1a1f29`             | `--panel`: top bar, main region, dock, table |
+| `--color-bg-elevated`         | `#ffffff`             | `#1e2430`             | `--panel` / `--panel-2`: menus, dialogs      |
+| `--color-bg-panel`            | `#f7f8fa`             | `#1e2430`             | `--panel-2`: table header row                |
+| `--color-bg-row`              | `#ffffff`             | `#1a1f29`             | `--panel`                                    |
+| `--color-bg-canvas`           | `#eceef1`             | `#161b24`             | `--canvas`                                   |
+| `--color-canvas-dot`          | `#c9ced6`             | `#2b3240`             | `--canvas-dot`: the 16 px dot grid           |
+| `--color-canvas-label`        | `#586273`             | `#9aa4b5`             | `--canvas-text`                              |
+| `--color-crop`                | `#6aa0f7`             | `#7aaaf7`             | `--crop`                                     |
+| `--color-crop-label-bg`       | `#1d2330`             | `#0d1016`             | `--crop-label-bg`                            |
+| `--color-on-crop-label`       | `#ffffff`             | `#ffffff`             | `--crop-label-text`                          |
+| `--color-positive`            | `#1f7a3d`             | `#57c776`             | `--positive`                                 |
+| `--color-warning`             | `#8a5a00`             | `#dcab4b`             | `--warning`                                  |
+| `--color-destructive`         | `#b3262d`             | `#ff8d84`             | `--danger`                                   |
+| `--color-destructive-fill`    | `#b3262d`             | `#c62f3a`             | `--danger` / derived (white text 4.5:1)      |
+| `--color-on-destructive-fill` | `#ffffff`             | `#ffffff`             | white                                        |
+| `--color-checker-a` / `-b`    | `#ffffff` / `#e2e5ea` | `#1a1f29` / `#2a313e` | `--panel` / `--line`                         |
+| `--color-shadow`              | `rgb(18 22 32 / 14%)` | `rgb(0 0 0 / 40%)`    | menus, dialogs, toasts, the open drawer      |
+| `--color-scrim`               | `rgb(18 22 32 / 46%)` | `rgb(6 8 12 / 55%)`   | `--scrim`: outside the crop, behind dialogs  |
 
-### Allowed dark surface values
+### Dark surface values
 
-Every dark base surface takes its value from this list (R-1 2.2, T-142 item 5); the contrast test
-fails otherwise.
-
-| Value     | R-1 2.2 role                              | Used by                                    |
-| --------- | ----------------------------------------- | ------------------------------------------ |
-| `#131a2c` | window top bar                            | `--color-bg-window`                        |
-| `#1b2334` | left column background                    | `--color-bg-sidebar`                       |
-| `#1b2336` | channel row / sub-channel pill            | `--color-bg-row`, `--color-control-bg`     |
-| `#1d253a` | darker card (server-management panel)     | `--color-checker-a`                        |
-| `#232a3c` | right panel / page background             | `--color-bg-content`                       |
-| `#232b40` | header / spacer pill                      | `--color-ts-header-bg`                     |
-| `#253044` | centre column background                  | `--color-bg-panel`                         |
-| `#2b3346` | elevated pill, toolbar card, input, badge | `--color-bg-elevated`, `--color-checker-b` |
+R3 replaces T-142 item 5: every dark base surface takes its value from D2's dark variant (`#12161e`,
+`#161b24`, `#1a1f29`, `#1e2430`, `#232a36`, `#2a313e`); the contrast test fails otherwise. The
+TeamSpeak navy stays in the TeamSpeak client roles below.
 
 ### Derived surfaces
 
-Hover, pressed, selected and status surfaces are derived, never sampled:
-
-- `--color-fill-hover` and `--color-fill-pressed` lay the label colour at 8 % and 14 % over whatever
-  surface the control sits on (`color-mix(in srgb, label, transparent)`), so they work on every
-  surface in both themes.
-- `--color-selected-bg` is a neutral step (Primer neutral.muted, or the elevated navy); the accent
-  marker, not a blue surface, shows the selection.
+`--color-fill-hover` and `--color-fill-pressed` lay the label colour at 6 % and 12 % over whatever
+surface the control sits on (`color-mix(in srgb, label, transparent)`), for icon buttons and menu
+items. Rows and gray buttons use D2's solid `--color-hover-bg`.
 
 ### TeamSpeak client roles (theme-independent)
 
 Everything that draws the TeamSpeak channel tree shows the TeamSpeak 6 dark client, whatever the app
-theme: the "Preview in TeamSpeak" in the Banner editor (T-142-F1 item 14), the live channel tree and the
-Wallpaper parent picker (T-142-F1 addendum 2: the TeamSpeak colours stay for the channel tree; D-10).
-These roles are declared once in the raw `:root` block of `colors.css` and in neither theme block, so
-they never switch. Only `ChannelTreeRow`, `ChannelTreePreview` and `TeamSpeakPreview` use them; app
-chrome never does.
+theme: the "Preview in TeamSpeak", the live tree's pills and the Wallpaper parent picker (R3: TS6
+colours only in TeamSpeak previews and pills). These roles are declared once in the raw `:root` block
+of `foundations/colors.css` and in neither theme block, so they never switch. Only `ChannelTreeRow`,
+`ChannelTreePreview` and `TeamSpeakPreview` use them; app chrome never does.
 
-| Token                        | Value (both themes) | Source (R-1 2.2)                                |
+| Token                        | Value (both themes) | Source                                          |
 | ---------------------------- | ------------------- | ----------------------------------------------- |
 | `--color-ts-tree-bg`         | `#263046`           | TS6 reference tree column, measured (D-142F-4)  |
 | `--color-ts-row-bg`          | `#191f32`           | TS6 reference channel pill, measured (D-142F-4) |
-| `--color-ts-header-bg`       | `#232b40`           | header / spacer pill                            |
+| `--color-ts-header-bg`       | `#232b40`           | header / spacer pill (R-1 2.2)                  |
 | `--color-ts-label`           | `#f2f5fa`           | dark label                                      |
 | `--color-ts-label-secondary` | `#b4bdcc`           | dark secondary label (icons)                    |
 | `--color-ts-divider`         | `#3a4358`           | dark divider                                    |
+| `--color-ts-select`          | `#8db8ff`           | D2 `--ts-select`: the selected row ring         |
 
 ## Contrast pairs
 
 `testing/contrast.test.ts` checks every pair below in both themes and fails if this table and its own
-list differ. Text needs 4.5:1. Large Title and Title 1 would need 3:1 but are set in
-`--color-label`, which passes 4.5:1. Non-text UI (accent, focus indicator, separator) needs 3:1
+list differ. Text needs 4.5:1. Non-text UI (accent glyph, focus indicator, control edge) needs 3:1
 against the background it is drawn on. Translucent tokens are composited on the named backdrop first.
+D2 draws control edges in `--color-border-strong`, which is below 3:1; every such control also has a
+visible label or value, and `--color-separator` stays the checked 3:1 edge role.
 
 <!-- contrast-pairs:start -->
 
-| Foreground                    | Background                 | Minimum | Use                                  |
-| ----------------------------- | -------------------------- | ------- | ------------------------------------ |
-| `--color-label`               | `--color-bg-window`        | 4.5     | text                                 |
-| `--color-label`               | `--color-bg-sidebar`       | 4.5     | text                                 |
-| `--color-label`               | `--color-bg-content`       | 4.5     | text                                 |
-| `--color-label`               | `--color-bg-elevated`      | 4.5     | text                                 |
-| `--color-label`               | `--color-control-bg`       | 4.5     | text                                 |
-| `--color-label-secondary`     | `--color-bg-window`        | 4.5     | text                                 |
-| `--color-label-secondary`     | `--color-bg-sidebar`       | 4.5     | text                                 |
-| `--color-label-secondary`     | `--color-bg-content`       | 4.5     | text                                 |
-| `--color-label-secondary`     | `--color-bg-elevated`      | 4.5     | text                                 |
-| `--color-label-secondary`     | `--color-control-bg`       | 4.5     | text                                 |
-| `--color-label-tertiary`      | `--color-bg-window`        | 4.5     | text                                 |
-| `--color-label-tertiary`      | `--color-bg-sidebar`       | 4.5     | text                                 |
-| `--color-label-tertiary`      | `--color-bg-content`       | 4.5     | text                                 |
-| `--color-label-tertiary`      | `--color-bg-elevated`      | 4.5     | text                                 |
-| `--color-label-tertiary`      | `--color-control-bg`       | 4.5     | text                                 |
-| `--color-placeholder`         | `--color-bg-window`        | 4.5     | text                                 |
-| `--color-placeholder`         | `--color-bg-sidebar`       | 4.5     | text                                 |
-| `--color-placeholder`         | `--color-bg-content`       | 4.5     | text                                 |
-| `--color-placeholder`         | `--color-bg-elevated`      | 4.5     | text                                 |
-| `--color-placeholder`         | `--color-control-bg`       | 4.5     | text                                 |
-| `--color-link`                | `--color-bg-window`        | 4.5     | text                                 |
-| `--color-link`                | `--color-bg-sidebar`       | 4.5     | text                                 |
-| `--color-link`                | `--color-bg-content`       | 4.5     | text                                 |
-| `--color-link`                | `--color-bg-elevated`      | 4.5     | text                                 |
-| `--color-link`                | `--color-control-bg`       | 4.5     | text                                 |
-| `--color-label`               | `--color-bg-panel`         | 4.5     | text in the live panel and tree rows |
-| `--color-label`               | `--color-bg-row`           | 4.5     | text in the live panel and tree rows |
-| `--color-label-secondary`     | `--color-bg-panel`         | 4.5     | text in the live panel and tree rows |
-| `--color-label-secondary`     | `--color-bg-row`           | 4.5     | text in the live panel and tree rows |
-| `--color-on-accent-fill`      | `--color-accent-fill`      | 4.5     | prominent button label               |
-| `--color-on-destructive-fill` | `--color-destructive-fill` | 4.5     | destructive button label             |
-| `--color-label`               | `--color-selected-bg`      | 4.5     | selected row or sidebar entry        |
-| `--color-positive`            | `--color-bg-content`       | 4.5     | status text                          |
-| `--color-positive`            | `--color-bg-elevated`      | 4.5     | status text                          |
-| `--color-warning`             | `--color-bg-content`       | 4.5     | status text                          |
-| `--color-warning`             | `--color-bg-elevated`      | 4.5     | status text                          |
-| `--color-destructive`         | `--color-bg-content`       | 4.5     | status text                          |
-| `--color-destructive`         | `--color-bg-elevated`      | 4.5     | status text                          |
-| `--color-accent`              | `--color-bg-window`        | 3       | non-text UI                          |
-| `--color-accent`              | `--color-bg-sidebar`       | 3       | non-text UI                          |
-| `--color-accent`              | `--color-bg-content`       | 3       | non-text UI                          |
-| `--color-accent`              | `--color-bg-elevated`      | 3       | non-text UI                          |
-| `--color-accent`              | `--color-control-bg`       | 3       | non-text UI                          |
-| `--color-focus`               | `--color-bg-window`        | 3       | non-text UI                          |
-| `--color-focus`               | `--color-bg-sidebar`       | 3       | non-text UI                          |
-| `--color-focus`               | `--color-bg-content`       | 3       | non-text UI                          |
-| `--color-focus`               | `--color-bg-elevated`      | 3       | non-text UI                          |
-| `--color-focus`               | `--color-control-bg`       | 3       | non-text UI                          |
-| `--color-separator`           | `--color-bg-window`        | 3       | non-text UI                          |
-| `--color-separator`           | `--color-bg-sidebar`       | 3       | non-text UI                          |
-| `--color-separator`           | `--color-bg-content`       | 3       | non-text UI                          |
-| `--color-separator`           | `--color-bg-elevated`      | 3       | non-text UI                          |
-| `--color-separator`           | `--color-control-bg`       | 3       | non-text UI                          |
-| `--color-focus`               | `--color-bg-panel`         | 3       | non-text UI                          |
-| `--color-separator`           | `--color-bg-panel`         | 3       | non-text UI                          |
-| `--color-ts-label`            | `--color-ts-row-bg`        | 4.5     | TeamSpeak preview text               |
-| `--color-ts-label`            | `--color-ts-tree-bg`       | 4.5     | TeamSpeak preview text               |
-| `--color-ts-label-secondary`  | `--color-ts-row-bg`        | 4.5     | TeamSpeak preview icons              |
+| Foreground                    | Background                 | Minimum | Use                        |
+| ----------------------------- | -------------------------- | ------- | -------------------------- |
+| `--color-label`               | `--color-bg-window`        | 4.5     | text                       |
+| `--color-label`               | `--color-bg-sidebar`       | 4.5     | text                       |
+| `--color-label`               | `--color-bg-content`       | 4.5     | text                       |
+| `--color-label`               | `--color-bg-elevated`      | 4.5     | text                       |
+| `--color-label`               | `--color-control-bg`       | 4.5     | text                       |
+| `--color-label-secondary`     | `--color-bg-window`        | 4.5     | secondary text             |
+| `--color-label-secondary`     | `--color-bg-sidebar`       | 4.5     | secondary text             |
+| `--color-label-secondary`     | `--color-bg-content`       | 4.5     | secondary text             |
+| `--color-label-secondary`     | `--color-bg-elevated`      | 4.5     | secondary text             |
+| `--color-label-secondary`     | `--color-control-bg`       | 4.5     | secondary text             |
+| `--color-label-tertiary`      | `--color-bg-window`        | 4.5     | tertiary text, meta        |
+| `--color-label-tertiary`      | `--color-bg-sidebar`       | 4.5     | tertiary text, meta        |
+| `--color-label-tertiary`      | `--color-bg-content`       | 4.5     | tertiary text, meta        |
+| `--color-label-tertiary`      | `--color-bg-elevated`      | 4.5     | tertiary text, meta        |
+| `--color-label-tertiary`      | `--color-control-bg`       | 4.5     | tertiary text, meta        |
+| `--color-placeholder`         | `--color-bg-window`        | 4.5     | placeholder                |
+| `--color-placeholder`         | `--color-bg-sidebar`       | 4.5     | placeholder                |
+| `--color-placeholder`         | `--color-bg-content`       | 4.5     | placeholder                |
+| `--color-placeholder`         | `--color-bg-elevated`      | 4.5     | placeholder                |
+| `--color-placeholder`         | `--color-control-bg`       | 4.5     | placeholder                |
+| `--color-link`                | `--color-bg-window`        | 4.5     | link, plain button         |
+| `--color-link`                | `--color-bg-sidebar`       | 4.5     | link, plain button         |
+| `--color-link`                | `--color-bg-content`       | 4.5     | link, plain button         |
+| `--color-link`                | `--color-bg-elevated`      | 4.5     | link, plain button         |
+| `--color-link`                | `--color-control-bg`       | 4.5     | link, plain button         |
+| `--color-label`               | `--color-bg-panel`         | 4.5     | text                       |
+| `--color-label`               | `--color-bg-row`           | 4.5     | text                       |
+| `--color-label-secondary`     | `--color-bg-panel`         | 4.5     | secondary text             |
+| `--color-label-secondary`     | `--color-bg-row`           | 4.5     | secondary text             |
+| `--color-on-accent-fill`      | `--color-accent-fill`      | 4.5     | prominent button label     |
+| `--color-on-destructive-fill` | `--color-destructive-fill` | 4.5     | destructive confirm label  |
+| `--color-positive`            | `--color-bg-content`       | 4.5     | status text                |
+| `--color-positive`            | `--color-bg-elevated`      | 4.5     | status text                |
+| `--color-warning`             | `--color-bg-content`       | 4.5     | status text                |
+| `--color-warning`             | `--color-bg-elevated`      | 4.5     | status text                |
+| `--color-destructive`         | `--color-bg-content`       | 4.5     | status text                |
+| `--color-destructive`         | `--color-bg-elevated`      | 4.5     | status text                |
+| `--color-accent`              | `--color-bg-window`        | 3       | accent glyph               |
+| `--color-accent`              | `--color-bg-sidebar`       | 3       | accent glyph               |
+| `--color-accent`              | `--color-bg-content`       | 3       | accent glyph               |
+| `--color-accent`              | `--color-bg-elevated`      | 3       | accent glyph               |
+| `--color-accent`              | `--color-control-bg`       | 3       | accent glyph               |
+| `--color-focus`               | `--color-bg-window`        | 3       | focus ring                 |
+| `--color-focus`               | `--color-bg-sidebar`       | 3       | focus ring                 |
+| `--color-focus`               | `--color-bg-content`       | 3       | focus ring                 |
+| `--color-focus`               | `--color-bg-elevated`      | 3       | focus ring                 |
+| `--color-focus`               | `--color-control-bg`       | 3       | focus ring                 |
+| `--color-separator`           | `--color-bg-window`        | 3       | control edge               |
+| `--color-separator`           | `--color-bg-sidebar`       | 3       | control edge               |
+| `--color-separator`           | `--color-bg-content`       | 3       | control edge               |
+| `--color-separator`           | `--color-bg-elevated`      | 3       | control edge               |
+| `--color-separator`           | `--color-control-bg`       | 3       | control edge               |
+| `--color-focus`               | `--color-bg-panel`         | 3       | focus ring                 |
+| `--color-separator`           | `--color-bg-panel`         | 3       | control edge               |
+| `--color-label`               | `--color-hover-bg`         | 4.5     | hovered or selected row    |
+| `--color-label`               | `--color-selected-bg`      | 4.5     | hovered or selected row    |
+| `--color-label-secondary`     | `--color-hover-bg`         | 4.5     | hovered or selected row    |
+| `--color-label-secondary`     | `--color-selected-bg`      | 4.5     | hovered or selected row    |
+| `--color-canvas-label`        | `--color-bg-canvas`        | 4.5     | artboard name, canvas hint |
+| `--color-on-crop-label`       | `--color-crop-label-bg`    | 4.5     | crop size label            |
+| `--color-focus`               | `--color-bg-canvas`        | 3       | focus ring on the canvas   |
+| `--color-ts-label`            | `--color-ts-row-bg`        | 4.5     | TeamSpeak channel name     |
+| `--color-ts-label`            | `--color-ts-tree-bg`       | 4.5     | TeamSpeak tree text        |
+| `--color-ts-label-secondary`  | `--color-ts-row-bg`        | 4.5     | TeamSpeak icons            |
 
 <!-- contrast-pairs:end -->
 
 ## Spacing, radius and sizes
 
-| Token                              | Value                                                           | Source                                                  |
-| ---------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------- |
-| `--space-0` … `--space-10`         | 0, 4, 8, 12, 16, 20, 24, 32, 40, 56, 64 px; `--space-half` 2 px | 4 px grid; R-2 4/8/12/16/24 plus 32/40 for section gaps |
-| `--radius-small`                   | 6 px                                                            | small badges                                            |
-| `--radius-control` / `-row`        | 8 px                                                            | buttons, inputs, menu items (A3, R-2)                   |
-| `--radius-card` / `--radius-panel` | 12 px                                                           | list boxes, menus, dialogs (A3, R-2)                    |
-| `--radius-pill`                    | 999 px                                                          | channel-tree row pills and avatars only                 |
-| `--size-hit-target`                | 44 px; 32 px from 1024 px                                       | HIG iOS hit region (R-1 1.6) / Primer default control   |
-| `--size-hit-target-small`          | 44 px; 28 px from 1024 px                                       | the 28 px macOS floor (A1), Primer small control        |
-| `--size-row-min`                   | 44 px; 32 px from 1024 px                                       | `ListRow` height                                        |
-| `--size-toolbar`                   | 56 px; 48 px from 1024 px                                       | top bar height                                          |
-| `--size-sidebar` / `--size-panel`  | 264 (240 from 1024 px) / 340 px                                 | sidebar and live panel columns                          |
-| `--size-main-min`                  | 560 px                                                          | narrowest main column, see "App shell layout"           |
+| Token                                | Value                                                           | Source                                  |
+| ------------------------------------ | --------------------------------------------------------------- | --------------------------------------- |
+| `--space-0` … `--space-10`           | 0, 4, 8, 12, 16, 20, 24, 32, 40, 56, 64 px; `--space-half` 2 px | D2 4/8/12/16/24/32 plus earlier steps   |
+| `--radius-small`                     | 4 px                                                            | thumbnails                              |
+| `--radius-control` / `-row`          | 6 px                                                            | D2 `--radius-control`, TS pills         |
+| `--radius-card` / `--radius-panel`   | 10 px                                                           | D2 `--radius-panel`: dock, menus, tiles |
+| `--radius-pill`                      | 999 px                                                          | avatars                                 |
+| `--size-hit-target`                  | 44 px; 30 px from 1024 px                                       | HIG phone / D2 `--control`              |
+| `--size-hit-target-small`            | 44 px; 28 px from 1024 px                                       | the 28 px desktop floor                 |
+| `--size-control-prominent`           | 48 px; 34 px from 1024 px                                       | D2 `--control-prominent`                |
+| `--size-row-min`                     | 44 px; 40 px from 1024 px                                       | D2 rows (12 px padding)                 |
+| `--size-toolbar`                     | 56 px; 52 px from 1024 px                                       | D2 `--topbar`                           |
+| `--size-panel-head`                  | 40 px                                                           | `Panel` header, table header row        |
+| `--size-layers` / `--size-inspector` | 248 / 312 px                                                    | D2 `--layers` / `--inspector`           |
+| `--size-main-min`                    | 560 px                                                          | a 500 px crop stage plus canvas padding |
+| `--size-canvas-min`                  | 360 px                                                          | D2 canvas minimum height                |
+| `--size-property-label`              | 76 px                                                           | D2 inspector label column               |
+| `--size-dot` / `--size-dot-grid`     | 7 / 16 px                                                       | D2 status dot / canvas dot grid         |
 
-The values marked "from 1024 px" are set by the one media query of the foundations, in `metrics.css`
-(addendum 1, D-6). 1 px borders replace shadows; `--shadow-overlay` is for menus, dialogs and toasts
-only.
-
-## App shell layout
-
-The sidebar is a column from 1024 px and a drawer below. The live panel (admin only, hide/show
-control, stored as `ts-icon-rail-open`) sits **beside** the content only while the main column keeps
-`--size-main-min` (560 px: a 500 px crop stage plus 2 × 24 px page padding), and **below** the content
-otherwise (T-142-F1 addendum 3, C1). Container queries cannot read custom properties, so
-`patterns/AppShell.css` spells the sum out (`@container shell (min-width: 900px)` = 560 + 340 px) and
-`testing/layout.test.ts` fails if the three numbers drift apart. `e2e/work-area.spec.ts` checks 1024,
-1200, 1280, 1366 and 1440 px. The Banner editor marks its crop stage `data-testid="crop-stage"`.
+The values marked "from 1024 px" are set by the one media query of the foundations, in
+`foundations/metrics.css` (D-6, R9: 1024 px, not D2's 900 px). 1 px borders replace shadows;
+`--shadow-overlay` is for menus, dialogs, toasts and the open layer drawer only.
 
 ## Type scale
 
-Two scales, switched by the one media query at 1024 px (T-142-F1 addendum 1, D-6). Checked on
-2026-11-15 against <https://developer.apple.com/design/human-interface-guidelines/typography>
-(Specifications). Points are used as CSS px; the web minimum is 11 px, so the macOS Footnote and
-Caption sizes (10 pt) are raised to 11 px.
+D2's four sizes plus a heading size, switched by the one media query at 1024 px (R9). The HIG role
+names of the earlier rounds are aliases (right column), so screens that are not rebuilt yet follow
+the D2 scale too.
 
-| Role        | iOS, below 1024 px (size / line, weight) | macOS, from 1024 px (size / line, weight) |
-| ----------- | ---------------------------------------- | ----------------------------------------- |
-| Large Title | 34 / 41, 700                             | 26 / 32, 700                              |
-| Title 1     | 28 / 34, 700                             | 22 / 26, 700                              |
-| Title 2     | 22 / 28, 700                             | 17 / 22, 700                              |
-| Title 3     | 20 / 25, 600                             | 15 / 20, 600                              |
-| Headline    | 17 / 22, 600                             | 13 / 16, 700                              |
-| Body        | 17 / 22, 400                             | 13 / 16, 400                              |
-| Callout     | 16 / 21, 400                             | 12 / 15, 400                              |
-| Subheadline | 15 / 20, 400                             | 11 / 14, 400                              |
-| Footnote    | 13 / 18, 400                             | 11 / 14, 400                              |
-| Caption 1   | 12 / 16, 400                             | 11 / 14, 400                              |
-| Caption 2   | 11 / 13, 400                             | 11 / 14, 400                              |
+| D2 role   | Below 1024 px (size / line) | From 1024 px (size / line) | Aliases                                |
+| --------- | --------------------------- | -------------------------- | -------------------------------------- |
+| `micro`   | 13 / 18                     | 11 / 16                    | footnote, caption-1, caption-2         |
+| `small`   | 15 / 20                     | 12 / 18                    | callout, subheadline                   |
+| `text`    | 16 / 22                     | 13 / 20                    | body, headline (600)                   |
+| `title`   | 17 / 22                     | 15 / 20                    | title-3                                |
+| `heading` | 22 / 28                     | 17 / 22                    | title-1, title-2, large-title (not D2) |
 
 The only weights are 400, 500, 600 and 700. No text is smaller than 11 px. The font stack starts
-with `-apple-system, BlinkMacSystemFont, system-ui`; there is no web font. `testing/typography.test.ts`
-checks both columns.
+with `-apple-system, BlinkMacSystemFont, system-ui` followed by D2's `"Segoe UI"`, `"Noto Sans"`,
+Helvetica, Arial; there is no web font. `testing/typography.test.ts` checks both columns and the
+aliases.
 
 ## Motion
 
-`--motion-fast` 120 ms, `--motion-standard` 200 ms, `--motion-slow` 260 ms (HIG: brief and
-purposeful; teamspeak.com uses 0.2–0.25 s, R-1 2.1). Under `prefers-reduced-motion: reduce` every
-duration drops to 0.01 ms, and `base.css` caps any other transition or animation the same way.
+`--motion-fast` 120 ms, `--motion-standard` 160 ms (D2 `--motion`), `--motion-slow` 260 ms, easing
+`cubic-bezier(0.2, 0, 0, 1)` (D2 `--ease`). Under `prefers-reduced-motion: reduce` every duration drops
+to 0.01 ms, and `base.css` caps any other transition or animation the same way.
+
+## Studio shell
+
+`StudioShell` (T-142-F3 items 1 and 3, R2, R7) replaces the sidebar, the live panel and its stored
+`ts-icon-rail-open` choice (R3).
+
+- **Top bar:** the "ts-icon Studio" mark, the `ModeSwitcher` with one `ModeLink` per route (labels,
+  icons and gating unchanged; `aria-current="page"` on the current one), the screen's `StudioToolbar`
+  slot and the account `MenuButton` (user, theme System / Light / Dark persisted in `ts-icon-theme`,
+  "Log out").
+- **Workspace regions as slots:** a screen renders `StudioLayers` (left panel), its content in the
+  main region (`#main-content`), and `StudioInspector` (right panel). The slots portal into the shell;
+  a screen without layers or inspector leaves the slot out and the region disappears.
+- **Breakpoints (R2):**
+
+  | Width        | Layout                                                                                  |
+  | ------------ | --------------------------------------------------------------------------------------- |
+  | ≥ 1240 px    | three panels: layers (248 px), main, inspector (312 px); panels stick under the top bar |
+  | 1024–1239 px | the layer panel is an overlay drawer opened by "Show layers" in the top bar             |
+  | < 1024 px    | stacked: top bar, main, inspector, layers                                               |
+
+  The drawer toggle has `aria-expanded` and `aria-controls="studio-layers"`; Escape or a click on the
+  scrim closes it and focus returns to the toggle; a navigation closes it; while closed it is `inert`.
+  Below 1240 px the mode labels collapse to icons: the label stays the accessible name and becomes the
+  tooltip (R7). Below 1024 px the mode switcher takes its own row.
+
+- `useStudioLayout()` returns `"wide" | "drawer" | "stacked"`; `studioLayout.ts` holds the two media
+  queries, and `testing/layout.test.ts` keeps them equal to the widths in `StudioShell.css`.
+- `e2e/studio-layout.spec.ts` checks 1024, 1239, 1240, 1280 and 1440 px on the editor and Channel
+  images: side panel or drawer, the drawer keyboard behaviour, no horizontal overflow, mode labels.
+
+```tsx
+<StudioShell
+  modes={
+    <ModeSwitcher label="Primary">
+      <ModeLink to="/" end icon="crop">Banner editor</ModeLink>
+      <ModeLink to="/channels" icon="image">Manage channel images</ModeLink>
+    </ModeSwitcher>
+  }
+  account={<MenuButton label={username} icon="user" items={accountItems} align="end" collapseLabel />}
+>
+  <Routes>…</Routes>
+</StudioShell>
+
+// Inside a screen:
+<StudioToolbar>…canvas tools and zoom readout…</StudioToolbar>
+<StudioLayers><Panel title="Layers">…</Panel></StudioLayers>
+<Canvas label="Crop stage">…</Canvas>
+<StudioInspector>…</StudioInspector>
+```
+
+## Studio building blocks
+
+The editor (D-142G-3) and Channel images (D-142G-4) are built from these. The examples are the markup
+a screen writes.
+
+**`Panel`**: `title`, optional `meta`, `actions` (trailing header controls), `footer`, `id`, `level`.
+A 40 px header and a body; the layer panel and the inspector use it.
+
+```tsx
+<Panel title="Layers" meta="7 · live" actions={<ToolbarButton icon="refresh" label="Refresh" onClick={reload} />}
+  footer="Live from the TeamSpeak server">
+  …rows…
+</Panel>
+```
+
+**`InspectorSection`** and **`PropertyRow`**: an inspector group with a title and optional meta, and
+label / value rows. With `htmlFor` the label is the `<label>` of the control in the value cell.
+
+```tsx
+<InspectorSection title="Channel" meta="#13">
+  <PropertyRow label="Target" htmlFor="channel">
+    <select id="channel">…</select>
+  </PropertyRow>
+  <PropertyRow label="Path">Gaming Area / Hytale</PropertyRow>
+</InspectorSection>
+```
+
+**`NumberField`**: a right-aligned field with a short key and a unit suffix. Props: `label` (accessible
+name), `keyLabel` (short visible key, defaults to the label), `unit`, and every native input prop;
+it forwards its ref.
+
+```tsx
+<NumberField label="Width" keyLabel="W" unit="px" value={crop.width} onChange={setWidth} />
+```
+
+**`SegmentedControl`**: `label`, `options` (`{ value, label }[]`), `value`, `onChange`. Radio-group
+semantics: one tab stop, the arrow keys, Home and End move the choice.
+
+```tsx
+<SegmentedControl label="Image status" value={filter} onChange={setFilter}
+  options={[{ value: "all", label: "All" }, { value: "with", label: "With image" }, { value: "without", label: "Without" }]} />
+```
+
+**`FilterBar`**: `search`, `filter`, `count` (a polite status) and `trailing` (the page's one prominent
+action, for example "Set for all channels" on Banner URLs).
+
+```tsx
+<FilterBar search={<TextField id="q" label="Search channels" labelHidden type="search" />}
+  filter={<SegmentedControl … />} count="4 of 7 have an image" />
+```
+
+**`DataTable`**: `label`, `columns` (`{ key, header, render, align?, wideOnly? }`), `rows`, `rowKey`,
+`selectedKey` / `onSelect` (rows get `aria-selected`), optional `onDropFile(row, file)` (the row
+highlights only while a file is dragged over it), `rowProps`, `footer` and `empty`. Below 1024 px the
+table becomes a list of rows and `wideOnly` columns hide.
+
+```tsx
+<DataTable label="Channels" columns={columns} rows={channels} rowKey={(c) => c.cid}
+  selectedKey={selected} onSelect={(c) => setSelected(c.cid)} onDropFile={(c, file) => replace(c, file)}
+  footer="Drop an image on a row to replace that channel's banner." />
+```
+
+**`Canvas`**: `label`, the centred artboard as children, an `overlay` (absolutely positioned over the
+whole stage) and `stageProps` (for example `data-testid` and drop handlers). D2's dot grid on
+`--color-bg-canvas`, no shadow on the artboard.
+
+```tsx
+<Canvas label="Crop stage" stageProps={{ "data-testid": "crop-stage" }} overlay={<p>Drag to move</p>}>
+  <img src={source} alt="" />
+</Canvas>
+```
+
+**`Dock`**: `title`, `meta` and the body under the canvas (the TeamSpeak preview, before/after and the
+saved strip live here).
+
+```tsx
+<Dock title="Preview in TeamSpeak" meta="TS6 · 1:1 · live while you crop">…</Dock>
+```
+
+**`StateTile`**: a centred, quiet tile on the canvas background: `icon`, `title` (one short sentence,
+a heading of `level`), optional text, one `action`, and `role` (`alert` for an error, `status` for
+loading). Stage B adopts it for the states (item 11).
+
+```tsx
+<StateTile icon="inbox" title="No channels yet." action={<Button onClick={reload}>Refresh</Button>} />
+```
+
+**`StudioPage`**: a padded page in the main region, for screens without a canvas (and for the screens
+that keep their current content until they are rebuilt).
 
 ## Buttons
 
-Only the HIG styles exist (T-142-F1 item 8). `Button` and `LinkButton` render `data-variant`:
+`Button` and `LinkButton` render `data-variant`:
 
-| Style       | Look                                                       | Use                             |
-| ----------- | ---------------------------------------------------------- | ------------------------------- |
-| `prominent` | accent fill, `data-accent="primary"`; at most one per view | the one primary action          |
-| `gray`      | neutral fill, label colour, 1 px neutral border (default)  | every other action              |
-| `plain`     | borderless text in the link colour, `data-accent="link"`   | inline actions                  |
-| toolbar     | `ToolbarButton`: icon-only, borderless, label and tooltip  | page-level actions, the top bar |
+| Style       | Look (D2)                                                  | Use                         |
+| ----------- | ---------------------------------------------------------- | --------------------------- |
+| `prominent` | accent fill, `data-accent="primary"`; at most one per view | the one primary action      |
+| `gray`      | white control, 1 px `--color-border-strong` edge (default) | every other action          |
+| `plain`     | borderless text in the accent, `data-accent="link"`        | inline actions ("Load URL") |
+| toolbar     | `ToolbarButton`: icon-only, borderless, label and tooltip  | panel and top-bar actions   |
 
-`destructive` adds red text and glyph to `gray` or `plain` (`data-destructive`, never a fill). Every
-button has `border-width: 0`, except `gray` with a 1 px border in `--color-border` (Primer default
-button, addendum 1); the structure spec checks exactly that. Both sizes keep the viewport hit target.
-`iconOnly` requires an `aria-label` by type. Use `destructive` with `gray` or `plain` for a destructive action.
+`destructive` adds red text and glyph to `gray` or `plain` (`data-destructive`, never a fill). Both
+sizes keep the viewport hit target. `iconOnly` requires an `aria-label` by type.
 
-## Patterns
-
-Every screen is built from these. The examples are the markup a screen writes.
-
-**`PageHeader`**: one per view. The Large Title, an optional one-line subtitle in secondary label and
-a trailing toolbar slot for page-level actions.
-
-```tsx
-<PageHeader
-  title="Manage channel images"
-  subtitle="Replace or remove the banner of a channel."
-  toolbar={
-    <Toolbar label="Page actions">
-      <ToolbarButton icon="refresh" label="Refresh" onClick={reload} />
-    </Toolbar>
-  }
-/>
-```
-
-**`ListSection` / `ListRow`**: a Primer ActionList box in HIG inset-grouped form. It is a 1 px bordered,
-12 px rounded box with an optional header row (at most three words), 1 px row dividers and no shadow.
-A row has a leading icon or thumbnail, a title with secondary text and trailing content. With
-`onDropFile` the row accepts a dropped file and highlights only while a drag is over it.
-
-```tsx
-<ListSection header="Channels" footer="Images are 500 × 44 px.">
-  <ListRow
-    leading={<BannerFrame src={url} alt="" />}
-    title="Gaming Area"
-    subtitle={<StatusGlyph tone="positive" label="Own image" />}
-    onDropFile={(file) => replace(file)}
-    trailing={
-      <>
-        <FileButton label="Replace…" onFile={replace} />
-        <Button variant="plain" destructive onClick={() => setConfirm(channel)}>
-          Remove
-        </Button>
-      </>
-    }
-  />
-</ListSection>
-```
+## Other components
 
 **`Toolbar` / `ToolbarButton`**: icon-only, borderless buttons in label colour. The label is the
 accessible name and the tooltip; the hit area is the viewport hit target.
 
 **`FileButton`**: a gray button that opens the file picker (the file input sits inside the label,
-visually hidden). With `UploadInput` it is the only place a file input is rendered. `UploadInput`
-stays the one dashed drop zone per view.
+visually hidden). With `UploadInput` it is the only place a file input is rendered. `UploadInput` is
+the one dashed drop target per view (D2's dashed `--color-border-strong` edge).
 
-**`MenuButton`**: a HIG pop-up menu, a gray button and a popover. Enter, Space or the arrow keys open
-it; the arrows, Home and End move; Escape closes and returns focus. Items may be `destructive`, radio
-items (`checked`) and grouped (`separatorBefore`, `groupLabel`); `header` is a non-interactive line
-(the signed-in name). The popover may have a shadow.
+**`MenuButton`**: a pop-up menu, a gray button and a popover. Enter, Space or the arrow keys open it;
+the arrows, Home and End move; Escape closes and returns focus. Items may be `destructive`, radio items
+(`checked`) and grouped (`separatorBefore`, `groupLabel`); `header` is a non-interactive line (the
+signed-in name). The popover may have a shadow.
 
-```tsx
-<MenuButton
-  label={username}
-  icon="user"
-  header={`Signed in as ${username}`}
-  align="end"
-  collapseLabel
-  items={[
-    { label: "Light", checked: theme === "light", onSelect: () => setTheme("light") },
-    { label: "Log out", onSelect: logout, separatorBefore: true },
-  ]}
-/>
-```
+**`ConfirmDialog`**: a dialog for confirmations. Focus starts on Cancel, Tab stays inside, Escape and
+the scrim cancel. With `destructive` the confirm button is the one red fill in the app.
 
-**`ConfirmDialog`**: a Primer Dialog / HIG alert for confirmations. Focus starts on Cancel, Tab stays
-inside, Escape and the scrim cancel. With `destructive` the confirm button is the one red fill in the
-app.
+**`StatusGlyph`**: `tone` is `positive` or `warning`, plus a label: a glyph in the status colour and the
+label in secondary label colour. There is no status chip.
 
-```tsx
-<ConfirmDialog
-  open={Boolean(target)}
-  title="Remove image?"
-  message="The channel falls back to no banner."
-  confirmLabel="Remove"
-  destructive
-  onConfirm={remove}
-  onCancel={() => setTarget(null)}
-/>
-```
+**`EmptyState`**, **`Notice`**: the calm states of the earlier rounds (a glyph in secondary label, one
+friendly sentence, one action). Stage B moves the states to `StateTile` (item 11).
 
-**`StatusGlyph`**: `tone` is `positive` or `warning`, plus a label. It is a 14 px glyph in the status
-colour and the label in secondary label colour. There is no status chip.
-
-**`EmptyState`** (Primer Blankslate): a calm glyph in secondary label, one friendly short sentence
-(`title`) and one clear next action (`action`).
-
-**`Notice`** (whole-page Blankslate, used by Access denied, Not found and the sign-in splash): no card, a
-calm glyph in secondary label, a Title 2 heading, one friendly sentence in secondary label and at most
-one action. Not found offers the prominent "Create a banner"; Access denied offers a gray "Log out".
-
-**`SidebarLink`** (Primer NavList): the selected row gets the muted background, an accent marker and
-an accent icon (`data-accent="selection"`); other rows are label colour with secondary icons.
-
-Inline messages use `Notice` and `RequestError` in the Primer Banner style: a neutral box, text in
-label colour and a glyph in the status role.
+**`PageHeader`, `ListSection`, `ListRow`**: kept until the screens that use them are rebuilt
+(D-142G-3, D-142G-4, stage B); new Studio screens do not use them (R3).
 
 ## Focus after the main action
 

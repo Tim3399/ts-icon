@@ -18,7 +18,8 @@ async function setUp(page: Page, theme: (typeof THEMES)[number] = "dark", state?
   await mockApi(page, { channels, images, state });
 }
 
-const livePanel = (page: Page) => page.getByRole("complementary", { name: "Live channel tree" });
+// The live tree is the editor's layer panel in the Studio shell (D-142G-1).
+const livePanel = (page: Page) => page.getByRole("region", { name: "Live channel tree" });
 const picker = (page: Page) => page.getByRole("group", { name: "Parent channel" });
 
 const pillOf = (tree: Locator, name: string) =>
@@ -289,18 +290,19 @@ test("the Wallpaper picker rows have the live tree's geometry", async ({ page })
   test.skip(test.info().project.name !== "desktop", "Geometry is compared in the desktop project.");
   await page.setViewportSize({ width: 1280, height: 900 });
   await setUp(page);
-  await page.addInitScript(() => localStorage.setItem("ts-icon-rail-open", "open"));
+  // The live tree is the editor's layer panel in the Studio shell (D-142G-1),
+  // so its row is measured there first.
+  await page.goto("/");
+  const liveRow = livePanel(page).locator(".channel-tree-row").filter({ hasText: "Lobby" });
+  await expect(liveRow).toBeVisible();
+  const l = (await liveRow.boundingBox())!;
+  const lp = (await liveRow.locator(".channel-tree-pill").boundingBox())!;
   await page.goto("/wallpaper");
   const pickerRow = picker(page).locator(".channel-tree-row").filter({ hasText: "Lobby" });
-  const liveRow = livePanel(page).locator(".channel-tree-row").filter({ hasText: "Lobby" });
   await expect(pickerRow).toBeVisible();
-  await expect(liveRow).toBeVisible();
-  const [p, l] = [(await pickerRow.boundingBox())!, (await liveRow.boundingBox())!];
+  const p = (await pickerRow.boundingBox())!;
   expect(Math.abs(p.height - l.height)).toBeLessThanOrEqual(1);
-  const [pp, lp] = [
-    (await pickerRow.locator(".channel-tree-pill").boundingBox())!,
-    (await liveRow.locator(".channel-tree-pill").boundingBox())!,
-  ];
+  const pp = (await pickerRow.locator(".channel-tree-pill").boundingBox())!;
   expect(Math.abs(pp.height - lp.height)).toBeLessThanOrEqual(1);
   expect(pp.width).toBeLessThanOrEqual(456 + 1); // TS6 depth-0 width
   // The picker keeps its C1 room and its 44 px button around the 30 px pill.

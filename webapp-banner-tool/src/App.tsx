@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Routes, Route } from "react-router-dom";
 import BannerCropper from "./components/BannerCropper";
 import ChannelGallery from "./components/ChannelGallery";
@@ -9,14 +9,15 @@ import RequireUpload from "./components/RequireUpload";
 import RequireAdmin from "./components/RequireAdmin";
 import {
   AccessDenied,
-  AppShell,
-  Brand,
   LinkButton,
   MenuButton,
+  ModeLink,
+  ModeSwitcher,
   Notice,
-  SidebarLink,
-  SidePanel,
-  ToolbarButton,
+  Panel,
+  StudioLayers,
+  StudioPage,
+  StudioShell,
   type MenuItem,
 } from "./design";
 import { THEME_LABELS, THEME_ORDER, useTheme } from "./theme/theme";
@@ -25,24 +26,16 @@ import { useCanUpload, useIsAdmin } from "./auth/permissions";
 import { usePreviewOverlay } from "./preview/PreviewOverlayContext";
 import { PreviewOverlayProvider } from "./preview/PreviewOverlayProvider";
 
-// Keeps the persistent panel reasonably fresh even when nothing in this tab
+// Keeps the live tree reasonably fresh even when nothing in this tab
 // triggers an explicit bumpRefresh() (e.g. another admin changing channels
 // elsewhere) -- fetchLiveChannels() on the backend already caches for 30s,
 // so polling faster than that would just re-read the same cached result.
 const LIVE_TREE_POLL_MS = 30_000;
 
-const RAIL_STORAGE_KEY = "ts-icon-rail-open";
-const LIVE_PANEL_ID = "live-tree-panel";
-
-function readRailPreference(): boolean {
-  try {
-    return localStorage.getItem(RAIL_STORAGE_KEY) !== "closed";
-  } catch {
-    return true;
-  }
-}
-
-const LivePreviewPanel: React.FC<{ open: boolean }> = ({ open }) => {
+// The live tree in the editor's layer panel. D-142G-3 rebuilds it as the D2
+// layer list on GET channels (R4); until then it keeps the current
+// ChannelTreePreview, which reads the admin-only banner-URL endpoint.
+function LiveTreeLayers() {
   const { overlay, refreshKey } = usePreviewOverlay();
   const [pollTick, setPollTick] = useState(0);
 
@@ -53,18 +46,18 @@ const LivePreviewPanel: React.FC<{ open: boolean }> = ({ open }) => {
     return () => clearInterval(id);
   }, []);
 
-  // Always mounted while the user is an admin, so hiding the panel never
-  // loses its poll or scroll state; `open` only hides it.
   return (
-    <SidePanel id={LIVE_PANEL_ID} title="Live channel tree" icon="tree" open={open}>
-      <ChannelTreePreview
-        className="channel-tree-live"
-        refreshKey={refreshKey + pollTick}
-        overlay={overlay}
-      />
-    </SidePanel>
+    <StudioLayers>
+      <Panel id="live-tree-panel" title="Live channel tree" footer="Live from the TeamSpeak server">
+        <ChannelTreePreview
+          className="channel-tree-live"
+          refreshKey={refreshKey + pollTick}
+          overlay={overlay}
+        />
+      </Panel>
+    </StudioLayers>
   );
-};
+}
 
 function NotFound() {
   return (
@@ -82,25 +75,16 @@ function NotFound() {
   );
 }
 
+/** A screen that has not been rebuilt in the Studio idiom yet: padded in the main region. */
+function Page({ children }: { children: ReactNode }) {
+  return <StudioPage>{children}</StudioPage>;
+}
+
 export default function App() {
   const { username, logout } = useAuth();
   const canUpload = useCanUpload();
   const isAdmin = useIsAdmin();
-  const [railOpen, setRailOpen] = useState(readRailPreference);
   const { preference, setPreference } = useTheme();
-
-  const toggleRail = useCallback(() => {
-    setRailOpen((open) => {
-      try {
-        localStorage.setItem(RAIL_STORAGE_KEY, open ? "closed" : "open");
-      } catch {
-        /* The choice still applies for this session. */
-      }
-      return !open;
-    });
-  }, []);
-
-  const railLabel = railOpen ? "Hide the live channel tree" : "Show the live channel tree";
 
   // The one account menu of the top bar: the signed-in name as its header,
   // the appearance choice and the way out.
@@ -119,66 +103,53 @@ export default function App() {
 
   return (
     <PreviewOverlayProvider>
-      <AppShell
-        brand={<Brand name="TS-Icon" />}
-        navLabel="Primary"
-        nav={
-          <>
+      <StudioShell
+        modes={
+          <ModeSwitcher label="Primary">
             {canUpload && (
-              <SidebarLink to="/" end icon="crop">
+              <ModeLink to="/" end icon="crop">
                 Banner editor
-              </SidebarLink>
+              </ModeLink>
             )}
             {canUpload && (
-              <SidebarLink to="/channels" icon="image">
+              <ModeLink to="/channels" icon="image">
                 Manage channel images
-              </SidebarLink>
+              </ModeLink>
             )}
             {isAdmin && (
-              <SidebarLink to="/banner-urls" icon="link">
+              <ModeLink to="/banner-urls" icon="link">
                 Banner URLs
-              </SidebarLink>
+              </ModeLink>
             )}
             {isAdmin && (
-              <SidebarLink to="/wallpaper" icon="sparkles">
+              <ModeLink to="/wallpaper" icon="sparkles">
                 Channel Wallpaper
-              </SidebarLink>
+              </ModeLink>
             )}
-          </>
+          </ModeSwitcher>
         }
-        toolbar={
-          <>
-            {isAdmin && (
-              <ToolbarButton
-                icon="panel"
-                onClick={toggleRail}
-                aria-expanded={railOpen}
-                aria-controls={LIVE_PANEL_ID}
-                label={railLabel}
-              />
-            )}
-            <MenuButton
-              label={username || "Account"}
-              icon="user"
-              header={username ? `Signed in as ${username}` : undefined}
-              items={accountItems}
-              align="end"
-              collapseLabel
-            />
-          </>
+        account={
+          <MenuButton
+            label={username || "Account"}
+            icon="user"
+            header={username ? `Signed in as ${username}` : undefined}
+            items={accountItems}
+            align="end"
+            collapseLabel
+          />
         }
-        // Gated to admin, matching the nav links above: the backend endpoint
-        // this panel reads (GET channels/banner-urls) is admin-only, so an
-        // editor-only account would otherwise see a constant stream of 403
-        // toasts from a panel it can't use.
-        panel={isAdmin ? <LivePreviewPanel open={railOpen} /> : undefined}
       >
         <Routes>
           <Route
             path="/"
             element={
               <RequireUpload>
-                <BannerCropper />
+                <Page>
+                  <BannerCropper />
+                </Page>
+                {/* Gated to admin: the endpoint the current tree reads
+                    (GET channels/banner-urls) is admin-only. */}
+                {isAdmin && <LiveTreeLayers />}
               </RequireUpload>
             }
           />
@@ -186,7 +157,9 @@ export default function App() {
             path="/channels"
             element={
               <RequireUpload>
-                <ChannelGallery />
+                <Page>
+                  <ChannelGallery />
+                </Page>
               </RequireUpload>
             }
           />
@@ -194,7 +167,9 @@ export default function App() {
             path="/banner-urls"
             element={
               <RequireAdmin>
-                <BannerUrlManager />
+                <Page>
+                  <BannerUrlManager />
+                </Page>
               </RequireAdmin>
             }
           />
@@ -202,14 +177,30 @@ export default function App() {
             path="/wallpaper"
             element={
               <RequireAdmin>
-                <ChannelWallpaperGenerator />
+                <Page>
+                  <ChannelWallpaperGenerator />
+                </Page>
               </RequireAdmin>
             }
           />
-          <Route path="/access-denied" element={<AccessDenied />} />
-          <Route path="*" element={<NotFound />} />
+          <Route
+            path="/access-denied"
+            element={
+              <Page>
+                <AccessDenied />
+              </Page>
+            }
+          />
+          <Route
+            path="*"
+            element={
+              <Page>
+                <NotFound />
+              </Page>
+            }
+          />
         </Routes>
-      </AppShell>
+      </StudioShell>
     </PreviewOverlayProvider>
   );
 }

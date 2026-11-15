@@ -1,0 +1,231 @@
+/* Colours: the raw palette and the colour roles.
+
+   This is the one file in src/ whose custom-property names describe a hue
+   (--gray-*, --slate-*, --blue-*, ...): the raw palette below. Only the role
+   blocks further down read it; components and screens use the
+   --color-<role> tokens only (README, "Token naming").
+
+   Source of every value: concept D2 "Studio Light" (T-142-F3, D-15),
+   ts-icon-kb/implementer/T-142-concepts-D/D2/concept.css. Light is the base,
+   the dark theme is D2's derived dark variant. Values marked "derived" are not
+   in D2 and are a step of a D2 value (pressed states, the destructive fill,
+   the 3:1 control edge). The TeamSpeak client roles keep the measured TS6
+   values (D-142F-4) and are used only by TeamSpeak previews and pills (R3). */
+
+:root {
+  /* Light neutrals (D2 light) */
+  --gray-light-app: #f3f4f6; /* D2 --app */
+  --gray-light-canvas: #eceef1; /* D2 --canvas */
+  --gray-light-canvas-dot: #c9ced6; /* D2 --canvas-dot */
+  --gray-light-canvas-text: #586273; /* D2 --canvas-text */
+  --gray-light-panel: #ffffff; /* D2 --panel */
+  --gray-light-panel-2: #f7f8fa; /* D2 --panel-2 */
+  --gray-light-line: #e2e5ea; /* D2 --line */
+  --gray-light-line-strong: #cbd0d8; /* D2 --line-strong */
+  --gray-light-hover: #f0f2f5; /* D2 --hover */
+  --gray-light-text: #1d2330; /* D2 --text */
+  --gray-light-text-2: #535d6e; /* D2 --text-2 */
+  --gray-light-text-3: #5f6878; /* D2 --text-3 */
+  --gray-light-edge: #6f798c; /* derived: 3:1 control edge on every light surface */
+
+  /* Dark neutrals (D2 dark) */
+  --slate-app: #12161e; /* D2 --app */
+  --slate-canvas: #161b24; /* D2 --canvas */
+  --slate-canvas-dot: #2b3240; /* D2 --canvas-dot */
+  --slate-canvas-text: #9aa4b5; /* D2 --canvas-text */
+  --slate-panel: #1a1f29; /* D2 --panel */
+  --slate-panel-2: #1e2430; /* D2 --panel-2 */
+  --slate-line: #2a313e; /* D2 --line */
+  --slate-line-strong: #3a4352; /* D2 --line-strong */
+  --slate-hover: #232a36; /* D2 --hover */
+  --slate-text: #e7eaf0; /* D2 --text */
+  --slate-text-2: #a7b0c0; /* D2 --text-2 */
+  --slate-text-3: #99a3b4; /* D2 --text-3 */
+  --slate-edge: #7a859c; /* derived: 3:1 control edge on every dark surface */
+  --slate-crop-label: #0d1016; /* D2 --crop-label-bg (dark) */
+
+  /* Blue (D2's softer TeamSpeak blue) */
+  --blue-light-accent: #2f64c4; /* D2 --accent, --accent-fill, --focus */
+  --blue-light-fill-hover: #2957ac; /* D2 --accent-fill-hover */
+  --blue-light-fill-pressed: #244c96; /* derived: one step darker than the hover */
+  --blue-light-selected: #e9f0fc; /* D2 --selected */
+  --blue-light-crop: #6aa0f7; /* D2 --crop */
+  --blue-dark-accent: #86b0f5; /* D2 --accent, --focus (dark) */
+  --blue-dark-fill: #2f5eb6; /* D2 --accent-fill (dark) */
+  --blue-dark-fill-hover: #2a549f; /* D2 --accent-fill-hover (dark) */
+  --blue-dark-fill-pressed: #244a8c; /* derived: one step darker than the hover */
+  --blue-dark-selected: #22324f; /* D2 --selected (dark) */
+  --blue-dark-crop: #7aaaf7; /* D2 --crop (dark) */
+
+  /* Status (D2) */
+  --green-light: #1f7a3d;
+  --green-dark: #57c776;
+  --orange-light: #8a5a00;
+  --orange-dark: #dcab4b;
+  --red-light: #b3262d;
+  --red-dark-text: #ff8d84;
+  --red-dark-fill: #c62f3a; /* derived: D2 has no dark red fill; 4.5:1 with white */
+
+  --white: #ffffff;
+
+  /* TeamSpeak client roles: theme-independent on purpose. The TeamSpeak
+     preview and the TS6 pills always show the TeamSpeak 6 dark client (R3).
+     Declared here and nowhere else, so neither theme block switches them. */
+  --color-ts-tree-bg: #263046; /* TS6 reference tree column, measured (D-142F-4) */
+  --color-ts-row-bg: #191f32; /* TS6 reference channel pill, measured (D-142F-4) */
+  --color-ts-header-bg: #232b40; /* TS6 header or spacer pill (R-1 2.2) */
+  --color-ts-label: #f2f5fa;
+  --color-ts-label-secondary: #b4bdcc;
+  --color-ts-divider: #3a4358;
+  --color-ts-select: #8db8ff; /* D2 --ts-select: the selected row ring */
+}
+
+/* Colour roles. Each value aliases the raw palette above; the README token
+   table names its D2 source. Light is the base. Dark is declared twice on
+   purpose: once for an explicit choice (data-theme="dark") and once for
+   "follow the system" (no attribute), so the theme control wins in both
+   directions. testing/contrast.test.ts fails if the two dark blocks differ. */
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-label: var(--gray-light-text);
+  --color-label-secondary: var(--gray-light-text-2);
+  --color-label-tertiary: var(--gray-light-text-3);
+  --color-placeholder: var(--gray-light-text-3);
+  --color-separator: var(--gray-light-edge);
+  --color-border: var(--gray-light-line);
+  --color-border-strong: var(--gray-light-line-strong);
+  --color-divider: var(--gray-light-line);
+  --color-fill-neutral: var(--gray-light-panel-2);
+  --color-hover-bg: var(--gray-light-hover);
+  --color-link: var(--blue-light-accent);
+  --color-accent: var(--blue-light-accent);
+  --color-accent-fill: var(--blue-light-accent);
+  --color-accent-fill-hover: var(--blue-light-fill-hover);
+  --color-accent-fill-pressed: var(--blue-light-fill-pressed);
+  --color-on-accent-fill: var(--white);
+  --color-control-bg: var(--gray-light-panel);
+  --color-selected-bg: var(--blue-light-selected);
+  --color-focus: var(--blue-light-accent);
+  --color-bg-window: var(--gray-light-app);
+  --color-bg-sidebar: var(--gray-light-panel);
+  --color-bg-content: var(--gray-light-panel);
+  --color-bg-elevated: var(--gray-light-panel);
+  --color-bg-panel: var(--gray-light-panel-2);
+  --color-bg-row: var(--gray-light-panel);
+  --color-bg-canvas: var(--gray-light-canvas);
+  --color-canvas-dot: var(--gray-light-canvas-dot);
+  --color-canvas-label: var(--gray-light-canvas-text);
+  --color-crop: var(--blue-light-crop);
+  --color-crop-label-bg: var(--gray-light-text);
+  --color-on-crop-label: var(--white);
+  --color-positive: var(--green-light);
+  --color-warning: var(--orange-light);
+  --color-destructive: var(--red-light);
+  --color-destructive-fill: var(--red-light);
+  --color-on-destructive-fill: var(--white);
+  --color-checker-a: var(--white);
+  --color-checker-b: var(--gray-light-line);
+  --color-shadow: rgb(18 22 32 / 14%);
+  --color-scrim: rgb(18 22 32 / 46%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-label: var(--slate-text);
+    --color-label-secondary: var(--slate-text-2);
+    --color-label-tertiary: var(--slate-text-3);
+    --color-placeholder: var(--slate-text-3);
+    --color-separator: var(--slate-edge);
+    --color-border: var(--slate-line);
+    --color-border-strong: var(--slate-line-strong);
+    --color-divider: var(--slate-line);
+    --color-fill-neutral: var(--slate-panel-2);
+    --color-hover-bg: var(--slate-hover);
+    --color-link: var(--blue-dark-accent);
+    --color-accent: var(--blue-dark-accent);
+    --color-accent-fill: var(--blue-dark-fill);
+    --color-accent-fill-hover: var(--blue-dark-fill-hover);
+    --color-accent-fill-pressed: var(--blue-dark-fill-pressed);
+    --color-on-accent-fill: var(--white);
+    --color-control-bg: var(--slate-panel);
+    --color-selected-bg: var(--blue-dark-selected);
+    --color-focus: var(--blue-dark-accent);
+    --color-bg-window: var(--slate-app);
+    --color-bg-sidebar: var(--slate-panel);
+    --color-bg-content: var(--slate-panel);
+    --color-bg-elevated: var(--slate-panel-2);
+    --color-bg-panel: var(--slate-panel-2);
+    --color-bg-row: var(--slate-panel);
+    --color-bg-canvas: var(--slate-canvas);
+    --color-canvas-dot: var(--slate-canvas-dot);
+    --color-canvas-label: var(--slate-canvas-text);
+    --color-crop: var(--blue-dark-crop);
+    --color-crop-label-bg: var(--slate-crop-label);
+    --color-on-crop-label: var(--white);
+    --color-positive: var(--green-dark);
+    --color-warning: var(--orange-dark);
+    --color-destructive: var(--red-dark-text);
+    --color-destructive-fill: var(--red-dark-fill);
+    --color-on-destructive-fill: var(--white);
+    --color-checker-a: var(--slate-panel);
+    --color-checker-b: var(--slate-line);
+    --color-shadow: rgb(0 0 0 / 40%);
+    --color-scrim: rgb(6 8 12 / 55%);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-label: var(--slate-text);
+  --color-label-secondary: var(--slate-text-2);
+  --color-label-tertiary: var(--slate-text-3);
+  --color-placeholder: var(--slate-text-3);
+  --color-separator: var(--slate-edge);
+  --color-border: var(--slate-line);
+  --color-border-strong: var(--slate-line-strong);
+  --color-divider: var(--slate-line);
+  --color-fill-neutral: var(--slate-panel-2);
+  --color-hover-bg: var(--slate-hover);
+  --color-link: var(--blue-dark-accent);
+  --color-accent: var(--blue-dark-accent);
+  --color-accent-fill: var(--blue-dark-fill);
+  --color-accent-fill-hover: var(--blue-dark-fill-hover);
+  --color-accent-fill-pressed: var(--blue-dark-fill-pressed);
+  --color-on-accent-fill: var(--white);
+  --color-control-bg: var(--slate-panel);
+  --color-selected-bg: var(--blue-dark-selected);
+  --color-focus: var(--blue-dark-accent);
+  --color-bg-window: var(--slate-app);
+  --color-bg-sidebar: var(--slate-panel);
+  --color-bg-content: var(--slate-panel);
+  --color-bg-elevated: var(--slate-panel-2);
+  --color-bg-panel: var(--slate-panel-2);
+  --color-bg-row: var(--slate-panel);
+  --color-bg-canvas: var(--slate-canvas);
+  --color-canvas-dot: var(--slate-canvas-dot);
+  --color-canvas-label: var(--slate-canvas-text);
+  --color-crop: var(--blue-dark-crop);
+  --color-crop-label-bg: var(--slate-crop-label);
+  --color-on-crop-label: var(--white);
+  --color-positive: var(--green-dark);
+  --color-warning: var(--orange-dark);
+  --color-destructive: var(--red-dark-text);
+  --color-destructive-fill: var(--red-dark-fill);
+  --color-on-destructive-fill: var(--white);
+  --color-checker-a: var(--slate-panel);
+  --color-checker-b: var(--slate-line);
+  --color-shadow: rgb(0 0 0 / 40%);
+  --color-scrim: rgb(6 8 12 / 55%);
+}
+
+/* Derived state colours (README, "Derived surfaces"). Hover and pressed
+   fills lay the label colour over whatever surface the control sits on, so
+   one token serves every surface in both themes. */
+
+:root {
+  --color-fill-hover: color-mix(in srgb, var(--color-label) 6%, transparent);
+  --color-fill-pressed: color-mix(in srgb, var(--color-label) 12%, transparent);
+}

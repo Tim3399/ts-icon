@@ -4,8 +4,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mockApi } from "./fixtures/api";
 
-const DARK_WINDOW = "rgb(19, 26, 44)"; // --color-bg-window, dark (#131a2c)
-const LIGHT_WINDOW = "rgb(255, 255, 255)"; // --color-bg-window, light (#ffffff, Primer canvas)
+const DARK_WINDOW = "rgb(18, 22, 30)"; // --color-bg-window, dark (D2 --app #12161e)
+const LIGHT_WINDOW = "rgb(243, 244, 246)"; // --color-bg-window, light (D2 --app #f3f4f6)
 
 const windowBackground = (page: Page) =>
   page.evaluate(() => getComputedStyle(document.body).backgroundColor);

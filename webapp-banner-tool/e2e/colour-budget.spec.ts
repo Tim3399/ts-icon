@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { mockApi } from "./fixtures/api";
 import { ALL_ROUTES } from "./fixtures/routes";
 import { colourBudgetViolations, resolveToken } from "./helpers/colourBudget";
-import { openSidebarByKeyboard, sidebarIsCollapsible } from "./helpers/assertions";
+import { layersAreDrawer, openLayersByKeyboard } from "./helpers/assertions";
 
 const THEMES = ["dark", "light"] as const;
 
@@ -22,18 +22,22 @@ for (const theme of THEMES) {
     test("the shell stays within the colour budget", async ({ page }) => {
       await page.goto("/");
       await expect(page.getByRole("heading", { name: "Create a channel banner" })).toBeVisible();
+      // The current mode carries the accent through data-accent="selection".
+      await expect(page.locator('.ds-studio-bar [data-accent="selection"]')).toHaveCount(1);
       expect(await colourBudgetViolations(page)).toEqual([]);
     });
 
-    test("the open sidebar and the open account menu stay within the colour budget", async ({
+    test("the open layer drawer and the open account menu stay within the colour budget", async ({
       page,
     }) => {
       await page.goto("/");
       await expect(page.getByRole("heading", { name: "Create a channel banner" })).toBeVisible();
-      if (await sidebarIsCollapsible(page)) await openSidebarByKeyboard(page);
-      expect(await colourBudgetViolations(page)).toEqual([]);
-      // The drawer covers the top bar; closing it returns focus to the toggle.
-      if (await sidebarIsCollapsible(page)) await page.keyboard.press("Escape");
+      if (await layersAreDrawer(page)) {
+        await openLayersByKeyboard(page);
+        expect(await colourBudgetViolations(page)).toEqual([]);
+        // Escape closes the drawer and returns focus to the toggle.
+        await page.keyboard.press("Escape");
+      }
       await accountMenu(page).click();
       await expect(page.getByRole("menu")).toBeVisible();
       expect(await colourBudgetViolations(page)).toEqual([]);

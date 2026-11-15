@@ -12,9 +12,10 @@ test.beforeEach(async ({ page }) => {
 test("the shell itself adds no prominent button", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Create a channel banner" })).toBeVisible();
-  await expect(page.locator('#app-sidebar [data-variant="prominent"]')).toHaveCount(0);
-  await expect(page.locator('header [data-variant="prominent"]')).toHaveCount(0);
-  await expect(page.locator('#live-tree-panel [data-variant="prominent"]')).toHaveCount(0);
+  // The Studio top bar and the layer panel (T-142-F3, replaces the sidebar).
+  await expect(page.locator(".ds-studio-bar")).toHaveCount(1);
+  await expect(page.locator('.ds-studio-bar [data-variant="prominent"]')).toHaveCount(0);
+  await expect(page.locator('#studio-layers [data-variant="prominent"]')).toHaveCount(0);
 });
 
 for (const route of SHELL_ROUTES) {

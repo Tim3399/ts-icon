@@ -112,15 +112,23 @@ export async function resolveToken(page: Page, token: string) {
  */
 export async function structureViolations(page: Page, options: WalkOptions = {}) {
   return page.evaluate(({ exclude, within }) => {
-    const probe = document.createElement("span");
-    probe.style.color = "var(--color-border)";
-    document.body.appendChild(probe);
-    const neutral = getComputedStyle(probe).color;
-    probe.remove();
+    // D2 (T-142-F3 R3): gray buttons and segments carry a 1 px edge in
+    // --color-border-strong; --color-border stays allowed as well.
+    const neutralColours = ["--color-border", "--color-border-strong"].map((token) => {
+      const probe = document.createElement("span");
+      probe.style.color = `var(${token})`;
+      document.body.appendChild(probe);
+      const value = getComputedStyle(probe).color;
+      probe.remove();
+      return value;
+    });
 
     const root = within ? document.querySelector(within) : document.body;
     if (!root) return [`missing scope ${within}`];
-    const popovers = "[role=menu], [role=dialog], [role=alertdialog], [data-popover], .ds-toast";
+    // The open layer drawer (1024-1239 px) is an overlay like a popover.
+    const popovers =
+      "[role=menu], [role=dialog], [role=alertdialog], [data-popover], .ds-toast, " +
+      '.ds-studio[data-layers="open"] .ds-studio-layers';
     const name = (el: Element) =>
       `${el.tagName.toLowerCase()}${
         el.className && typeof el.className === "string" ? `.${el.className.split(" ")[0]}` : ""
@@ -140,7 +148,7 @@ export async function structureViolations(page: Page, options: WalkOptions = {})
           const style = cs.getPropertyValue(`border-${side}-style`);
           if (width === 0 || style === "none") continue;
           const colour = cs.getPropertyValue(`border-${side}-color`);
-          if (width !== 1 || colour !== neutral)
+          if (width !== 1 || !neutralColours.includes(colour))
             out.push(`button ${name(el)} has a ${width}px ${colour} border`);
         }
       }

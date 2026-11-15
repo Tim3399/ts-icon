@@ -1,0 +1,79 @@
+/* Geometry tokens: spacing, radius, sizes, elevation and layers, from concept
+   D2 "Studio Light" (T-142-F3 item 2). Screens and design components use
+   these names only; no raw lengths in their CSS (README, "Rules for CSS
+   outside the foundations"). */
+
+:root {
+  /* Spacing: D2's 4 / 8 / 12 / 16 / 24 / 32 px plus the in-between steps the
+     earlier screens still use. */
+  --space-0: 0;
+  --space-half: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 56px;
+  --space-10: 64px;
+
+  /* Radius by role (D2): 6 px controls and TS pills, 10 px panels. */
+  --radius-small: 4px;
+  --radius-control: 6px;
+  --radius-row: 6px;
+  --radius-card: 10px;
+  --radius-panel: 10px;
+  --radius-pill: 999px;
+
+  /* Sizes. Hit target, rows and the top bar switch with the viewport in
+     metrics.css (44 px below 1024 px, D2's 30 px from 1024 px). */
+  --size-hit-target: 44px;
+  --size-hit-target-small: 44px;
+  --size-control-prominent: 48px;
+  --size-toolbar: 56px;
+  --size-row-min: 44px;
+  --size-panel-head: 40px; /* Panel header (D-142G-1 interface) */
+  --size-layers: 248px; /* D2 --layers */
+  --size-inspector: 312px; /* D2 --inspector */
+  --size-icon-small: 14px;
+  --size-icon: 16px;
+  --size-icon-large: 22px;
+  --size-hairline: 1px;
+  --size-focus-ring: 2px;
+  --size-sidebar: 248px;
+  --size-menu: 240px;
+  --size-panel: 312px;
+  /* The narrowest centre column: a 500 px crop stage plus the canvas padding
+     (R2). The shell keeps it from 1024 px. */
+  --size-main-min: 560px;
+  --size-content-max: 1120px;
+  --size-avatar: 24px;
+  --size-thumb: 44px;
+  --size-glyph: 16px;
+  --size-dot: 7px; /* D2 status dot */
+  --size-dot-grid: 16px; /* D2 canvas dot grid pitch */
+  --size-canvas-min: 360px; /* D2 canvas minimum height */
+  --size-property-label: 76px; /* D2 inspector label column */
+  --size-spinner: 16px;
+  --size-spinner-large: 28px;
+  --size-banner-ratio: 500 / 44;
+  --size-checker: 12px;
+  --size-channel-indent: 16px; /* D2 table: 16 px per depth */
+  --size-grid-small: 160px;
+  --size-grid-medium: 240px;
+  --size-grid-large: 320px;
+
+  /* Elevation: only popovers, menus, toasts, dialogs and the layer drawer
+     cast a shadow (T-142-F1 item 6). */
+  --shadow-overlay: 0 8px 28px var(--color-shadow);
+  --shadow-focus-ring: 0 0 0 var(--size-focus-ring) var(--color-focus);
+
+  /* Stacking layers */
+  --layer-sticky: 10;
+  --layer-drawer: 40;
+  --layer-scrim: 39;
+  --layer-toast: 60;
+  --layer-skip-link: 80;
+}
