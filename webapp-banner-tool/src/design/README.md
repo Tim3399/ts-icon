@@ -188,10 +188,12 @@ Hover, pressed, selected and status surfaces are derived, never sampled:
 
 ### TeamSpeak client roles (theme-independent)
 
-The "Preview in TeamSpeak" in the Banner editor always shows the TeamSpeak 6 dark client, whatever the
-app theme (T-142-F1 item 14). These roles are declared once in the raw `:root` block of `colors.css`
-and in neither theme block, so they never switch. Only the TeamSpeak preview container uses them; it
-maps them onto the channel-tree row's local properties. The live channel tree keeps the themed roles.
+Everything that draws the TeamSpeak channel tree shows the TeamSpeak 6 dark client, whatever the app
+theme: the "Preview in TeamSpeak" in the Banner editor (T-142-F1 item 14), the live channel tree and the
+Wallpaper parent picker (T-142-F1 addendum 2: the TeamSpeak colours stay for the channel tree; D-10).
+These roles are declared once in the raw `:root` block of `colors.css` and in neither theme block, so
+they never switch. Only `ChannelTreeRow`, `ChannelTreePreview` and `TeamSpeakPreview` use them; app
+chrome never does.
 
 | Token                        | Value (both themes) | Source (R-1 2.2)                                |
 | ---------------------------- | ------------------- | ----------------------------------------------- |
