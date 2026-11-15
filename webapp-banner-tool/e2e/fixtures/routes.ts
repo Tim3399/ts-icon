@@ -54,7 +54,7 @@ export const STAGE_B_ROUTES: string[] = [
  * channel images by D-142F-3. Each part removes its own route from this list
  * when its screen is done. enabled by D-142F-2/3
  */
-export const STAGE_A_SCREEN_ROUTES: string[] = ["/", "/channels"];
+export const STAGE_A_SCREEN_ROUTES: string[] = ["/channels"];
 
 /**
  * The cross-cutting specs of T-142-F1 mark a route's test `test.fixme` while
@@ -70,10 +70,11 @@ export function pendingReason(path: string): string | undefined {
 
 /**
  * Parts of the shell that render a screen-owned component and are checked
- * with that screen: the routed content, and the live channel tree
- * (ChannelTreePreview, rebuilt with the Banner editor).
+ * with that screen: the routed content. The live channel tree
+ * (ChannelTreePreview) was rebuilt with the Banner editor in D-142F-2 and is
+ * checked with the shell.
  */
-export const SCREEN_OWNED_SCOPES = "#main-content, #live-tree-panel";
+export const SCREEN_OWNED_SCOPES = "#main-content";
 
 /** Verbs that must never label a prominent button, on any route. */
 export const DESTRUCTIVE_VERBS = ["Delete", "Remove", "Undo", "Discard", "Clear", "Reset"];

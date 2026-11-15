@@ -1,0 +1,29 @@
+/* TeamSpeakPreview: the selected channel's banner in a TeamSpeak channel-tree
+   mock, at 1:1 (T-142-F1 item 14). The rows are ChannelTreeRow; this file
+   gives them the TeamSpeak client surface. Roles and tokens only. */
+
+.ts-preview {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-card);
+  background-color: var(--color-bg-panel);
+  overflow: hidden;
+}
+
+.ts-preview-tree {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The context rows are quieter than the row being edited. */
+.ts-preview-context {
+  opacity: 0.72;
+}
+
+.ts-preview-empty {
+  padding: var(--space-6) var(--space-4);
+}

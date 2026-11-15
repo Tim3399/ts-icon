@@ -1,34 +1,42 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import Cropper from "cropperjs";
 import { useSearchParams } from "react-router-dom";
 import { GET_IMAGE_URL } from "../config";
 import { useAuth } from "../auth/AuthContext";
 import { apiFetch, apiFetchBlob, describeApiError, UPLOAD_TIMEOUT_MS } from "../api/client";
 import { channelImageEndpoint, channelImageUrl } from "../api/channels";
+import { imageFileError } from "../api/image-file";
 import { useChannels } from "../hooks/useChannels";
 import {
   BannerFrame,
   Button,
-  Cluster,
   EmptyState,
-  Icon,
+  ListRow,
+  ListSection,
   PageHeader,
   RequestError,
-  Section,
   Select,
   Spinner,
-  Stack,
+  StatusGlyph,
   TextField,
+  Toolbar,
+  ToolbarButton,
   UploadInput,
   useToast,
 } from "../design";
 import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
 import { uploadFieldError, useFieldErrors } from "../hooks/useFieldErrors";
+import {
+  BANNER_HEIGHT as TARGET_HEIGHT,
+  BANNER_WIDTH as TARGET_WIDTH,
+  bannerBlob,
+  bannerDataUrl,
+  exportBanner,
+} from "./bannerExport";
+import { TeamSpeakPreview } from "./TeamSpeakPreview";
 import "./BannerCropper.css";
 
 const FIELD_IDS = { cid: "banner-channel", file: "file-upload", url: "imageUrl" };
-const TARGET_WIDTH = 500,
-  TARGET_HEIGHT = 44;
 
 const NUDGE = [
   ["Move left", "left", -10, 0],
@@ -36,6 +44,21 @@ const NUDGE = [
   ["Move down", "down", 0, 10],
   ["Move right", "right", 10, 0],
 ] as const;
+
+function hasFiles(event: DragEvent) {
+  return Array.from(event.dataTransfer?.types ?? []).includes("Files");
+}
+
+/** The first image file on the clipboard, if any. */
+function clipboardImage(data: DataTransfer | null) {
+  if (!data) return undefined;
+  const files = Array.from(data.files ?? []);
+  const fromItems = Array.from(data.items ?? [])
+    .filter((item) => item.kind === "file")
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => Boolean(file));
+  return [...files, ...fromItems].find((file) => file.type.startsWith("image/"));
+}
 
 export default function BannerCropper() {
   const { channels, loading, error: channelsError, reload } = useChannels();
@@ -50,11 +73,12 @@ export default function BannerCropper() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [savedRevision, setSavedRevision] = useState<number>();
+  const [preview, setPreview] = useState<string | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
-  const outputRef = useRef<HTMLDivElement>(null);
   const cropper = useRef<Cropper | null>(null);
   const cropperGeneration = useRef(0);
+  const previewFrame = useRef(0);
   const readerRef = useRef<FileReader | null>(null);
   const sourceRequest = useRef<AbortController | null>(null);
   const sourceSequence = useRef(0);
@@ -66,6 +90,21 @@ export default function BannerCropper() {
   const fields = useFieldErrors(FIELD_IDS, uploading || loadingImage);
   const reportField = fields.report;
   const sourceField = useRef<"file" | "url">("file");
+
+  // The TeamSpeak preview follows the crop within one animation frame, from
+  // the same export the upload uses (T-142-F1 item 15).
+  const schedulePreview = useCallback((generation: number) => {
+    cancelAnimationFrame(previewFrame.current);
+    previewFrame.current = requestAnimationFrame(() => {
+      const current = cropper.current;
+      if (!current || generation !== cropperGeneration.current) return;
+      try {
+        setPreview(bannerDataUrl(exportBanner(current)));
+      } catch {
+        setPreview(null);
+      }
+    });
+  }, []);
 
   const initialize = useCallback(
     (data?: Cropper.Data) => {
@@ -88,25 +127,33 @@ export default function BannerCropper() {
         dragMode: "move",
         cropBoxResizable: false,
         responsive: true,
-        // Mirrors the current selection into the true-proportion strip below
-        // the stage, so what will be saved is visible without saving first.
-        preview: outputRef.current ?? undefined,
+        // No dashed guide lines: the page keeps one dashed element, the drop zone.
+        guides: false,
+        center: false,
         data,
         ready() {
           if (generation !== cropperGeneration.current) return;
+          // The crop selection frame is one of the five accent uses (T-142-F1 item 1).
+          boxRef.current?.querySelector(".cropper-crop-box")?.setAttribute("data-accent", "crop");
           setReady(true);
           setLoadingImage(false);
+          schedulePreview(generation);
+        },
+        crop() {
+          if (generation === cropperGeneration.current) schedulePreview(generation);
         },
       });
     },
-    [source, reportField],
+    [source, reportField, schedulePreview],
   );
   useEffect(() => {
     setReady(false);
+    setPreview(null);
     if (imageRef.current?.complete) initialize();
     const generation = cropperGeneration;
     return () => {
       generation.current++;
+      cancelAnimationFrame(previewFrame.current);
       cropper.current?.destroy();
       cropper.current = null;
       if (source.startsWith("blob:")) URL.revokeObjectURL(source);
@@ -165,13 +212,25 @@ export default function BannerCropper() {
     };
     reader.readAsDataURL(file);
   };
-  const loadUrl = async () => {
-    if (!imageUrl.trim()) {
+  /** A file that arrived outside the drop zone: dropped on the page or pasted. */
+  const acceptFile = (file: File) => {
+    if (uploading) return;
+    setFileResetKey((previous) => previous + 1);
+    const issue = imageFileError(file);
+    if (issue) {
+      sourceField.current = "file";
+      reportField("file", issue);
+      return;
+    }
+    selectFile(file);
+  };
+  const loadUrl = async (value = imageUrl) => {
+    if (!value.trim()) {
       reportField("url", "Enter an image URL first.");
       return;
     }
     try {
-      if (new URL(imageUrl.trim()).protocol !== "https:") throw new Error("HTTPS required");
+      if (new URL(value.trim()).protocol !== "https:") throw new Error("HTTPS required");
     } catch {
       reportField("url", "Enter a complete HTTPS image URL.");
       return;
@@ -189,10 +248,11 @@ export default function BannerCropper() {
     setReady(false);
     setError("");
     try {
-      const blob = await apiFetchBlob(
-        `${GET_IMAGE_URL}?url=${encodeURIComponent(imageUrl.trim())}`,
-        { getToken, signal: controller.signal, timeoutMs: UPLOAD_TIMEOUT_MS },
-      );
+      const blob = await apiFetchBlob(`${GET_IMAGE_URL}?url=${encodeURIComponent(value.trim())}`, {
+        getToken,
+        signal: controller.signal,
+        timeoutMs: UPLOAD_TIMEOUT_MS,
+      });
       if (sequence === sourceSequence.current) setSource(URL.createObjectURL(blob));
     } catch (err) {
       if (!controller.signal.aborted) {
@@ -202,6 +262,32 @@ export default function BannerCropper() {
       }
     }
   };
+
+  // Ctrl/Cmd+V anywhere on the page: image data, or an image URL outside a
+  // text field (T-142-F1 item 13). The listener reads the latest handlers.
+  const paste = useRef<(event: ClipboardEvent) => void>(() => {});
+  paste.current = (event: ClipboardEvent) => {
+    if (uploading) return;
+    const file = clipboardImage(event.clipboardData);
+    if (file) {
+      event.preventDefault();
+      acceptFile(file);
+      return;
+    }
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest("input, textarea, select, [contenteditable]")) return;
+    const text = event.clipboardData?.getData("text/plain").trim() ?? "";
+    if (!/^https?:\/\/\S+$/i.test(text)) return;
+    event.preventDefault();
+    setImageUrl(text);
+    void loadUrl(text);
+  };
+  useEffect(() => {
+    const listener = (event: ClipboardEvent) => paste.current(event);
+    document.addEventListener("paste", listener);
+    return () => document.removeEventListener("paste", listener);
+  }, []);
+
   const upload = async () => {
     if (lock.current || !cropper.current || !ready || !selected) return;
     lock.current = true;
@@ -209,18 +295,7 @@ export default function BannerCropper() {
     fields.clear();
     setError("");
     try {
-      const canvas = cropper.current.getCroppedCanvas({
-        width: TARGET_WIDTH,
-        height: TARGET_HEIGHT,
-        imageSmoothingQuality: "high",
-      });
-      if (!canvas) throw new Error("Canvas unavailable");
-      const blob = await new Promise<Blob>((resolve, reject) =>
-        canvas.toBlob(
-          (value) => (value ? resolve(value) : reject(new Error("Image encoding failed"))),
-          "image/png",
-        ),
-      );
+      const blob = await bannerBlob(exportBanner(cropper.current));
       const body = new FormData();
       body.append("file", blob, "banner.png");
       await apiFetch(channelImageEndpoint(cid), {
@@ -258,81 +333,97 @@ export default function BannerCropper() {
   const hasSavedArt = Boolean(
     selected && (selected.hasImage || selected.hasFallback || savedRevision),
   );
+  const savedBanner = selected && hasSavedArt ? channelImageUrl(selected, savedRevision) : null;
 
   return (
-    <div>
+    <div
+      className="banner-editor"
+      onDragOver={(event) => {
+        if (hasFiles(event)) event.preventDefault();
+      }}
+      onDrop={(event) => {
+        if (!hasFiles(event)) return;
+        event.preventDefault();
+        const file = event.dataTransfer.files?.[0];
+        if (file) acceptFile(file);
+      }}
+    >
       <PageHeader
-        eyebrow="Banner editor"
-        icon="crop"
         title="Create a channel banner"
-        lead={`Pick the channel, choose artwork, frame the ${TARGET_WIDTH} × ${TARGET_HEIGHT} pixel crop and save it straight to TeamSpeak.`}
+        subtitle={`Choose a channel and an image, frame it and save it as a ${TARGET_WIDTH} × ${TARGET_HEIGHT} banner.`}
       />
-      <div className="crop-workbench">
-        <Stack gap={4} className="crop-side">
-          <Section
-            title="Target channel"
-            step={1}
-            subtitle="The saved banner replaces this channel's current image."
-          >
-            <RequestError message={channelsError} retry={() => void reload()} />
-            <Select
-              id={FIELD_IDS.cid}
-              label="Channel"
-              error={fields.errors.cid}
-              value={cid}
-              disabled={loading || uploading}
-              onChange={(e) => {
-                fields.clear("cid");
-                setCid(e.target.value);
-                setSavedRevision(undefined);
-              }}
-            >
-              <option value="">{loading ? "Loading channels…" : "Choose a channel"}</option>
-              {channels.map((c) => (
-                <option key={c.cid} value={c.cid}>
-                  {c.name}
-                  {c.pid
-                    ? ` — under ${channels.find((p) => p.cid === c.pid)?.name ?? "parent"}`
-                    : ""}{" "}
-                  (#{c.cid})
-                </option>
-              ))}
-            </Select>
-            {selected && hasSavedArt && (
-              <div className="saved-preview">
-                <p className="saved-preview-label">
-                  <span>{savedRevision ? "Saved banner" : "Current banner"}</span>
-                  {savedRevision && (
-                    <span className="saved-live">
-                      <Icon name="check" size={11} />
-                      Live
-                    </span>
-                  )}
-                </p>
-                <BannerFrame
-                  src={channelImageUrl(selected, savedRevision)}
-                  alt={`Saved banner for ${selected.name}`}
-                  imageKey={savedRevision}
-                />
-              </div>
-            )}
-          </Section>
 
-          <Section
-            title="Image source"
-            step={2}
-            subtitle="Upload a file, or fetch one over HTTPS through the server."
+      <ListSection header="Channel">
+        {channelsError && (
+          <li className="editor-pane">
+            <RequestError message={channelsError} retry={() => void reload()} />
+          </li>
+        )}
+        <li className="editor-pane">
+          <Select
+            id={FIELD_IDS.cid}
+            label="Channel"
+            labelHidden
+            error={fields.errors.cid}
+            value={cid}
+            disabled={loading || uploading}
+            onChange={(e) => {
+              fields.clear("cid");
+              setCid(e.target.value);
+              setSavedRevision(undefined);
+            }}
           >
-            <UploadInput
-              id="file-upload"
-              resetKey={fileResetKey}
-              error={fields.errors.file}
-              disabled={uploading}
-              onFile={selectFile}
-            />
+            <option value="">{loading ? "Loading channels…" : "Choose a channel"}</option>
+            {channels.map((c) => (
+              <option key={c.cid} value={c.cid}>
+                {c.name}
+                {c.pid
+                  ? ` — under ${channels.find((p) => p.cid === c.pid)?.name ?? "parent"}`
+                  : ""}{" "}
+                (#{c.cid})
+              </option>
+            ))}
+          </Select>
+        </li>
+        {selected && savedBanner && (
+          <ListRow
+            className="editor-current"
+            leading={
+              <BannerFrame
+                className="editor-current-banner"
+                src={savedBanner}
+                alt={`Saved banner for ${selected.name}`}
+                imageKey={savedRevision}
+              />
+            }
+            title={savedRevision ? "Saved banner" : "Current banner"}
+            subtitle={
+              savedRevision ? <StatusGlyph tone="positive" label="Live in TeamSpeak" /> : undefined
+            }
+          />
+        )}
+      </ListSection>
+
+      <ListSection
+        header="Image"
+        footer="You can also paste an image or an image URL with Ctrl+V (⌘V on a Mac)."
+      >
+        <li className="editor-pane">
+          <UploadInput
+            id="file-upload"
+            resetKey={fileResetKey}
+            error={fields.errors.file}
+            disabled={uploading}
+            onFile={selectFile}
+          />
+        </li>
+        <ListRow
+          className="editor-url"
+          title={
             <TextField
               id="imageUrl"
-              label="Or load from a URL"
+              label="Image URL"
+              labelHidden
               error={fields.errors.url}
               type="url"
               value={imageUrl}
@@ -343,139 +434,141 @@ export default function BannerCropper() {
               placeholder="https://example.com/banner.png"
               disabled={uploading}
             />
-            <Cluster>
-              <Button
-                disabled={loadingImage || uploading}
-                icon={loadingImage ? undefined : "link"}
-                onClick={() => void loadUrl()}
-              >
-                {loadingImage && <Spinner />}
-                {loadingImage ? "Loading…" : "Load"}
-              </Button>
-            </Cluster>
-          </Section>
-        </Stack>
+          }
+          trailing={
+            <Button
+              disabled={loadingImage || uploading}
+              icon={loadingImage ? undefined : "link"}
+              onClick={() => void loadUrl()}
+            >
+              {loadingImage && <Spinner />}
+              {loadingImage ? "Loading…" : "Load"}
+            </Button>
+          }
+        />
+      </ListSection>
 
-        <Stack gap={4} className="crop-main">
-          <RequestError message={error} />
-          <Section
-            title="Frame the crop"
-            step={3}
-            className="crop-sticky"
-            subtitle={
-              <span id="crop-help">
-                Drag the image to choose the visible area, or nudge it with the controls. The saved
-                banner is always {TARGET_WIDTH} × {TARGET_HEIGHT} pixels.
-              </span>
-            }
-            actions={
-              <Button
-                variant="plain"
-                size="small"
-                icon={isZoomed ? "collapse" : "expand"}
-                aria-expanded={isZoomed}
-                onClick={() => setIsZoomed((v) => !v)}
-              >
-                {isZoomed ? "Shrink view" : "Enlarge view"}
-              </Button>
-            }
-            footer={
-              <>
-                <p className="crop-hint">
-                  {selected
-                    ? `Saving replaces the banner of ${selected.name}.`
-                    : "Choose a channel to enable saving."}
-                </p>
-                <Button
-                  variant="prominent"
-                  icon={uploading ? undefined : "send"}
-                  onClick={() => void upload()}
-                  disabled={uploading || !ready || !selected}
-                >
-                  {uploading && <Spinner />}
-                  {uploading ? "Uploading…" : "Crop & send image"}
-                </Button>
-              </>
-            }
+      <ListSection
+        header="Crop"
+        footer={
+          <span id="crop-help">
+            Drag the image to frame it, or use the arrows. The banner is saved at {TARGET_WIDTH} ×{" "}
+            {TARGET_HEIGHT} pixels.
+          </span>
+        }
+      >
+        {error && (
+          <li className="editor-pane">
+            <RequestError message={error} />
+          </li>
+        )}
+        <li className="editor-pane editor-crop">
+          <div
+            ref={boxRef}
+            data-testid="crop-stage"
+            className={`preview-box crop-checker${isZoomed ? " preview-box-enlarged" : ""}`}
+            aria-describedby="crop-help"
           >
-            <Stack gap={4} className="crop-stage">
-              <div
-                ref={boxRef}
-                className={`preview-box crop-checker${isZoomed ? " preview-box-enlarged" : ""}`}
-                aria-describedby="crop-help"
-              >
-                {source ? (
-                  <img
-                    key={source}
-                    ref={imageRef}
-                    src={source}
-                    alt="Preview"
-                    id="preview"
-                    onLoad={() => {
-                      if (!cropper.current) initialize();
-                    }}
-                    onError={() => {
-                      setReady(false);
-                      setLoadingImage(false);
-                      reportField(
-                        sourceField.current,
-                        "This image could not be decoded. Choose a PNG, JPEG or WebP image.",
-                      );
-                    }}
-                  />
-                ) : (
-                  <EmptyState
-                    className="crop-empty"
-                    icon="image"
-                    title="No image loaded"
-                    description="Upload a file or load a URL to start cropping."
-                  />
-                )}
-              </div>
+            {source ? (
+              <img
+                key={source}
+                ref={imageRef}
+                src={source}
+                alt="Preview"
+                id="preview"
+                onLoad={() => {
+                  if (!cropper.current) initialize();
+                }}
+                onError={() => {
+                  setReady(false);
+                  setLoadingImage(false);
+                  reportField(
+                    sourceField.current,
+                    "This image could not be decoded. Choose a PNG, JPEG or WebP image.",
+                  );
+                }}
+              />
+            ) : (
+              <EmptyState
+                className="crop-empty"
+                icon="image"
+                title="Add an image above, or paste one, to start framing your banner."
+              />
+            )}
+          </div>
+          <div className="crop-toolbar">
+            <Toolbar label="Move the crop area">
+              {NUDGE.map(([label, icon, x, y]) => (
+                <ToolbarButton
+                  key={label}
+                  icon={icon}
+                  label={label}
+                  disabled={!ready || uploading}
+                  onClick={() => adjust(x, y)}
+                />
+              ))}
+            </Toolbar>
+            <Toolbar label="Zoom">
+              <ToolbarButton
+                icon="zoomIn"
+                label="Zoom in"
+                disabled={!ready || uploading}
+                onClick={() => cropper.current?.zoom(0.1)}
+              />
+              <ToolbarButton
+                icon="zoomOut"
+                label="Zoom out"
+                disabled={!ready || uploading}
+                onClick={() => cropper.current?.zoom(-0.1)}
+              />
+            </Toolbar>
+            <Button
+              variant="plain"
+              size="small"
+              icon={isZoomed ? "collapse" : "expand"}
+              aria-expanded={isZoomed}
+              onClick={() => setIsZoomed((v) => !v)}
+            >
+              {isZoomed ? "Shrink view" : "Enlarge view"}
+            </Button>
+          </div>
+        </li>
+      </ListSection>
 
-              <Cluster gap={3} justify="between" className="crop-toolbar">
-                <Cluster gap={1} role="group" aria-label="Move the crop area">
-                  {NUDGE.map(([label, icon, x, y]) => (
-                    <Button
-                      variant="plain"
-                      iconOnly
-                      key={label}
-                      icon={icon}
-                      aria-label={label}
-                      disabled={!ready || uploading}
-                      onClick={() => adjust(x, y)}
-                    />
-                  ))}
-                </Cluster>
-                <Cluster gap={1} role="group" aria-label="Zoom">
-                  <Button
-                    variant="plain"
-                    iconOnly
-                    icon="zoomIn"
-                    aria-label="Zoom in"
-                    disabled={!ready || uploading}
-                    onClick={() => cropper.current?.zoom(0.1)}
-                  />
-                  <Button
-                    variant="plain"
-                    iconOnly
-                    icon="zoomOut"
-                    aria-label="Zoom out"
-                    disabled={!ready || uploading}
-                    onClick={() => cropper.current?.zoom(-0.1)}
-                  />
-                </Cluster>
-              </Cluster>
+      <ListSection
+        header="TeamSpeak preview"
+        footer={
+          <span className="ts-preview-scaled">
+            Scaled to fit this screen. TeamSpeak shows the banner at {TARGET_WIDTH} ×{" "}
+            {TARGET_HEIGHT} pixels.
+          </span>
+        }
+      >
+        <li className="editor-pane">
+          <TeamSpeakPreview
+            channels={channels}
+            selected={selected}
+            banner={ready ? preview : null}
+            savedBanner={savedBanner}
+          />
+        </li>
+      </ListSection>
 
-              <div className="saved-preview">
-                <p className="saved-preview-label">
-                  <span>Exact output · {`${TARGET_WIDTH} × ${TARGET_HEIGHT}`}</span>
-                </p>
-                <div ref={outputRef} className="crop-checker crop-output" aria-hidden="true" />
-              </div>
-            </Stack>
-          </Section>
-        </Stack>
+      <div className="editor-actions">
+        <p className="editor-hint">
+          {selected
+            ? `Saving replaces the banner of ${selected.name}.`
+            : "Choose a channel to enable saving."}
+        </p>
+        <Button
+          variant="prominent"
+          icon={uploading ? undefined : "send"}
+          onClick={() => void upload()}
+          disabled={uploading || !ready || !selected}
+        >
+          {uploading && <Spinner />}
+          {uploading ? "Uploading…" : "Crop & send image"}
+        </Button>
       </div>
     </div>
   );

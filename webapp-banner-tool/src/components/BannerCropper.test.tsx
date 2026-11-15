@@ -14,6 +14,7 @@ const {
   destroyMock,
   setDataMock,
   readyCallbacks,
+  cropCallbacks,
   cropperBehavior,
 } = vi.hoisted(() => ({
   jsonMock: vi.fn(),
@@ -26,6 +27,7 @@ const {
   destroyMock: vi.fn(),
   setDataMock: vi.fn(),
   readyCallbacks: [] as Array<() => void>,
+  cropCallbacks: [] as Array<() => void>,
   cropperBehavior: { autoReady: true },
 }));
 vi.mock("../auth/AuthContext", () => ({ useAuth: () => ({ getToken }) }));
@@ -42,8 +44,9 @@ vi.mock("../api/client", async () => ({
 }));
 vi.mock("cropperjs", () => ({
   default: class {
-    constructor(_image: HTMLImageElement, options: { ready: () => void }) {
+    constructor(_image: HTMLImageElement, options: { ready: () => void; crop: () => void }) {
       readyCallbacks.push(options.ready);
+      cropCallbacks.push(options.crop);
       if (cropperBehavior.autoReady) queueMicrotask(() => options.ready());
     }
     destroy = destroyMock;
@@ -56,6 +59,7 @@ vi.mock("cropperjs", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   readyCallbacks.length = 0;
+  cropCallbacks.length = 0;
   cropperBehavior.autoReady = true;
   URL.createObjectURL = vi.fn(() => "blob:loaded-image");
   URL.revokeObjectURL = vi.fn();
@@ -251,4 +255,125 @@ it("clears a rejected file when a valid URL replaces it and does not refocus it 
   expect(input).not.toHaveAttribute("aria-describedby");
   expect(input).not.toHaveFocus();
   expect(screen.queryByText(/Choose a PNG, JPEG or WebP/)).not.toBeInTheDocument();
+});
+
+/** A canvas stand-in whose PNG encodings both carry `bytes`. */
+function fakeCanvas(bytes: string) {
+  return {
+    toDataURL: () => `data:image/png;base64,${btoa(bytes)}`,
+    toBlob: (fn: (blob: Blob) => void) => fn(new Blob([bytes], { type: "image/png" })),
+  };
+}
+
+const croppedBanner = () => screen.findByAltText("Cropped banner for General");
+
+describe("TeamSpeak preview (T-142-F1 items 14, 15, 17)", () => {
+  it("shows the crop in a region named Preview in TeamSpeak, with alt text naming the channel", async () => {
+    canvasMock.mockReturnValue(fakeCanvas("first"));
+    await load();
+    expect(screen.getByRole("figure", { name: "Preview in TeamSpeak" })).toContainElement(
+      await croppedBanner(),
+    );
+  });
+
+  it("re-renders the preview when the crop changes", async () => {
+    canvasMock.mockReturnValue(fakeCanvas("first"));
+    await load();
+    await waitFor(async () =>
+      expect((await croppedBanner()).getAttribute("src")).toBe(fakeCanvas("first").toDataURL()),
+    );
+    canvasMock.mockReturnValue(fakeCanvas("moved"));
+    act(() => cropCallbacks.at(-1)!());
+    await waitFor(async () =>
+      expect((await croppedBanner()).getAttribute("src")).toBe(fakeCanvas("moved").toDataURL()),
+    );
+  });
+
+  it("previews exactly the bytes that are uploaded, from one export of the same crop", async () => {
+    canvasMock.mockReturnValue(fakeCanvas("exact banner pixels"));
+    await load();
+    const preview = (await croppedBanner()).getAttribute("src")!;
+    fireEvent.click(screen.getByRole("button", { name: "Crop & send image" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const uploaded = (fetchMock.mock.calls[0][1].body as FormData).get("file") as File;
+    const previewBytes = atob(preview.split(",")[1]);
+    expect(await uploaded.text()).toBe(previewBytes);
+    // Both came from exportBanner: the same cropped-canvas request every time.
+    for (const call of canvasMock.mock.calls)
+      expect(call[0]).toEqual({ width: 500, height: 44, imageSmoothingQuality: "high" });
+  });
+});
+
+describe("image sources (T-142-F1 item 13)", () => {
+  function renderEditor() {
+    return render(
+      <MemoryRouter>
+        <BannerCropper />
+      </MemoryRouter>,
+    );
+  }
+
+  function pasteEvent(data: { files?: File[]; text?: string }) {
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        files: data.files ?? [],
+        items: [],
+        getData: (type: string) => (type === "text/plain" ? (data.text ?? "") : ""),
+      },
+    });
+    return event;
+  }
+
+  it("loads a pasted image file into the cropper", async () => {
+    renderEditor();
+    const file = new File(["png"], "clip.png", { type: "image/png" });
+    act(() => {
+      document.body.dispatchEvent(pasteEvent({ files: [file] }));
+    });
+    expect(await screen.findByAltText("Preview")).toHaveAttribute(
+      "src",
+      expect.stringContaining("data:image/png"),
+    );
+  });
+
+  it("loads a pasted image URL through the server", async () => {
+    renderEditor();
+    act(() => {
+      document.body.dispatchEvent(pasteEvent({ text: "https://example.test/pasted.png" }));
+    });
+    await waitFor(() => expect(blobMock).toHaveBeenCalled());
+    expect(blobMock.mock.calls[0][0]).toContain(
+      encodeURIComponent("https://example.test/pasted.png"),
+    );
+    expect(document.getElementById("imageUrl")).toHaveValue("https://example.test/pasted.png");
+  });
+
+  it("leaves text pasted into a text field to the field", async () => {
+    renderEditor();
+    const input = document.getElementById("imageUrl")!;
+    act(() => {
+      input.dispatchEvent(pasteEvent({ text: "https://example.test/typed.png" }));
+    });
+    expect(blobMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a pasted non-image without reading it", async () => {
+    renderEditor();
+    const event = pasteEvent({ files: [new File(["x"], "a.gif", { type: "image/gif" })] });
+    act(() => {
+      document.body.dispatchEvent(event);
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Choose a PNG, JPEG or WebP");
+    expect(screen.queryByAltText("Preview")).toBeNull();
+  });
+
+  it("loads an image dropped anywhere on the editor", async () => {
+    const { container } = renderEditor();
+    const file = new File(["png"], "dropped.png", { type: "image/png" });
+    fireEvent.drop(container.querySelector(".banner-editor")!, {
+      dataTransfer: { types: ["Files"], files: [file] },
+    });
+    expect(await screen.findByAltText("Preview")).toBeInTheDocument();
+  });
 });

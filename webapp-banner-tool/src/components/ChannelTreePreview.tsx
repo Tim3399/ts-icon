@@ -3,16 +3,13 @@ import { CHANNEL_BANNER_URLS_URL } from "../config";
 import { useAuth } from "../auth/AuthContext";
 import { apiFetchJson, describeApiError } from "../api/client";
 import { channelImageUrl } from "../api/channels";
-import { Button, EmptyState, Icon, LoadingState, RequestError, useToast } from "../design";
+import { EmptyState, LoadingState, RequestError, useToast } from "../design";
 import type { PreviewOverlay } from "../preview/PreviewOverlayContext";
 import type { Channel } from "../api/types";
+import { ChannelTreeRow } from "./ChannelTreeRow";
 import "./ChannelTreePreview.css";
 
 export type TreeChannel = Channel;
-
-/** Match --size-channel-indent and --space-3: the row's own left padding carries the tree indent. */
-const INDENT_PX = 20;
-const BASE_PADDING_PX = 12;
 
 interface Props {
   selectable?: boolean;
@@ -64,7 +61,6 @@ export default function ChannelTreePreview({
     key: c.cid,
     cid: c.cid as string | null,
     name: c.name,
-    managed: c.managed,
     depth: c.depth,
     image: c.managed ? channelImageUrl(c, c.contentHash || refreshKey) : c.bannerGfxUrl,
     pending: false,
@@ -84,7 +80,6 @@ export default function ChannelTreePreview({
         key: `pending-${i}`,
         cid: null,
         name: r.isSpacer ? "Spacer (pending)" : "New channel (pending)",
-        managed: false,
         depth: parentDepth + 1 + r.depth,
         image: r.imageDataUrl,
         pending: true,
@@ -107,102 +102,27 @@ export default function ChannelTreePreview({
         <div className="channel-tree-scroll">
           <ul className="channel-tree-list">
             {selectable && (
-              <li
-                className="channel-tree-row channel-tree-row-selectable"
-                style={{ paddingLeft: BASE_PADDING_PX }}
-              >
-                <div
-                  className="channel-tree-pill"
-                  data-kind="channel"
-                  data-selected={selectedCid === null}
-                >
-                  <Button
-                    variant="plain"
-                    className="channel-tree-button"
-                    aria-pressed={selectedCid === null}
-                    onClick={() => onSelectParent?.(null)}
-                  >
-                    <span className="channel-tree-name">Top-level (no parent)</span>
-                  </Button>
-                </div>
-              </li>
+              <ChannelTreeRow
+                name="Top-level (no parent)"
+                depth={0}
+                selected={selectedCid === null}
+                onSelect={() => onSelectParent?.(null)}
+              />
             )}
-            {rows.map((row, index) => {
-              // A group is a channel with a banner that has sub-channels right below it.
-              const isGroup =
-                !row.isSpacer && Boolean(row.image) && (rows[index + 1]?.depth ?? 0) > row.depth;
-              const kind = row.isSpacer ? "spacer" : isGroup ? "group" : "channel";
-              const selected = selectable && !row.pending && selectedCid === row.cid;
-              const content = (
-                <>
-                  {kind === "channel" && (
-                    <span className="channel-tree-icon">
-                      <Icon name="layers" size={17} />
-                    </span>
-                  )}
-                  <span
-                    className={`channel-tree-name${kind === "spacer" ? " channel-tree-name-hidden" : ""}`}
-                    title={row.name}
-                  >
-                    {row.name}
-                  </span>
-                  {kind !== "spacer" && row.managed && (
-                    <span className="channel-tree-badge" data-badge="managed">
-                      Managed
-                    </span>
-                  )}
-                  {kind !== "spacer" && row.pending && (
-                    <span className="channel-tree-badge" data-badge="pending">
-                      Pending
-                    </span>
-                  )}
-                </>
-              );
-              return (
-                <li
-                  key={row.key}
-                  className={`channel-tree-row${row.pending ? " channel-tree-row-pending" : ""}${
-                    selectable && !row.pending ? " channel-tree-row-selectable" : ""
-                  }`}
-                  style={{ paddingLeft: BASE_PADDING_PX + row.depth * INDENT_PX }}
-                >
-                  <div
-                    className="channel-tree-pill"
-                    data-kind={kind}
-                    data-pending={row.pending}
-                    data-selected={selected}
-                  >
-                    {row.image && (
-                      <img
-                        className="channel-tree-banner"
-                        src={row.image}
-                        alt=""
-                        loading="lazy"
-                        onLoad={(event) => {
-                          event.currentTarget.style.display = "";
-                        }}
-                        onError={(event) => {
-                          // A channel without a banner image answers 404: show no broken-image box.
-                          event.currentTarget.style.display = "none";
-                        }}
-                      />
-                    )}
-                    {selectable && !row.pending ? (
-                      <Button
-                        variant="plain"
-                        className="channel-tree-button"
-                        aria-pressed={selectedCid === row.cid}
-                        onClick={() => onSelectParent?.(row.cid)}
-                      >
-                        {content}
-                      </Button>
-                    ) : (
-                      <div className="channel-tree-content">{content}</div>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
+            {rows.map((row, index) => (
+              <ChannelTreeRow
+                key={row.key}
+                name={row.name}
+                depth={row.depth}
+                image={row.image}
+                isSpacer={row.isSpacer}
+                hasChildren={(rows[index + 1]?.depth ?? 0) > row.depth}
+                pending={row.pending}
+                selected={selectable && !row.pending && selectedCid === row.cid}
+                onSelect={selectable && !row.pending ? () => onSelectParent?.(row.cid) : undefined}
+                lazy
+              />
+            ))}
           </ul>
         </div>
       )}
