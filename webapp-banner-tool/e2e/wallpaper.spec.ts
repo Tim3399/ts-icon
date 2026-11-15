@@ -167,7 +167,7 @@ test("the prominent button is Generate channels, never an Undo or Discard action
   await expect(prominent).toHaveText("Generate channels");
   for (const name of ["Undo this generation", "Discard operation"])
     await expect(page.getByRole("button", { name }).first()).toHaveAttribute(
-      "data-variant",
-      "destructive",
+      "data-destructive",
+      "",
     );
 });

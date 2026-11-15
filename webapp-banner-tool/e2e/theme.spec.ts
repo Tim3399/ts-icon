@@ -1,11 +1,11 @@
 // T-142 item 13: the theme follows the system, a stored choice wins before
-// the first paint, and the control cycles system -> light -> dark.
+// the first paint, and the account menu offers system, light and dark.
 // Assertions read the computed window background. Desktop project.
 import { expect, test, type Page } from "@playwright/test";
 import { mockApi } from "./fixtures/api";
 
 const DARK_WINDOW = "rgb(19, 26, 44)"; // --color-bg-window, dark (#131a2c)
-const LIGHT_WINDOW = "rgb(233, 237, 243)"; // --color-bg-window, light (#e9edf3)
+const LIGHT_WINDOW = "rgb(255, 255, 255)"; // --color-bg-window, light (#ffffff, Primer canvas)
 
 const windowBackground = (page: Page) =>
   page.evaluate(() => getComputedStyle(document.body).backgroundColor);
@@ -53,21 +53,43 @@ for (const [stored, system, expected] of [
   });
 }
 
-test("the theme control cycles system, light, dark and stores the choice", async ({ page }) => {
+test("the account menu offers system, light and dark and stores the choice", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("/");
-  const control = page.getByRole("button", { name: /^Appearance:/ });
-  await expect(control).toHaveAccessibleName("Appearance: System. Change appearance");
-  await control.click();
-  await expect(control).toHaveAccessibleName("Appearance: Light. Change appearance");
+  const account = page.locator('button[aria-haspopup="menu"]');
+  const choose = async (name: "System" | "Light" | "Dark") => {
+    await account.click();
+    await page.getByRole("menuitemradio", { name }).click();
+    // The menu closes and focus returns to the account button.
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await expect(account).toBeFocused();
+  };
+  await account.click();
+  await expect(page.getByRole("menuitemradio", { name: "System" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await page.keyboard.press("Escape");
+  await choose("Light");
   expect(await page.evaluate(() => localStorage.getItem("ts-icon-theme"))).toBe("light");
   await expect.poll(() => windowBackground(page)).toBe(LIGHT_WINDOW);
-  await control.click();
-  await expect(control).toHaveAccessibleName("Appearance: Dark. Change appearance");
+  await choose("Dark");
   expect(await page.evaluate(() => localStorage.getItem("ts-icon-theme"))).toBe("dark");
   await expect.poll(() => windowBackground(page)).toBe(DARK_WINDOW);
-  await control.click();
-  await expect(control).toHaveAccessibleName("Appearance: System. Change appearance");
+  await choose("System");
   expect(await page.evaluate(() => localStorage.getItem("ts-icon-theme"))).toBe("system");
   await expect.poll(() => windowBackground(page)).toBe(DARK_WINDOW);
+  await account.click();
+  await expect(page.getByRole("menuitemradio", { name: "System" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+});
+
+test("the account menu shows the user name and logs out", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('button[aria-haspopup="menu"]').click();
+  const menu = page.getByRole("menu");
+  await expect(menu).toContainText("Signed in as local");
+  await expect(menu.getByRole("menuitem", { name: "Log out" })).toBeVisible();
 });

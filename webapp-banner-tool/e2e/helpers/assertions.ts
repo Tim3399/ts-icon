@@ -2,7 +2,9 @@
 // the keyboard helpers the screen specs reuse.
 import { expect, type Locator, type Page } from "@playwright/test";
 
-export const HIT_TARGET_PX = 44;
+/** T-142-F1 addendum 1: 28 px from 1024 px wide (macOS), 44 px below (iOS). */
+export const HIT_TARGET_DESKTOP_PX = 28;
+export const HIT_TARGET_MOBILE_PX = 44;
 
 /**
  * Exemptions of the hit-target rule. Each is repeated in
@@ -25,11 +27,13 @@ interface HitTargetOptions {
 
 /**
  * T-142 item 8: every visible button, link, input, select, textarea and
- * [role=button] has a bounding box of at least 44 x 44 px.
+ * [role=button] has a bounding box of at least 28 x 28 px from 1024 px wide
+ * and 44 x 44 px below.
  */
 export async function expectHitTargets(page: Page, options: HitTargetOptions = {}) {
   const offenders = await page.evaluate(
-    ({ min, within, exclude }) => {
+    ({ desktop, mobile, within, exclude }) => {
+      const min = window.matchMedia("(min-width: 1024px)").matches ? desktop : mobile;
       const root = within ? document.querySelector(within) : document.body;
       if (!root) return [`missing scope ${within}`];
       const controls = root.querySelectorAll<HTMLElement>(
@@ -79,9 +83,14 @@ export async function expectHitTargets(page: Page, options: HitTargetOptions = {
       }
       return result;
     },
-    { min: HIT_TARGET_PX, within: options.within, exclude: options.exclude },
+    {
+      desktop: HIT_TARGET_DESKTOP_PX,
+      mobile: HIT_TARGET_MOBILE_PX,
+      within: options.within,
+      exclude: options.exclude,
+    },
   );
-  expect(offenders, "Controls below the 44 x 44 px hit target").toEqual([]);
+  expect(offenders, "Controls below the hit target (28 px from 1024 px, 44 px below)").toEqual([]);
 }
 
 /**

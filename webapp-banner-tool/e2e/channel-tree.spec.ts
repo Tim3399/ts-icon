@@ -3,7 +3,7 @@
 // fading into the row colour, spacer = banner-only pill, group = left bold label
 // over the banner, indented sub-channels, no chevron.
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { bannerPng, mockApi, screenshotChannels, type ApiState } from "./fixtures/api";
+import { fixtureImages, mockApi, screenshotChannels, type ApiState } from "./fixtures/api";
 import { DESTRUCTIVE_VERBS, SCREEN_ROUTES } from "./fixtures/routes";
 import { expectHitTargets, expectProminentRule } from "./helpers/assertions";
 
@@ -13,8 +13,7 @@ async function setUp(page: Page, theme: (typeof THEMES)[number] = "dark", state?
   await page.emulateMedia({ colorScheme: theme });
   await page.goto("about:blank");
   const { channels, banners } = screenshotChannels();
-  const images = new Map<string, Buffer>();
-  for (const [i, cid] of banners.entries()) images.set(cid, await bannerPng(page, 90 + i * 70));
+  const images = await fixtureImages(page, banners);
   await mockApi(page, { channels, images, state });
 }
 

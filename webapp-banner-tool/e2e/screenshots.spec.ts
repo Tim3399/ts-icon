@@ -4,13 +4,15 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { bannerPng, mockApi, screenshotChannels, type ApiState } from "./fixtures/api";
+import { fixtureImages, mockApi, screenshotChannels, type ApiState } from "./fixtures/api";
 import { SCREEN_ROUTES, SHELL_ROUTES } from "./fixtures/routes";
 
 const dir = process.env.SCREENSHOT_DIR ?? "";
 const THEMES = ["dark", "light"] as const;
 const VIEWPORTS = {
   desktop: { width: 1440, height: 900 },
+  // 1280 px: the live panel is beside the content here (T-142-F1 addendum 3).
+  laptop: { width: 1280, height: 800 },
   mobile: { width: 375, height: 667 },
 } as const;
 
@@ -29,8 +31,7 @@ async function prepare(
   await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
   await page.goto("about:blank");
   const { channels, banners } = screenshotChannels();
-  const images = new Map<string, Buffer>();
-  for (const [i, cid] of banners.entries()) images.set(cid, await bannerPng(page, 90 + i * 70));
+  const images = await fixtureImages(page, banners);
   await mockApi(page, { channels, images, state });
 }
 
@@ -55,13 +56,22 @@ for (const theme of THEMES) {
     }
 
     test(`sidebar open (${suffix})`, async ({ page }) => {
-      test.skip(viewport === "desktop", "The sidebar is always open on desktop.");
+      test.skip(viewport !== "mobile", "The sidebar is always open on desktop.");
       await prepare(page, theme, viewport);
       await page.goto("/channels");
       await page.getByRole("button", { name: "Show sidebar" }).click();
       await expect(page.getByRole("link", { name: "Banner editor" })).toBeVisible();
       // The drawer is fixed to the viewport, so a full-page shot would cut it.
       await page.screenshot({ path: join(dir, `sidebar-open-${suffix}.png`) });
+    });
+
+    test(`account menu open (${suffix})`, async ({ page }) => {
+      await prepare(page, theme, viewport);
+      await page.goto("/");
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await page.locator('button[aria-haspopup="menu"]').click();
+      await expect(page.getByRole("menu")).toBeVisible();
+      await page.screenshot({ path: join(dir, `account-menu-${suffix}.png`) });
     });
 
     test(`toast (${suffix})`, async ({ page }) => {
