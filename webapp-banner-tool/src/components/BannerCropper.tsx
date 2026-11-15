@@ -377,9 +377,7 @@ export default function BannerCropper() {
             {channels.map((c) => (
               <option key={c.cid} value={c.cid}>
                 {c.name}
-                {c.pid
-                  ? ` — under ${channels.find((p) => p.cid === c.pid)?.name ?? "parent"}`
-                  : ""}{" "}
+                {c.pid ? ` — under ${channels.find((p) => p.cid === c.pid)?.name ?? "parent"}` : ""}{" "}
                 (#{c.cid})
               </option>
             ))}
