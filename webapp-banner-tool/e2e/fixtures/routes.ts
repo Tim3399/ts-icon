@@ -33,9 +33,6 @@ export const SCREEN_ROUTES: AppRoute[] = [
   },
 ];
 
-/** The screens restyled by T-142 parts a-e; their checks are enabled in D-142-7. */
-export const PENDING_SCREEN_ROUTES = SCREEN_ROUTES.map((route) => route.path);
-
 export const SHELL_ROUTES: AppRoute[] = [
   { path: "/access-denied", name: "Access denied", heading: "Access denied", destructiveVerbs: [] },
   { path: "/missing-page", name: "Not found", heading: "Page not found", destructiveVerbs: [] },

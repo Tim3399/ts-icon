@@ -86,12 +86,10 @@ async function addSource(page: Page) {
 }
 
 /**
- * Hit targets, prominent rule and overflow for the state on screen. The parent
- * picker is ChannelTreePreview, restyled by D-142-6 (T-142 part e); it is
- * excluded here until that part lands and is checked by its own spec.
+ * Hit targets, prominent rule and overflow for the state on screen.
  */
 async function expectDesignRules(page: Page) {
-  await expectHitTargets(page, { exclude: "#wallpaper-parent" });
+  await expectHitTargets(page);
   await expectProminentRule(page, DESTRUCTIVE);
   await expectNoHorizontalOverflow(page);
 }
