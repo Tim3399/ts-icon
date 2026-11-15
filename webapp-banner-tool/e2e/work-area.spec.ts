@@ -62,7 +62,6 @@ for (const width of WIDTHS) {
   test(`${width} px: the wallpaper parent picker and the channel names have room`, async ({
     page,
   }) => {
-    test.fixme(true, "enabled in stage B");
     await open(page, width, "/wallpaper");
     const picker = page.getByRole("group", { name: "Parent channel" });
     await expect(picker).toBeVisible();
