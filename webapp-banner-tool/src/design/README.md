@@ -456,12 +456,28 @@ saved strip live here).
 <Dock title="Preview in TeamSpeak" meta="TS6 · 1:1 · live while you crop">…</Dock>
 ```
 
-**`StateTile`**: a centred, quiet tile on the canvas background: `icon`, `title` (one short sentence,
-a heading of `level`), optional text, one `action`, and `role` (`alert` for an error, `status` for
-loading). Stage B adopts it for the states (item 11).
+**`StateTile`** (D2 `state.html`, item 11): a white card with a 1 px border, centred on the dotted canvas
+background, with a glyph in a round neutral badge, one short sentence (`title`, a heading of `level` or a
+paragraph with `level="p"`), an optional line of text (children) and one `action`. Props: `icon` or a
+custom `glyph` (the spinner), `role` (`alert` for an error, `status` for loading), `size` (`"region"`,
+the default, fills the panel or table area; `"page"` fills the main region under the top bar) and
+`className`. Every state uses it:
+
+| State         | Built with                                | Tile                                                                             |
+| ------------- | ----------------------------------------- | -------------------------------------------------------------------------------- |
+| Not found     | `Notice` (`size="page"`)                  | "Page not found", "This page doesn't exist.", prominent "Open the banner editor" |
+| Access denied | `AccessDenied` → `Notice` (`size="page"`) | "Access denied", who is signed in, gray "Log out"                                |
+| Empty         | `EmptyState` (props unchanged)            | glyph (default `inbox`), title, description, one action                          |
+| Loading       | `LoadingState` (props unchanged)          | spinner glyph, the label, `role="status"`                                        |
+| Error         | `RequestError layout="tile"`              | alert glyph, the message, `role="alert"`, "Try again"                            |
+| Sign-in       | `Splash` → `Notice fullscreen`            | the app icon, the status line; fills the window                                  |
+
+`RequestError` stays a one-line inline alert by default (`layout="inline"`): field- and action-level
+errors stay inline; a page or region whose content failed to load uses `layout="tile"`.
 
 ```tsx
 <StateTile icon="inbox" title="No channels yet." action={<Button onClick={reload}>Refresh</Button>} />
+<RequestError layout="tile" message="Couldn't load the channels." retry={reload} />
 ```
 
 **`StudioPage`**: a padded page in the main region, for screens without a canvas (and for the screens
@@ -501,8 +517,8 @@ the scrim cancel. With `destructive` the confirm button is the one red fill in t
 **`StatusGlyph`**: `tone` is `positive` or `warning`, plus a label: a glyph in the status colour and the
 label in secondary label colour. There is no status chip.
 
-**`EmptyState`**, **`Notice`**: the calm states of the earlier rounds (a glyph in secondary label, one
-friendly sentence, one action). Stage B moves the states to `StateTile` (item 11).
+**`EmptyState`**, **`LoadingState`**, **`Notice`**, **`Splash`**: the earlier state components with their
+props unchanged; since D-142F-39 they render the `StateTile` (see the table under `StateTile`).
 
 **`PageHeader`, `ListSection`, `ListRow`**: kept until the screens that use them are rebuilt
 (D-142G-3, D-142G-4, stage B); new Studio screens do not use them (R3).

@@ -8,7 +8,6 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { Icon, type IconName } from "../primitives/Icon";
 import "./Studio.css";
 
 // The Studio building blocks of concept D2 (T-142-F3, D-142G-1). The editor
@@ -413,40 +412,6 @@ export function Dock({
       </div>
       <div className="ds-dock-body">{children}</div>
     </section>
-  );
-}
-
-/* --------------------------------------------------------------- StateTile */
-
-interface StateTileProps {
-  icon: IconName;
-  /** The short sentence of the state; a heading of the given level. */
-  title: string;
-  level?: 1 | 2 | 3;
-  children?: ReactNode;
-  /** The one action. */
-  action?: ReactNode;
-  /** role="alert" for an error state, role="status" for loading. */
-  role?: "alert" | "status";
-}
-
-/**
- * A centred, quiet tile on the canvas background: a glyph, one short
- * sentence and one action (T-142-F3 item 11).
- */
-export function StateTile({ icon, title, level = 2, children, action, role }: StateTileProps) {
-  const Heading = `h${level}` as const;
-  return (
-    <div className="ds-state-tile" role={role}>
-      <div className="ds-state-tile-card">
-        <span className="ds-state-tile-glyph" aria-hidden="true">
-          <Icon name={icon} size={22} strokeWidth={1.5} />
-        </span>
-        <Heading className="ds-state-tile-title">{title}</Heading>
-        {children && <div className="ds-state-tile-text">{children}</div>}
-        {action && <div className="ds-state-tile-action">{action}</div>}
-      </div>
-    </div>
   );
 }
 

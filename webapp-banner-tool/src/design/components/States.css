@@ -1,40 +1,4 @@
-/* EmptyState, LoadingState, Spinner and Skeleton. */
-
-.ds-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-8) var(--space-4);
-  text-align: center;
-  color: var(--color-label-secondary);
-  font-size: var(--font-subheadline-size);
-  line-height: var(--font-subheadline-line);
-}
-
-/* A calm glyph in secondary label, no tile and no colour (A3, Primer Blankslate). */
-.ds-empty-state-icon {
-  display: grid;
-  place-items: center;
-  margin-bottom: var(--space-1);
-  color: var(--color-label-secondary);
-}
-
-.ds-empty-state-title {
-  color: var(--color-label);
-  font-size: var(--font-headline-size);
-  line-height: var(--font-headline-line);
-  font-weight: var(--font-weight-headline);
-}
-
-.ds-loading-state {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-label-secondary);
-  font-size: var(--font-subheadline-size);
-  line-height: var(--font-subheadline-line);
-}
+/* Spinner and Skeleton. EmptyState and LoadingState are StateTiles. */
 
 .ds-spinner {
   display: inline-block;
