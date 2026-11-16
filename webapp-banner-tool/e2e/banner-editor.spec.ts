@@ -677,3 +677,110 @@ test.describe("edge cases (T-142-F4)", () => {
     }
   });
 });
+
+// T-142-F5 (Critic r5, F-142-36): zooming in past the minimum frame never starts
+// a crop-correction loop; the readout, the numbers and the preview stay true.
+test.describe("zoom limit (T-142-F5)", () => {
+  async function source(page: Page, width: number, height: number) {
+    return Buffer.from(
+      await page.evaluate(
+        ({ width, height }) => {
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const c = canvas.getContext("2d")!;
+          const g = c.createLinearGradient(0, 0, width, height);
+          g.addColorStop(0, "hsl(250 30% 20%)");
+          g.addColorStop(1, "hsl(30 40% 60%)");
+          c.fillStyle = g;
+          c.fillRect(0, 0, width, height);
+          for (let x = 0; x < width; x += 50) {
+            c.fillStyle = `hsl(${x % 360} 40% 50%)`;
+            c.fillRect(x, height / 3, 20, height / 3);
+          }
+          return canvas.toDataURL("image/png").split(",")[1];
+        },
+        { width, height },
+      ),
+      "base64",
+    );
+  }
+
+  async function load(page: Page, width: number, height: number) {
+    const api = await mockApi(page);
+    await page.goto("/");
+    await page.getByRole("combobox", { name: "Channel", exact: true }).selectOption("43");
+    await page.locator("#file-upload").setInputFiles({
+      name: `source-${width}.png`,
+      mimeType: "image/png",
+      buffer: await source(page, width, height),
+    });
+    await expect(page.getByRole("button", { name: "Fit to screen", exact: true })).toBeEnabled();
+    // Count Cropper's crop events on the image from now on.
+    await page.evaluate(() => {
+      const w = window as unknown as { cropEvents: number };
+      w.cropEvents = 0;
+      document.querySelector("#preview")!.addEventListener("crop", () => w.cropEvents++);
+    });
+    return api;
+  }
+
+  /** Idle for 2 s: no crop events, the readout is the real zoom, preview bytes = sent bytes. */
+  async function expectSettled(page: Page, api: Awaited<ReturnType<typeof mockApi>>) {
+    await page.waitForTimeout(300);
+    await page.evaluate(() => ((window as unknown as { cropEvents: number }).cropEvents = 0));
+    await page.waitForTimeout(2000);
+    expect(
+      await page.evaluate(() => (window as unknown as { cropEvents: number }).cropEvents),
+      "crop events while idle",
+    ).toBe(0);
+    const real = await page.evaluate(() => {
+      const canvas = document.querySelector(".preview-box .cropper-canvas")!;
+      const image = document.querySelector<HTMLImageElement>("#preview")!;
+      return Math.round((canvas.getBoundingClientRect().width / image.naturalWidth) * 100);
+    });
+    expect(parseInt((await page.getByLabel("Zoom level").textContent())!, 10)).toBe(real);
+    // The frame covers at least 500 source px (or the whole narrower image).
+    const width = Number(await page.getByRole("textbox", { name: "Width" }).inputValue());
+    const natural = await page.evaluate(
+      () => document.querySelector<HTMLImageElement>("#preview")!.naturalWidth,
+    );
+    expect(width).toBeGreaterThanOrEqual(Math.min(500, natural));
+    const preview = (await page.getByAltText("New banner of General").getAttribute("src"))!;
+    await page.getByRole("button", { name: "Crop & send image" }).click();
+    await expect.poll(() => api.uploads.length).toBe(1);
+    expect(api.uploads[0].png.equals(Buffer.from(preview.split(",")[1], "base64"))).toBe(true);
+  }
+
+  test("a 500 x 44 source and one Zoom in: no loop, the preview is what is sent", async ({
+    page,
+  }) => {
+    const api = await load(page, 500, 44);
+    const zoomIn = page.getByRole("button", { name: "Zoom in", exact: true });
+    // The fitted 500 px image is already at the limit: Zoom in is refused.
+    if (await zoomIn.isEnabled()) await zoomIn.click();
+    await expectSettled(page, api);
+    await expect(zoomIn).toBeDisabled();
+  });
+
+  test("a 1600 px source zoomed to the limit by the button", async ({ page }) => {
+    const api = await load(page, 1600, 600);
+    const zoomIn = page.getByRole("button", { name: "Zoom in", exact: true });
+    for (let i = 0; i < 30 && (await zoomIn.isEnabled()); i++) await zoomIn.click();
+    await expectSettled(page, api);
+    await expect(zoomIn).toBeDisabled();
+  });
+
+  test("a 1600 px source zoomed past the limit by the wheel", async ({ page }) => {
+    test.skip(test.info().project.name === "mobile", "No wheel on the touch project.");
+    const api = await load(page, 1600, 600);
+    const box = (await page.locator(".preview-box").boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    for (let i = 0; i < 30; i++) {
+      await page.mouse.wheel(0, -120);
+      await page.waitForTimeout(30);
+    }
+    await expectSettled(page, api);
+    await expect(page.getByRole("button", { name: "Zoom in", exact: true })).toBeDisabled();
+  });
+});

@@ -70,6 +70,14 @@ const CROP_FIELDS: { key: CropKey; label: string; keyLabel: string }[] = [
   { key: "height", label: "Height", keyLabel: "H" },
 ];
 
+/**
+ * The largest zoom at which a frame of `frameWidth` screen px still covers the
+ * minimum width in source pixels (500 px, or the image width if smaller).
+ */
+function maxZoom(frameWidth: number, natural: { width: number; height: number }) {
+  return frameWidth / cropLimits(natural).minWidth;
+}
+
 function hasFiles(event: DragEvent) {
   return Array.from(event.dataTransfer?.types ?? []).includes("Files");
 }
@@ -125,13 +133,18 @@ export default function BannerCropper() {
   const [savedCrop, setSavedCrop] = useState<{ cid: string; preview: string }>();
   const [crop, setCrop] = useState<CropBox>({ x: 0, y: 0, width: 0, height: 0 });
   const [drafts, setDrafts] = useState<Partial<Record<CropKey, string>>>({});
-  const [zoom, setZoom] = useState<{ ratio: number; atMinimum: boolean }>();
+  const [zoom, setZoom] = useState<{ ratio: number; atMinimum: boolean; atMaximum: boolean }>();
   const [label, setLabel] = useState<{ left: number; top: number }>();
   const imageRef = useRef<HTMLImageElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const cropper = useRef<Cropper | null>(null);
   const cropperGeneration = useRef(0);
   const previewFrame = useRef(0);
+  const previewPending = useRef(false);
+  // The last frame the crop handler corrected to; the same correction is
+  // never tried twice, so a frame that cannot be reached ends the chain
+  // instead of looping (T-142-F5, F-142-36).
+  const lastCorrection = useRef<string | null>(null);
   const readerRef = useRef<FileReader | null>(null);
   const sourceRequest = useRef<AbortController | null>(null);
   const sourceSequence = useRef(0);
@@ -147,9 +160,14 @@ export default function BannerCropper() {
   // The preview, the crop numbers and the size label follow the crop within
   // one animation frame; the preview comes from the same export the upload
   // uses (T-142-F1 item 15).
+  // A pending update is never cancelled: while crop events arrive every
+  // frame, the one scheduled update still runs and reads the latest crop
+  // (T-142-F5, F-142-36).
   const schedulePreview = useCallback((generation: number) => {
-    cancelAnimationFrame(previewFrame.current);
+    if (previewPending.current) return;
+    previewPending.current = true;
     previewFrame.current = requestAnimationFrame(() => {
+      previewPending.current = false;
       const current = cropper.current;
       if (!current || generation !== cropperGeneration.current) return;
       const data = current.getData(true);
@@ -167,7 +185,9 @@ export default function BannerCropper() {
   // The readout shows the cropper's real zoom (canvas width over natural
   // width), read after every change; the zoom event only carries the request,
   // which viewMode 1 refuses below the frame (F-142-29). At the minimum the
-  // image is as small as the frame allows, and "Zoom out" is disabled.
+  // image is as small as the frame allows, and "Zoom out" is disabled; at the
+  // maximum the frame covers exactly the minimum width in source pixels, and
+  // "Zoom in" is disabled (T-142-F5).
   const readZoom = useCallback(() => {
     const current = cropper.current;
     const image = current?.getImageData?.();
@@ -178,12 +198,25 @@ export default function BannerCropper() {
       box && image.naturalHeight
         ? Math.max(box.width / image.naturalWidth, box.height / image.naturalHeight)
         : 0;
-    setZoom({ ratio, atMinimum: ratio <= minimum * 1.002 });
+    const maximum =
+      box && image.naturalHeight
+        ? maxZoom(box.width, { width: image.naturalWidth, height: image.naturalHeight })
+        : Number.POSITIVE_INFINITY;
+    setZoom({
+      ratio,
+      atMinimum: ratio <= minimum * 1.002,
+      atMaximum: ratio >= maximum * 0.998,
+    });
   }, []);
   const zoomFrame = useRef(0);
+  const zoomPending = useRef(false);
   const scheduleZoom = useCallback(() => {
-    cancelAnimationFrame(zoomFrame.current);
-    zoomFrame.current = requestAnimationFrame(readZoom);
+    if (zoomPending.current) return;
+    zoomPending.current = true;
+    zoomFrame.current = requestAnimationFrame(() => {
+      zoomPending.current = false;
+      readZoom();
+    });
   }, [readZoom]);
 
   const initialize = useCallback(
@@ -229,19 +262,39 @@ export default function BannerCropper() {
         },
         crop(event) {
           if (generation !== cropperGeneration.current) return;
-          // A handle drag below the limits snaps back to the nearest valid frame.
+          // A handle drag below the limits snaps back to the nearest valid
+          // frame – once: the same correction is never tried again, so a
+          // frame that cannot be reached ends here (T-142-F5, F-142-36).
           const detail = event?.detail;
           if (detail && !isValidCrop(detail, size)) {
             const valid = clampCrop(detail, size);
-            requestAnimationFrame(() => {
-              if (generation === cropperGeneration.current) cropper.current?.setData(valid);
-            });
-          }
+            const key = JSON.stringify(valid);
+            if (lastCorrection.current !== key) {
+              lastCorrection.current = key;
+              requestAnimationFrame(() => {
+                if (generation === cropperGeneration.current) cropper.current?.setData(valid);
+              });
+            }
+          } else lastCorrection.current = null;
           schedulePreview(generation);
           scheduleZoom();
         },
-        zoom() {
-          if (generation === cropperGeneration.current) scheduleZoom();
+        zoom(event) {
+          if (generation !== cropperGeneration.current) return;
+          // A zoom step (button, wheel, pinch) that would make the frame cover
+          // fewer than the minimum source pixels is refused; the step lands on
+          // the limit instead (T-142-F5, F-142-36).
+          const current = cropper.current;
+          const box = current?.getCropBoxData?.();
+          const { ratio, oldRatio } = event.detail;
+          if (current && box && ratio > oldRatio) {
+            const maximum = maxZoom(box.width, size);
+            if (ratio > maximum * 1.0001) {
+              event.preventDefault();
+              if (oldRatio < maximum * 0.999) current.zoomTo(maximum);
+            }
+          }
+          scheduleZoom();
         },
       });
     },
@@ -256,6 +309,8 @@ export default function BannerCropper() {
     return () => {
       generation.current++;
       cancelAnimationFrame(previewFrame.current);
+      previewPending.current = false;
+      lastCorrection.current = null;
       cropper.current?.destroy();
       cropper.current = null;
       if (source.startsWith("blob:")) URL.revokeObjectURL(source);
@@ -426,7 +481,8 @@ export default function BannerCropper() {
     setError("");
     try {
       const canvas = exportBanner(cropper.current);
-      if (!cropValid || isBlankBanner(canvas)) {
+      const frame = cropper.current.getData(true);
+      if (!natural || !isValidCrop(frame, natural) || isBlankBanner(canvas)) {
         setError("The frame is empty. Fit the image or choose a larger frame, then save again.");
         focusAfterSave.current = "error";
         return;
@@ -572,7 +628,7 @@ export default function BannerCropper() {
           <ToolbarButton
             icon="zoomIn"
             label="Zoom in"
-            disabled={tools}
+            disabled={tools || zoom?.atMaximum}
             onClick={() => cropper.current?.zoom(0.1)}
           />
         </Toolbar>
