@@ -19,6 +19,20 @@
     },
     "release": {
         "verify": [
+            [
+                "npm",
+                "install",
+                "--package-lock-only",
+                "--ignore-scripts",
+                "--prefer-offline",
+                "--no-audit",
+                "--no-fund"
+            ],
+            [
+                "node",
+                "-e",
+                "process.chdir('webapp-banner-tool');process.exitCode=require('child_process').spawnSync('npm install --package-lock-only --ignore-scripts --prefer-offline --no-audit --no-fund',{shell:true,stdio:'inherit'}).status??1"
+            ],
             ["npm", "test"],
             ["npx", "--yes", "@tim/agent-team@0.4.2", "check-format"],
             ["npx", "--yes", "@tim/agent-team@0.4.2", "check-changelog"]
@@ -28,6 +42,21 @@
                 "path": "package.json",
                 "type": "json",
                 "key": "version"
+            },
+            {
+                "path": "package-lock.json",
+                "type": "regex",
+                "pattern": "\"packages\": \\{\\s*\"\": \\{\\s*\"name\": \"[^\"]*\",\\s*\"version\": \"([^\"]+)\""
+            },
+            {
+                "path": "webapp-banner-tool/package.json",
+                "type": "json",
+                "key": "version"
+            },
+            {
+                "path": "webapp-banner-tool/package-lock.json",
+                "type": "regex",
+                "pattern": "\"packages\": \\{\\s*\"\": \\{\\s*\"name\": \"[^\"]*\",\\s*\"version\": \"([^\"]+)\""
             }
         ],
         "changelog": "CHANGELOG.md",

@@ -1,6 +1,8 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 const { test } = require("node:test");
 const { pathToFileURL } = require("node:url");
 const Database = require("better-sqlite3");
@@ -82,6 +84,89 @@ test("release retry repairs both images without moving an older version tag", ()
   assert.equal(publishVersionTag("commit-b", "commit-a"), false);
 });
 
+// Mirrors agent-team 0.4.2 set-version: every versionFiles entry is computed from the first reading of its
+// file (LF text), then the results are written in sequence, so a second entry for one file overwrites the first.
+function versionEntryText(entry, text, next) {
+  if (entry.type === "regex") {
+    const hits = [...text.matchAll(new RegExp(entry.pattern, "dgm"))];
+    assert.equal(hits.length, 1, `${entry.path} pattern matches exactly once`);
+    const [start, end] = hits[0].indices[1];
+    return text.slice(0, start) + next + text.slice(end);
+  }
+  assert.equal(entry.type, "json");
+  assert.equal(entry.key, "version");
+  const old = JSON.parse(text).version;
+  return text.replace(
+    new RegExp(`("version"\\s*:\\s*)"${old.replace(/\./g, "\\.")}"`),
+    `$1"${next}"`,
+  );
+}
+
+function applyVersionFiles(dir, entries, next) {
+  const computed = entries.map((entry) => {
+    const text = fs.readFileSync(path.join(dir, entry.path), "utf8");
+    return { entry, text: versionEntryText(entry, text, next) };
+  });
+  for (const { entry, text } of computed) fs.writeFileSync(path.join(dir, entry.path), text);
+}
+
+test("set-version raises all six version fields in both manifests and both lockfiles", () => {
+  const root = path.join(__dirname, "..");
+  const config = JSON.parse(fs.readFileSync(path.join(root, "team", "team.config.json"), "utf8"));
+  const files = [
+    "package.json",
+    "package-lock.json",
+    "webapp-banner-tool/package.json",
+    "webapp-banner-tool/package-lock.json",
+  ];
+  const next = "99.0.0";
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ts-icon-version-"));
+  try {
+    for (const file of files) {
+      fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+      fs.copyFileSync(path.join(root, file), path.join(dir, file));
+    }
+    applyVersionFiles(dir, config.release.versionFiles, next);
+    // npm sets the lockfile top-level version from the manifest, as the configured verify commands do
+    const syncs = config.release.verify.filter((cmd) =>
+      cmd.some((arg) => arg.includes("--package-lock-only")),
+    );
+    assert.equal(syncs.length, 2, "one lockfile sync per package");
+    const quote = (arg) => (/^[\w@./:=,+-]+$/.test(arg) ? arg : `"${arg.replace(/"/g, '""')}"`);
+    const before = Object.fromEntries(
+      files.map((file) => [file, fs.readFileSync(path.join(dir, file), "utf8")]),
+    );
+    for (const cmd of syncs) {
+      const line = cmd.map(quote).join(" ");
+      const result = spawnSync(line, { cwd: dir, shell: true, encoding: "utf8" });
+      assert.equal(result.status, 0, `${line}: ${result.stdout}${result.stderr}`);
+    }
+    // the sync must touch nothing but the lockfile top-level version
+    for (const file of files) {
+      const after = fs.readFileSync(path.join(dir, file), "utf8");
+      if (!file.endsWith("package-lock.json")) {
+        assert.equal(after, before[file], `${file} is unchanged by the lockfile syncs`);
+        continue;
+      }
+      const lock = JSON.parse(before[file]);
+      lock.version = next;
+      assert.deepEqual(JSON.parse(after), lock, `${file} changes only its top-level version`);
+    }
+    const read = (file) => JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
+    const fields = [
+      read("package.json").version,
+      read("package-lock.json").version,
+      read("package-lock.json").packages[""].version,
+      read("webapp-banner-tool/package.json").version,
+      read("webapp-banner-tool/package-lock.json").version,
+      read("webapp-banner-tool/package-lock.json").packages[""].version,
+    ];
+    assert.deepEqual(fields, Array(6).fill(next));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("SQLite paths are identical for app, CLI, absolute file URLs and relative config", () => {
   const expected = path.resolve("prisma/dev.db");
   assert.equal(resolveSqlitePath("file:./dev.db"), expected);
@@ -141,4 +226,21 @@ test("fresh migrations, SQLite backup and restore preserve real rows", {
     assert.ok(resolved.startsWith(`${temporaryRoot}${path.sep}ops-test-`));
     fs.rmSync(resolved, { recursive: true, force: true });
   }
+});
+
+test("setup skips the TeamSpeak credentials only in mock mode", () => {
+  const { checkEnv } = require("./bootstrap.cjs");
+  const base = { PUBLIC_BASE_URL: "http://localhost:3000", AUTH_DISABLED: "true" };
+  assert.doesNotThrow(() =>
+    checkEnv({ ...base, TS_MOCK_MODE: "true", TS_USERNAME: "", TS_USERPASSWORD: "" }),
+  );
+  assert.throws(
+    () => checkEnv({ ...base, TS_USERPASSWORD: "x" }),
+    /Set TS_USERNAME in \.env, then run setup again\./,
+  );
+  assert.throws(() => checkEnv({ ...base, TS_MOCK_MODE: "false" }), /Set TS_USERNAME in \.env/);
+  assert.throws(
+    () => checkEnv({ AUTH_DISABLED: "true", TS_MOCK_MODE: "true" }),
+    /Set PUBLIC_BASE_URL in \.env/,
+  );
 });
