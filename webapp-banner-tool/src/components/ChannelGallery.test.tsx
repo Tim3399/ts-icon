@@ -258,3 +258,43 @@ it("replaces an input validation error when another file is dropped on the row",
   expect(input).not.toHaveFocus();
   expect(within(row).queryByRole("alert")).not.toBeInTheDocument();
 });
+
+it("shows the quiet empty tile instead of a banner that fails to load", async () => {
+  page();
+  const [, second] = await rows();
+  const image = within(second).getByRole("img");
+  fireEvent.error(image);
+  expect(within(second).queryByRole("img")).not.toBeInTheDocument();
+  expect(within(second).getByText("No image")).toBeInTheDocument();
+  expect(within(second).getByText("Banner could not be loaded")).toBeInTheDocument();
+  expect(within(second).queryByRole("alert")).not.toBeInTheDocument();
+  select(second);
+  const panel = inspector();
+  expect(panel.querySelector("img")).toBeNull();
+  expect(within(panel).getByText("Banner could not be loaded")).toBeInTheDocument();
+  // The other row still shows its banner.
+  const [first] = await rows();
+  expect(within(first).getByRole("img")).toBeInTheDocument();
+});
+
+it("selects a row by keyboard and keeps Remove… reachable for it", async () => {
+  page();
+  const [first, second] = await rows();
+  expect(first).toHaveAttribute("aria-selected", "true");
+  expect(second).toHaveAttribute("tabindex", "0");
+  expect(second).toHaveAccessibleName("General, #20");
+  second.focus();
+  fireEvent.keyDown(second, { key: "Enter" });
+  expect(second).toHaveAttribute("aria-selected", "true");
+  expect(within(inspector()).getByText("#20")).toBeInTheDocument();
+  fireEvent.keyDown(first, { key: " " });
+  expect(first).toHaveAttribute("aria-selected", "true");
+  fireEvent.click(within(inspector()).getByRole("button", { name: "Remove…" }));
+  fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Remove" }));
+  await waitFor(() =>
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/channels/10/image"),
+      expect.objectContaining({ method: "DELETE" }),
+    ),
+  );
+});

@@ -324,6 +324,7 @@ export default function BannerUrlManager() {
           rowKey={(channel) => channel.cid}
           selectedKey={selected?.cid ?? null}
           onSelect={(channel) => setSelectedCid(channel.cid)}
+          rowLabel={(channel) => `${channel.name}, #${channel.cid}`}
           rowProps={(channel) => ({ className: "banner-urls-row", "data-cid": channel.cid })}
           footer={
             '"Set for all channels" points every channel that is not managed yet at the banner this application serves. Existing images stay as they are.'

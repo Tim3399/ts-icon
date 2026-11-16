@@ -258,7 +258,13 @@ interface DataTableProps<Row> {
   rowKey: (row: Row) => string;
   /** The selected row gets aria-selected="true". */
   selectedKey?: string | null;
+  /**
+   * Makes rows selectable: by a click, and by the keyboard (every row is a tab
+   * stop; Enter or Space selects it).
+   */
   onSelect?: (row: Row) => void;
+  /** Accessible name of a selectable row (for example "Squad 1, #23"). */
+  rowLabel?: (row: Row) => string;
   /** Per-row drop target; the row highlights only while a file is dragged over it. */
   onDropFile?: (row: Row, file: File) => void;
   /** Extra attributes per row (for example a data-* marker). */
@@ -276,6 +282,7 @@ export function DataTable<Row>({
   rowKey,
   selectedKey,
   onSelect,
+  rowLabel,
   onDropFile,
   rowProps,
   footer,
@@ -311,6 +318,19 @@ export function DataTable<Row>({
                 key={key}
                 {...rowProps?.(row)}
                 aria-selected={onSelect ? selected : undefined}
+                aria-label={onSelect ? rowLabel?.(row) : undefined}
+                tabIndex={onSelect ? 0 : undefined}
+                onKeyDown={
+                  onSelect
+                    ? (event) => {
+                        // Only the row itself: keys on inner controls keep their meaning.
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        onSelect(row);
+                      }
+                    : undefined
+                }
                 data-drag-over={dragOver === key || undefined}
                 onClick={
                   onSelect

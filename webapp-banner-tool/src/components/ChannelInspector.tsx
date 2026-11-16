@@ -16,6 +16,8 @@ interface ChannelInspectorProps {
   channels: Channel[];
   /** The banner URL of the channel (its own image or the spacer fallback), or null. */
   imageSrc: string | null;
+  /** The banner exists but failed to load (404 or error); the pill then shows no banner. */
+  imageFailed?: boolean;
   /** "Uploading…" or "Removing…" while an operation runs. */
   busy?: string;
   fileError?: string;
@@ -42,6 +44,7 @@ export default function ChannelInspector({
   channel,
   channels,
   imageSrc,
+  imageFailed = false,
   busy,
   fileError,
   onFile,
@@ -71,6 +74,7 @@ export default function ChannelInspector({
         ) : (
           <StatusGlyph tone="warning" label="No image" />
         )}
+        {imageFailed && <span className="channel-image-note">Banner could not be loaded</span>}
       </PropertyRow>
       {size && <PropertyRow label="Size">{size}</PropertyRow>}
       {updated && channel.updatedAt && (

@@ -1,7 +1,13 @@
 // Manage channel images (route "/channels"): concept D2's table and inspector
 // (T-142-F3 item 9, D-142F-34).
 import { expect, test } from "@playwright/test";
-import { fixtureImages, mockApi, screenshotChannels, sourcePng } from "./fixtures/api";
+import {
+  edgeCaseChannels,
+  fixtureImages,
+  mockApi,
+  screenshotChannels,
+  sourcePng,
+} from "./fixtures/api";
 import { DESTRUCTIVE_VERBS } from "./fixtures/routes";
 import {
   expectHitTargets,
@@ -109,6 +115,39 @@ test("a file dropped on a row replaces that channel's banner", async ({ page }) 
   await expect(row).toHaveAttribute("data-drag-over", "true");
   await row.dispatchEvent("drop", { dataTransfer: transfer });
   await expect.poll(() => api.uploads.map((u) => u.cid)).toEqual(["12"]);
+});
+
+// T-142-F4 item 1 (F-142-28): a banner that fails to load shows the quiet
+// empty tile in the table and the inspector, never a broken-image icon; a
+// spacer on the base image still shows the base image.
+test("a missing banner shows the empty tile; a spacer shows the base image", async ({ page }) => {
+  const { channels, banners } = edgeCaseChannels();
+  await mockApi(page, {
+    channels,
+    images: await fixtureImages(page, banners),
+    spacerBase: await sourcePng(page),
+  });
+  await page.goto("/channels");
+  const broken = page.locator('.channel-row[data-cid="20"]');
+  await expect(broken.getByText("Banner could not be loaded")).toBeVisible();
+  await expect(broken.locator("img")).toHaveCount(0);
+  await expect(broken.locator(".channel-thumb-empty")).toHaveText("No image");
+
+  await broken.locator(".channel-name").click();
+  const panel = inspector(page);
+  await expect(panel.getByRole("heading", { name: "Broken banner" })).toBeVisible();
+  await expect(panel.getByText("Banner could not be loaded")).toBeVisible();
+  await expect(panel.locator(".channel-tree-pill img")).toHaveCount(0);
+
+  // Every banner image on the page has loaded; none is broken.
+  const images = page.locator("#main-content img, .ds-studio-inspector img");
+  expect(await images.count()).toBeGreaterThan(0);
+  for (const image of await images.all())
+    expect(await image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+
+  const spacer = page.locator('.channel-row[data-cid="21"]');
+  await expect(spacer.getByRole("img", { name: "[spacer]Base" })).toBeVisible();
+  await expect(spacer.getByText("Spacer base image")).toBeVisible();
 });
 
 // T-142 items 8 and 18 on every reachable state of /channels.
