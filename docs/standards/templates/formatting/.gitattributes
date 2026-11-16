@@ -1,3 +1,5 @@
 # Keep text files deterministic across Windows, macOS and Linux.
 # Git detects binary files; do not normalize their contents.
 * text=auto eol=lf
+# Windows batch files keep CRLF, matching end_of_line = crlf for *.cmd in .editorconfig.
+*.cmd text eol=crlf

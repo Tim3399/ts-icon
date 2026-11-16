@@ -3,19 +3,21 @@
 Merge the following into the repository's existing `AGENTS.md` or other agent instructions.
 Adjust the profile path if needed. This file is a template; it does not install global rules.
 
-> Read `docs/PROJECT_PROFILE.md` before changing formatting, development startup, build or version
-> tooling. Follow the adopted baseline linked there and the actual project command map. Preserve
-> unrelated local changes. Use the declared formatter for each file type and check changed files;
-> keep repository-wide formatting separate from functional work. Start the complete application
-> through its documented launcher and verify readiness and source identity. Rebuild before tests
-> that serve generated assets; restart a backend that does not reload. Change versions through the
-> declared updater, keeping manifest copies synchronized. Report checks actually performed and
-> pending requirements accurately. A version update must not implicitly commit, push or publish.
+> Read `docs/PROJECT_PROFILE.md` before changing formatting, language profiles, development
+> startup, build/version tooling or CI/CD. Follow its adopted component versions, retained exceptions
+> and actual command map. Run a project-standard Check or Update only when the user requests it;
+> ordinary feature work does not trigger startup, adoption or a baseline update. Update only the
+> requested `agents`, `formatting`, `languages`, `tooling` or `cicd` scopes, preserve local overrides and
+> locked versions outside them, and record checks actually performed without rewriting historical
+> evidence. Use each file type's declared formatter and keep repository-wide formatting separate
+> from functional work, and run `check:format` (the npm script name; in projects with `@tim/agent-team`,
+> `agent-team check-format` fulfils it) before reporting a change as done. A standard or product version update must not implicitly commit, push or
+> publish.
 >
-> Handle small or tightly coupled changes directly. For substantial work with independently useful
-> subtasks, use the available `orchestrated-development` skill when delegation adds clear value.
-> Give each worker a concise, self-contained brief with explicit file ownership; workers do not
-> delegate further and must preserve shared changes. Keep the configured model and reasoning
-> defaults unless user or project instructions select different settings. The lead reviews actual
-> changes and scoped verification evidence before accepting them. If the workflow skill is not
-> available, apply the same scope, ownership and review discipline directly without blocking work.
+> Preserve the project's agent instructions, configured model and reasoning defaults, and local
+> overrides unless the user requests a change. Handle small or tightly coupled changes directly.
+> In projects with `@tim/agent-team`, delegation follows the roles in `AGENTS.md`; skip the rest of
+> this paragraph. For substantial work with independently useful subtasks, use the available
+> `orchestrated-development` skill when delegation adds clear value; otherwise apply the same
+> ownership and review discipline directly. Assign explicit file ownership, require workers not
+> to delegate further or revert shared changes, and review their actual diff and scoped checks.

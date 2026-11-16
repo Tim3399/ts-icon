@@ -100,7 +100,7 @@ Project-specific rules are in the following block. `agent-team update` leaves it
 <!-- agent-team:project -->
 # Agent workflow
 
-Read `docs/PROJECT_PROFILE.md` before changing formatting, development startup, build or version tooling. Follow the adopted baseline and actual command map linked there. Use the declared formatter for each file type; keep repository-wide normalization separate from functional changes. Preserve the immutable `docs/standards/` snapshot and record project-specific adaptations in the profile.
+Read `docs/PROJECT_PROFILE.md` before changing formatting, development startup, build or version tooling. Follow the adopted baseline and actual command map linked there. Use the declared formatter for each file type; keep repository-wide normalization separate from functional changes. `docs/standards/` is the package standard of `@tim/agent-team`: do not edit it by hand, update it only through `agent-team update`, and record project-specific adaptations in the profile.
 
 Use the documented complete launcher and verify readiness and source identity before claiming a successful local start. Rebuild before testing generated assets. The profile records current startup and build-identity gaps; do not treat pending requirements as passing gates. Version preparation must keep manifest copies synchronized and must not implicitly commit, push, tag or publish; the existing CI release helper is not a local version updater.
 

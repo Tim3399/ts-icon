@@ -3,8 +3,9 @@
 ## Adoption
 
 - Project: NestJS APIs and React/Vite TeamSpeak banner administration, maintained as one product.
-- Skill: `project-start` **1.1.0**; engineering baseline **1.1.0**.
-- Baseline: [vendored standard](standards/README.md), adopted on 2026-09-10. The project profile records the evidence for ts-icon. Reuse this snapshot on subsequent skill runs; upgrade deliberately.
+- Skill: `project-start` **1.1.0**; engineering baseline: adopted **1.1.0**, target **1.5.0**.
+- Baseline: [package standard](standards/README.md), baseline **1.5.0**, as shipped by `@tim/agent-team` 0.4.2. `docs/standards/` is owned by the package and changes only through `agent-team update`; do not edit it by hand. It was brought to the package version on 2026-11-16 (T-143). The previous expected baseline (1.1.0 with some 1.5.0 files) is retained at commit `1ed2169`.
+- Adoption: first adopted on 2026-09-10 against baseline 1.1.0; the verification below records that run. Baseline 1.5.0 is the target and is not yet adopted (see 'Exceptions and pending work').
 - Active profiles: Web (TypeScript/JavaScript, JSON/JSONC, CSS), documentation (Markdown/YAML/HTML), core whitespace. Python and Rust are inapplicable.
 - Status: formatting and agent-workflow binding adopted; broader startup/version requirements remain partial as listed below.
 - Developer platforms: Windows and Linux, also covered by GitHub Actions.
@@ -19,10 +20,10 @@
 | Web formatter                      | Root `biome.json`, `package.json`     | Biome 2.5.7; two spaces, 100 columns, LF, double quotes, semicolons, trailing commas, arrow parentheses                                                                                                                 |
 | Documentation formatter            | `.prettierrc`, `.prettierignore`      | Prettier 3.9.6; two spaces, 100 columns, LF, preserved prose wrapping; embedded code formatting disabled                                                                                                                |
 | Whitespace                         | `.editorconfig`, `.gitattributes`     | UTF-8, LF, final newline; preserve intentional Markdown trailing whitespace                                                                                                                                             |
-| Generated and reference exclusions | Formatter configs and Git ignores     | Dependencies, builds, coverage, generated files, runtime data, browser reports, npm locks and immutable `docs/standards/`                                                                                               |
+| Generated and reference exclusions | Formatter configs and Git ignores     | Dependencies, builds, coverage, generated files, runtime data, browser reports, npm locks and package-owned `docs/standards/`                                                                                           |
 | Other source formats               | Project-specific exception            | Prisma schema, SQL migrations, shell/batch, Dockerfiles, nginx, SVG and TOML retain existing conventions and core whitespace; no additional formatter installed. Review when these formats receive substantial changes. |
 
-Biome owns JS/JSX/MJS/CJS/TS/TSX/JSON/JSONC/CSS across both packages. Prettier owns Markdown/YAML/HTML. ESLint is a separate quality check. Use targeted writes during feature work; full repository normalization is a separate change and must preserve existing edits. Do not edit the vendored baseline to satisfy a formatter.
+Biome owns JS/JSX/MJS/CJS/TS/TSX/JSON/JSONC/CSS across both packages. Prettier owns Markdown/YAML/HTML. ESLint is a separate quality check. Use targeted writes during feature work; full repository normalization is a separate change and must preserve existing edits. Do not edit the package standard in `docs/standards/` to satisfy a formatter.
 
 ## Command map
 
@@ -83,6 +84,7 @@ A push to `main` publishes paired container images after successful dependent jo
 | Local version preparation                         | No atomic updater                                                                                                                          | Add validated synchronized updates for both manifests/locks, rejection and rollback tests                                                                        |
 | Served build identity                             | No frontend metadata                                                                                                                       | Embed source revision/dirty or unknown state, version and build mode; verify the served production bundle                                                        |
 | Local release preflight / artifact reuse          | CI gates only; release rebuilds                                                                                                            | Add a nonpublishing gate and test/promote identical artifacts                                                                                                    |
+| Baseline 1.5.0 adoption                           | Project state is verified against 1.1.0 only; for example two-space indentation, no `editorconfig-checker` in `check:format`               | Adopt 1.5.0 per scope through separate reviewed changes; record each scope's adopted version and evidence here                                                   |
 
 ## Verification
 
