@@ -90,7 +90,7 @@ export default function ChannelInspector({
           id={`inspector-file-upload-${channel.cid}`}
           aria-label={`${verb} image of ${channel.name}`}
           label={busy === "Uploading…" ? busy : `${verb}…`}
-          disabled={Boolean(busy)}
+          busy={Boolean(busy)}
           error={fileError}
           onFile={onFile}
         />

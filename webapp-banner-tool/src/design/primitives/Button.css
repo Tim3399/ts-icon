@@ -52,11 +52,11 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.ds-button-prominent:hover:not(:disabled) {
+.ds-button-prominent:hover:not(:disabled, [aria-disabled="true"]) {
   background-color: var(--color-accent-fill-hover);
 }
 
-.ds-button-prominent:active:not(:disabled) {
+.ds-button-prominent:active:not(:disabled, [aria-disabled="true"]) {
   background-color: var(--color-accent-fill-pressed);
 }
 
@@ -68,11 +68,11 @@
   color: var(--color-label);
 }
 
-.ds-button-gray:hover:not(:disabled) {
+.ds-button-gray:hover:not(:disabled, [aria-disabled="true"]) {
   background-color: var(--color-hover-bg);
 }
 
-.ds-button-gray:active:not(:disabled) {
+.ds-button-gray:active:not(:disabled, [aria-disabled="true"]) {
   background-color: var(--color-fill-pressed);
 }
 
@@ -82,11 +82,11 @@
   color: var(--color-link);
 }
 
-.ds-button-plain:hover:not(:disabled) {
+.ds-button-plain:hover:not(:disabled, [aria-disabled="true"]) {
   background-color: var(--color-fill-hover);
 }
 
-.ds-button-plain:active:not(:disabled) {
+.ds-button-plain:active:not(:disabled, [aria-disabled="true"]) {
   background-color: var(--color-fill-pressed);
 }
 

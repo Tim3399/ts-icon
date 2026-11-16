@@ -222,8 +222,11 @@ it("sets one channel's banner URL from its row and every pending one after confi
       expect.objectContaining({ method: "PATCH" }),
     ),
   );
+  // While busy the button is aria-disabled (focusable), not disabled.
   await waitFor(() =>
-    expect(screen.getByRole("button", { name: "Set for all channels" })).toBeEnabled(),
+    expect(screen.getByRole("button", { name: "Set for all channels" })).not.toHaveAttribute(
+      "aria-disabled",
+    ),
   );
 
   apiFetchJsonMock.mockImplementation((url: string) =>
@@ -238,4 +241,82 @@ it("sets one channel's banner URL from its row and every pending one after confi
   expect(within(dialog).getByText("Set managed banner URLs for 2 channel(s)?")).toBeInTheDocument();
   fireEvent.click(within(dialog).getByRole("button", { name: "Set URLs" }));
   expect(await screen.findByText("Updated 2 channel(s); 1 already correct.")).toBeInTheDocument();
+});
+
+/** The next status reload answers only when the returned function is called. */
+function holdReload(after: typeof twoChannels) {
+  let answer!: () => void;
+  apiFetchJsonMock.mockImplementation((url: string) => {
+    if (url.endsWith("/apply-banner-urls"))
+      return Promise.resolve({ updated: ["2", "3"], alreadyManaged: ["1"] });
+    if (apiFetchJsonMock.mock.calls.length === 1) return Promise.resolve(twoChannels);
+    return new Promise((resolve) => {
+      answer = () => resolve(after);
+    });
+  });
+  return () => act(async () => answer());
+}
+
+const managedAll = {
+  channels: twoChannels.channels.map((c) => ({ ...c, managed: true })),
+};
+
+it("keeps the rows during the reload after Set banner URL and the focus on the button (V-0.12.0-F4)", async () => {
+  const answer = holdReload(managedAll);
+  render(<BannerUrlManager />);
+  const table = await screen.findByRole("table", { name: "Channel banner URLs" });
+  const inspector = screen.getByRole("complementary", { name: "Inspector" });
+  fireEvent.click(within(rows()[1]).getByText("Bravo"));
+  const set = within(inspector).getByRole("button", { name: "Set banner URL" });
+  set.focus();
+  fireEvent.click(set);
+  await waitFor(() => expect(apiFetchJsonMock).toHaveBeenCalledTimes(2));
+  // Reload pending: the rows stay, quietly busy; the pressed button keeps the focus.
+  expect(rows()).toHaveLength(3);
+  expect(table).toHaveAttribute("aria-busy", "true");
+  expect(screen.getByText("Updating…")).toBeInTheDocument();
+  expect(screen.queryByText("Loading channels…")).not.toBeInTheDocument();
+  const busy = within(inspector).getByRole("button", { name: "Setting…" });
+  expect(busy).toHaveFocus();
+  expect(busy).toHaveAttribute("aria-disabled", "true");
+  await answer();
+  expect(table).not.toHaveAttribute("aria-busy");
+  expect(rows()[1]).toHaveAttribute("aria-selected", "true");
+  const done = within(inspector).getByRole("button", { name: "Set banner URL" });
+  expect(done).toBe(set);
+  expect(done).toHaveFocus();
+});
+
+it("returns the focus to Set for all channels after the dialog and keeps it (V-0.12.0-F4)", async () => {
+  const answer = holdReload(managedAll);
+  render(<BannerUrlManager />);
+  await screen.findByRole("table", { name: "Channel banner URLs" });
+  const setAll = screen.getByRole("button", { name: "Set for all channels" });
+  setAll.focus();
+  fireEvent.click(setAll);
+  fireEvent.click(
+    within(screen.getByRole("alertdialog")).getByRole("button", { name: "Set URLs" }),
+  );
+  expect(setAll).toHaveFocus();
+  await waitFor(() => expect(apiFetchJsonMock).toHaveBeenCalledTimes(3));
+  expect(rows()).toHaveLength(3);
+  expect(setAll).toHaveAttribute("aria-disabled", "true");
+  expect(setAll).toHaveFocus();
+  await answer();
+  expect(setAll).not.toHaveAttribute("aria-disabled");
+  expect(setAll).toHaveFocus();
+});
+
+it("moves the focus to the table when a set channel leaves the 'Not managed' filter (V-0.12.0-F4)", async () => {
+  apiFetchJsonMock.mockResolvedValueOnce(twoChannels).mockResolvedValue({
+    channels: twoChannels.channels.map((c) => (c.cid === "3" ? { ...c, managed: true } : c)),
+  });
+  render(<BannerUrlManager />);
+  const table = await screen.findByRole("table", { name: "Channel banner URLs" });
+  fireEvent.click(screen.getByRole("radio", { name: "Not managed" }));
+  const set = screen.getByRole("button", { name: "Set banner URL for Charlie" });
+  set.focus();
+  fireEvent.click(set);
+  await waitFor(() => expect(rows()).toHaveLength(1));
+  expect(table).toHaveFocus();
 });

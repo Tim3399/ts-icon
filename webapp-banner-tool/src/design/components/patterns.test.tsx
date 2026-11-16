@@ -7,6 +7,7 @@ import { FileButton } from "./FileButton";
 import { MenuButton } from "./MenuButton";
 import { StatusGlyph } from "./StatusGlyph";
 import { DataTable } from "./Studio";
+import { focusSelectedRow } from "./focusSelectedRow";
 import { ToolbarButton } from "./Toolbar";
 
 describe("Button", () => {
@@ -27,6 +28,24 @@ describe("Button", () => {
     expect(screen.getByText("Link")).toHaveAttribute("data-accent", "link");
     expect(screen.getByText("Remove")).toHaveAttribute("data-destructive");
     expect(screen.getByText("Remove")).not.toHaveAttribute("data-accent");
+  });
+
+  it("stays focusable but ignores clicks while aria-disabled", () => {
+    const onClick = vi.fn();
+    const { rerender } = render(
+      <Button aria-disabled onClick={onClick}>
+        Set banner URL
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Set banner URL" });
+    button.focus();
+    fireEvent.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+    expect(button).toHaveFocus();
+    expect(button).not.toBeDisabled();
+    rerender(<Button onClick={onClick}>Set banner URL</Button>);
+    fireEvent.click(button);
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -60,6 +79,21 @@ describe("FileButton", () => {
     const input = screen.getByLabelText("Replace…");
     expect(input).not.toHaveAttribute("aria-invalid");
     expect(input).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("keeps the focus while busy and neither opens the picker nor passes a file", () => {
+    const onFile = vi.fn();
+    render(<FileButton id="replace-c" onFile={onFile} busy />);
+    const input = screen.getByLabelText("Replace…");
+    input.focus();
+    expect(input).toHaveFocus();
+    expect(input).not.toBeDisabled();
+    expect(input).toHaveAttribute("aria-disabled", "true");
+    // fireEvent returns false when the default action (opening the picker) was prevented.
+    expect(fireEvent.click(input)).toBe(false);
+    const file = new File(["x"], "a.png", { type: "image/png" });
+    fireEvent.change(input, { target: { files: [file] } });
+    expect(onFile).not.toHaveBeenCalled();
   });
 });
 
@@ -118,6 +152,39 @@ describe("ConfirmDialog", () => {
     expect(onCancel).toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(onConfirm).toHaveBeenCalled();
+  });
+
+  it("returns the focus after Cancel and hands it to focusAfterConfirm after Confirm", () => {
+    const target = document.createElement("button");
+    document.body.append(target);
+    const dialog = (open: boolean, focusAfterConfirm?: () => void) => (
+      <>
+        <button type="button">Remove…</button>
+        <ConfirmDialog
+          open={open}
+          title="Remove image?"
+          message="m"
+          confirmLabel="Remove"
+          onCancel={() => {}}
+          onConfirm={() => {}}
+          focusAfterConfirm={focusAfterConfirm}
+        />
+      </>
+    );
+    const { rerender } = render(dialog(false));
+    const opener = screen.getByRole("button", { name: "Remove…" });
+    const afterConfirm = () => target.focus();
+    opener.focus();
+    rerender(dialog(true, afterConfirm));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    rerender(dialog(false, afterConfirm));
+    expect(opener).toHaveFocus();
+
+    rerender(dialog(true, afterConfirm));
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    rerender(dialog(false, afterConfirm));
+    expect(target).toHaveFocus();
+    target.remove();
   });
 
   it("renders nothing while closed", () => {
@@ -185,6 +252,74 @@ describe("DataTable", () => {
     const second = screen.getByRole("row", { name: "Squad 1, #23" });
     fireEvent.keyDown(second.querySelector("button")!, { key: "Enter" });
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("moves the focus to the table when an update removes the focused row", () => {
+    const columns = [{ key: "name", header: "Name", render: (r: { id: string }) => r.id }];
+    const view = (shown: { id: string }[]) => (
+      <DataTable
+        label="Channels"
+        columns={columns}
+        rows={shown}
+        rowKey={(r) => r.id}
+        onSelect={vi.fn()}
+        rowLabel={(r) => `#${r.id}`}
+      />
+    );
+    const { rerender } = render(view(rows));
+    screen.getByRole("row", { name: "#23" }).focus();
+    rerender(view(rows.slice(0, 1)));
+    expect(document.activeElement).toBe(screen.getByRole("table", { name: "Channels" }));
+    // A row that stays keeps the focus.
+    screen.getByRole("row", { name: "#22" }).focus();
+    rerender(view(rows));
+    expect(document.activeElement).toBe(screen.getByRole("row", { name: "#22" }));
+  });
+
+  it("marks a background reload as aria-busy and keeps the rows", () => {
+    render(
+      <DataTable
+        label="Channels"
+        busy
+        columns={[{ key: "name", header: "Name", render: (r: { id: string }) => r.id }]}
+        rows={rows}
+        rowKey={(r) => r.id}
+      />,
+    );
+    expect(screen.getByRole("table", { name: "Channels" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getAllByRole("row")).toHaveLength(3);
+  });
+
+  it("focusSelectedRow focuses the selected row, else the table", () => {
+    const ref = { current: null as HTMLTableElement | null };
+    const { rerender } = render(
+      <DataTable
+        label="Channels"
+        tableRef={ref}
+        columns={[{ key: "name", header: "Name", render: (r: { id: string }) => r.id }]}
+        rows={rows}
+        rowKey={(r) => r.id}
+        selectedKey="23"
+        onSelect={vi.fn()}
+        rowLabel={(r) => `#${r.id}`}
+      />,
+    );
+    focusSelectedRow(ref.current);
+    expect(document.activeElement).toBe(screen.getByRole("row", { name: "#23" }));
+    rerender(
+      <DataTable
+        label="Channels"
+        tableRef={ref}
+        columns={[{ key: "name", header: "Name", render: (r: { id: string }) => r.id }]}
+        rows={rows}
+        rowKey={(r) => r.id}
+        selectedKey={null}
+        onSelect={vi.fn()}
+        rowLabel={(r) => `#${r.id}`}
+      />,
+    );
+    focusSelectedRow(ref.current);
+    expect(document.activeElement).toBe(screen.getByRole("table", { name: "Channels" }));
   });
 
   it("has no tab stops on rows without onSelect", () => {
