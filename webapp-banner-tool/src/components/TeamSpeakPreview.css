@@ -21,9 +21,11 @@
   overflow: hidden;
 }
 
+/* A long tree scrolls inside the preview: at most 352 px (eight rows) high (≤ 360 px, F-142-32). */
 .ts-preview-scroll {
+  max-height: calc(var(--size-thumb) * 8);
   padding: var(--space-2) var(--space-4);
-  overflow-x: auto;
+  overflow: auto;
   scrollbar-color: var(--color-ts-divider) transparent;
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Channel } from "../api/types";
 import { channelBanner } from "./channelBanner";
+import { scrollWithin } from "./scrollWithin";
 import { ChannelTreeRow } from "./ChannelTreeRow";
 import { TEAMSPEAK_GEOMETRY } from "./teamspeakGeometry";
 import "./TeamSpeakPreview.css";
@@ -15,6 +16,8 @@ interface TeamSpeakPreviewProps {
   bannerAlt?: string;
   /** Marker after the edited row's name ("New" while the crop is unsaved). */
   marker?: string;
+  /** When it changes, the edited row is scrolled into the middle of the preview. */
+  focusKey?: string;
 }
 
 /** True while the TS6-width tree is wider than its column (narrow screens). */
@@ -39,7 +42,9 @@ function useOverflow(dependency: unknown) {
  * banner is cropped and scaled into its pill the way TS6 draws it, between
  * its real neighbours. The tree is never scaled: on a narrow screen it
  * scrolls sideways inside the preview, so names stay at their TS6 size
- * (item 12).
+ * (item 12). A long tree keeps all rows in a bounded scroll area, and the
+ * edited row is scrolled into its middle on a channel select and when a crop
+ * starts (T-142-F4, F-142-32).
  */
 export function TeamSpeakPreview({
   channels,
@@ -47,8 +52,12 @@ export function TeamSpeakPreview({
   banner,
   bannerAlt = "",
   marker,
+  focusKey,
 }: TeamSpeakPreviewProps) {
   const [scroller, overflow] = useOverflow(channels.length);
+  useEffect(() => {
+    scrollWithin(scroller.current?.querySelector<HTMLElement>(".ts-preview-selected"));
+  }, [focusKey, channels.length, scroller]);
   return (
     <div className="ts-preview-stack">
       <figure className="ts-preview" aria-label="Preview in TeamSpeak">

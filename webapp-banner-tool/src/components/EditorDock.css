@@ -35,7 +35,9 @@
 
 .compare-row {
   display: grid;
-  grid-template-columns: var(--size-property-label) minmax(0, auto);
+  /* The label column fits "Before" / "After" (D2: about 52 px), so the strips keep
+     250 x 22 beside the tree at 1440 px (F-142-35). */
+  grid-template-columns: max-content minmax(0, auto);
   align-items: center;
   justify-content: start;
   gap: var(--space-3);

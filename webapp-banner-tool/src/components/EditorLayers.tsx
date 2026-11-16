@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { Channel } from "../api/types";
 import {
   Button,
@@ -8,7 +9,9 @@ import {
   StudioLayers,
   ToolbarButton,
 } from "../design";
+import { BannerImage } from "./BannerImage";
 import { channelBanner } from "./channelBanner";
+import { scrollWithin } from "./scrollWithin";
 import "./EditorLayers.css";
 
 interface EditorLayersProps {
@@ -25,7 +28,9 @@ interface EditorLayersProps {
  * The editor's layer panel (T-142-F3 item 4, R4): the live channel tree from
  * GET channels as compact rows – glyph, name, banner thumbnail. A row click
  * selects the channel (the same state as the inspector's select); the
- * selected row carries aria-current.
+ * selected row carries aria-current and is scrolled into the middle of the
+ * panel when it is selected (T-142-F4, F-142-32). A thumbnail that fails to
+ * load shows the quiet empty strip (F-142-28).
  */
 export function EditorLayers({
   channels,
@@ -36,6 +41,10 @@ export function EditorLayers({
   onRefresh,
   disabled = false,
 }: EditorLayersProps) {
+  const list = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    scrollWithin(list.current?.querySelector<HTMLElement>('[aria-current="true"]'));
+  }, [selectedCid, channels.length]);
   return (
     <StudioLayers>
       <Panel
@@ -64,7 +73,7 @@ export function EditorLayers({
         {!loading && !error && channels.length === 0 && (
           <p className="layers-notice layers-empty">No channels found.</p>
         )}
-        <ul className="layers" aria-label="Channels">
+        <ul ref={list} className="layers" aria-label="Channels">
           {channels.map((channel) => {
             const banner = channelBanner(channel);
             const current = channel.cid === selectedCid;
@@ -84,9 +93,13 @@ export function EditorLayers({
                     <Icon name={channel.isSpacer ? "sliders" : "layers"} size={14} />
                   </span>
                   <span className="layer-name">{channel.name}</span>
-                  <span className="layer-thumb" data-empty={banner ? undefined : ""}>
-                    {banner && <img src={banner} alt="" loading="lazy" />}
-                  </span>
+                  <BannerImage
+                    className="layer-thumb"
+                    src={banner}
+                    alt=""
+                    lazy
+                    fallback={<span className="layer-thumb" data-empty="" />}
+                  />
                 </Button>
               </li>
             );
