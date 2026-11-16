@@ -15,6 +15,8 @@ export interface MockChannel {
   hasImage: boolean;
   managed: boolean;
   isSpacer?: boolean;
+  /** A spacer without its own image that shows the spacer base image (GET channels `hasFallback`). */
+  hasFallback?: boolean;
   bannerGfxUrl?: string | null;
   /** Byte size and last change of the channel's own image (R1, D-142F-34). */
   size?: number;
@@ -89,6 +91,83 @@ export function screenshotChannels(): { channels: MockChannel[]; banners: string
   return { channels, banners: ["10", "11", "12", "13"] };
 }
 
+/**
+ * Real-world shapes the screenshot tree does not have (T-142-F4, Critic r4):
+ * - "Broken banner" (cid 20): managed, `hasImage: true`, but its image is not
+ *   served – leave cid 20 out of `images`, so GET by-id answers 404 (F-142-28);
+ * - "[spacer]Base" (cid 21): a spacer without its own image that shows the
+ *   spacer base image (`hasFallback: true`; pass `spacerBase` to mockApi, F-142-31);
+ * - two channels named "Squad 1" (cid 22, 23), under different parents (F-142-33).
+ * `banners` names the channels that do get a generated image.
+ */
+export function edgeCaseChannels(): { channels: MockChannel[]; banners: string[] } {
+  const channels: MockChannel[] = [
+    {
+      cid: "11",
+      name: "Gaming Area",
+      pid: null,
+      depth: 0,
+      hasImage: true,
+      managed: true,
+      ...imageMeta(18_432, "2026-11-13T19:05:00Z"),
+    },
+    { cid: "22", name: "Squad 1", pid: "11", depth: 1, hasImage: false, managed: true },
+    {
+      cid: "20",
+      name: "Broken banner",
+      pid: null,
+      depth: 0,
+      hasImage: true,
+      managed: true,
+      ...imageMeta(9_216, "2026-11-10T10:00:00Z"),
+    },
+    { cid: "24", name: "Lounge", pid: null, depth: 0, hasImage: false, managed: true },
+    { cid: "23", name: "Squad 1", pid: "24", depth: 1, hasImage: false, managed: true },
+    {
+      cid: "21",
+      name: "[spacer]Base",
+      pid: null,
+      depth: 0,
+      hasImage: false,
+      hasFallback: true,
+      isSpacer: true,
+      managed: true,
+    },
+  ];
+  for (const channel of channels)
+    channel.bannerGfxUrl = `https://icons.example.net/banner/${channel.cid}.png`;
+  return { channels, banners: ["11"] };
+}
+
+/**
+ * A long tree (T-142-F4, F-142-32): `count` channels (default 40) with cids
+ * 100…, in groups of eight – a parent with a banner followed by seven
+ * sub-channels, every third of them with a banner. Channel 36 is
+ * `longTreeChannels()[35]`, cid "135".
+ */
+export function longTreeChannels(count = 40): { channels: MockChannel[]; banners: string[] } {
+  const channels: MockChannel[] = [];
+  const banners: string[] = [];
+  let parent: string | null = null;
+  for (let i = 0; i < count; i++) {
+    const cid = String(100 + i);
+    const isParent = i % 8 === 0;
+    const withBanner = isParent || i % 3 === 0;
+    if (isParent) parent = cid;
+    channels.push({
+      cid,
+      name: isParent ? `Area ${i / 8 + 1}` : `Channel ${String(i + 1).padStart(2, "0")}`,
+      pid: isParent ? null : parent,
+      depth: isParent ? 0 : 1,
+      hasImage: withBanner,
+      managed: true,
+      ...(withBanner ? imageMeta(16_384 + i * 64, "2026-11-14T12:00:00Z") : {}),
+    });
+    if (withBanner) banners.push(cid);
+  }
+  return { channels, banners };
+}
+
 export type ApiState = "ready" | "empty" | "loading" | "error";
 
 export interface MockApiOptions {
@@ -97,6 +176,11 @@ export interface MockApiOptions {
   images?: Map<string, Buffer>;
   /** How the channel endpoints answer; "loading" never answers. */
   state?: ApiState;
+  /**
+   * The spacer base image: GET spacer-base-image serves it, and GET by-id
+   * serves it for every channel with `hasFallback` (as the public API does).
+   */
+  spacerBase?: Buffer;
 }
 
 export async function mockApi(page: Page, options: MockApiOptions = {}) {
@@ -107,7 +191,10 @@ export async function mockApi(page: Page, options: MockApiOptions = {}) {
   const items = state === "empty" ? [] : (options.channels ?? basicChannels());
   await page.route(`${PUBLIC_API}/images/**`, async (route) => {
     const cid = new URL(route.request().url()).pathname.match(/by-id\/(\d+)\.png/)?.[1];
-    const png = images.get(cid || "");
+    const fallback = items.find((item) => item.cid === cid)?.hasFallback
+      ? options.spacerBase
+      : undefined;
+    const png = images.get(cid || "") ?? fallback;
     await route.fulfill(
       png ? { status: 200, contentType: "image/png", body: png } : { status: 404 },
     );
@@ -124,7 +211,10 @@ export async function mockApi(page: Page, options: MockApiOptions = {}) {
       return route.fulfill({ json: { channels: items } });
     if (pathname.endsWith("/channels"))
       return route.fulfill({ json: { channels: items.map((item) => item.name), items } });
-    if (pathname.endsWith("/spacer-base-image")) return route.fulfill({ status: 404 });
+    if (pathname.endsWith("/spacer-base-image"))
+      return options.spacerBase && request.method() === "GET"
+        ? route.fulfill({ status: 200, contentType: "image/png", body: options.spacerBase })
+        : route.fulfill({ status: 404 });
     if (pathname.endsWith("/channel-wallpaper/runs")) return route.fulfill({ json: { runs: [] } });
     const cid = pathname.match(/channels\/(\d+)\/image/)?.[1];
     if (cid && request.method() === "POST") {
