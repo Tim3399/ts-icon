@@ -211,3 +211,52 @@ test("dock pills are 456 × 30 at 1440 px and the picker rows match their height
   const pickerPill = (await picker.locator(".channel-tree-pill").first().boundingBox())!;
   expect(Math.abs(pickerPill.height - pill.height)).toBeLessThanOrEqual(1);
 });
+
+// D-142F-38 fix 1: in the inspector the picker pills fit the panel; no pill
+// reaches past the inspector's inner edge or past the picker's visible area.
+for (const width of [1240, 1280, 1440]) {
+  test(`${width} px: every picker pill fits inside the inspector`, async ({ page }) => {
+    test.skip(test.info().project.name !== "desktop", "Widths are set in the desktop project.");
+    await page.setViewportSize({ width, height: 900 });
+    await mockWallpaper(page);
+    await open(page);
+    const inspector = page.getByRole("complementary", { name: "Inspector" });
+    const picker = inspector.getByRole("group", { name: "Parent channel" });
+    const pills = picker.locator(".channel-tree-pill");
+    await expect(pills.first()).toBeVisible();
+    expect(await pills.count()).toBeGreaterThan(0);
+    const inner = await inspector.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      return box.left + el.clientLeft + el.clientWidth;
+    });
+    const scroller = (await picker.locator(".channel-tree-scroll").boundingBox())!;
+    for (const pill of await pills.all()) {
+      const box = (await pill.boundingBox())!;
+      expect(box.x + box.width).toBeLessThanOrEqual(inner + 0.5);
+      expect(box.x + box.width).toBeLessThanOrEqual(scroller.x + scroller.width + 0.5);
+      expect(Math.round(box.height)).toBe(30);
+    }
+  });
+}
+
+// D-142F-38 fix 2: the page's one prominent action is in view without
+// scrolling (page and inspector at scroll 0).
+for (const [width, height] of [
+  [1024, 800],
+  [1280, 800],
+  [1440, 900],
+] as const) {
+  test(`${width}×${height}: Generate channels is in view at scroll 0`, async ({ page }) => {
+    test.skip(test.info().project.name !== "desktop", "Widths are set in the desktop project.");
+    await page.setViewportSize({ width, height });
+    await mockWallpaper(page);
+    await open(page);
+    const inspector = page.getByRole("complementary", { name: "Inspector" });
+    await inspector.evaluate((el) => el.scrollTo(0, 0));
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const button = (await page.getByRole("button", { name: "Generate channels" }).boundingBox())!;
+    expect(button.y).toBeGreaterThanOrEqual(0);
+    expect(button.y + button.height).toBeLessThanOrEqual(height);
+    expect(button.x + button.width).toBeLessThanOrEqual(width);
+  });
+}

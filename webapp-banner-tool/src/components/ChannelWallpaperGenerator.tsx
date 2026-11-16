@@ -839,38 +839,41 @@ export default function ChannelWallpaperGenerator() {
             </InspectorSection>
           </fieldset>
 
-          <InspectorSection
-            title="Generate"
-            meta={rows.length > 0 ? `${rows.length} rows` : undefined}
-          >
-            {blocked && (
-              <Button
-                size="small"
-                icon="alert"
-                onClick={() => {
-                  if (ADVANCED_FIELDS.some((key) => fieldErrors[key])) setAdvancedOpen(true);
-                  fields.focusFirst(fieldErrors);
-                }}
-              >
-                Review highlighted fields
-              </Button>
-            )}
-            <Button
-              variant="prominent"
-              className="wallpaper-generate"
-              icon={busy === "generate" ? undefined : "sparkles"}
-              onClick={() => void generate()}
-              disabled={Boolean(busy) || previewLoading || rows.length === 0 || blocked}
+          {/* Sticky at the bottom of the inspector: the one prominent action stays in view. */}
+          <div className="wallpaper-generate-section">
+            <InspectorSection
+              title="Generate"
+              meta={rows.length > 0 ? `${rows.length} rows` : undefined}
             >
-              {busy === "generate" && <Spinner />}
-              {busy === "generate" ? "Generating…" : "Generate channels"}
-            </Button>
-            <p className="wallpaper-hint">
-              {rows.length > 0
-                ? `Creates ${rows.length} channel${rows.length === 1 ? "" : "s"} on the server. You can undo it in Recent operations.`
-                : "Add a source image to enable generating."}
-            </p>
-          </InspectorSection>
+              {blocked && (
+                <Button
+                  size="small"
+                  icon="alert"
+                  onClick={() => {
+                    if (ADVANCED_FIELDS.some((key) => fieldErrors[key])) setAdvancedOpen(true);
+                    fields.focusFirst(fieldErrors);
+                  }}
+                >
+                  Review highlighted fields
+                </Button>
+              )}
+              <Button
+                variant="prominent"
+                className="wallpaper-generate"
+                icon={busy === "generate" ? undefined : "sparkles"}
+                onClick={() => void generate()}
+                disabled={Boolean(busy) || previewLoading || rows.length === 0 || blocked}
+              >
+                {busy === "generate" && <Spinner />}
+                {busy === "generate" ? "Generating…" : "Generate channels"}
+              </Button>
+              <p className="wallpaper-hint">
+                {rows.length > 0
+                  ? `Creates ${rows.length} channel${rows.length === 1 ? "" : "s"} on the server. You can undo it in Recent operations.`
+                  : "Add a source image to enable generating."}
+              </p>
+            </InspectorSection>
+          </div>
         </Panel>
       </StudioInspector>
 

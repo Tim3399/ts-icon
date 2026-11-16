@@ -202,9 +202,13 @@
   gap: var(--space-2);
 }
 
-/* The parent picker keeps its room: C1 needs at least 280 px. */
+/* The parent picker keeps its room (C1 needs at least 280 px) and fits the
+   panel: it takes the inspector width minus half the section padding, so its
+   pills (width = picker width minus indent, right edges aligned) never reach
+   the panel edge. */
 .wallpaper-parent {
   min-width: 280px;
+  margin-inline: calc(var(--space-2) * -1);
 }
 
 /* In the inspector the picker shows about five rows and scrolls, so Options
@@ -227,4 +231,17 @@
 
 .wallpaper-generate {
   width: 100%;
+}
+
+/* From 1024 px the Generate section sticks to the bottom of the inspector
+   (its own scroll area from 1240 px, the viewport below), so the page's one
+   prominent action is always in view; the sections above scroll under it. */
+@media (min-width: 1024px) {
+  .wallpaper-generate-section {
+    position: sticky;
+    bottom: var(--space-0);
+    z-index: 1;
+    border-top: var(--size-hairline) solid var(--color-border);
+    background-color: var(--color-bg-sidebar);
+  }
 }
