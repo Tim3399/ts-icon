@@ -82,6 +82,10 @@ export function screenshotChannels(): { channels: MockChannel[]; banners: string
     { cid: "15", name: "Squad 2", pid: "13", depth: 2, hasImage: false, managed: false },
     { cid: "16", name: "Lobby", pid: null, depth: 0, hasImage: false, managed: false },
   ];
+  // A managed channel's TeamSpeak banner URL points at ts-icon (Banner URLs screen).
+  for (const channel of channels)
+    if (channel.managed)
+      channel.bannerGfxUrl = `https://icons.example.net/banner/${channel.cid}.png`;
   return { channels, banners: ["10", "11", "12", "13"] };
 }
 
