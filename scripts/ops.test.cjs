@@ -1,6 +1,8 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 const { test } = require("node:test");
 const { pathToFileURL } = require("node:url");
 const Database = require("better-sqlite3");
@@ -82,30 +84,86 @@ test("release retry repairs both images without moving an older version tag", ()
   assert.equal(publishVersionTag("commit-b", "commit-a"), false);
 });
 
-test("release config raises both manifests and both lockfiles", () => {
-  const config = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "..", "team", "team.config.json"), "utf8"),
-  );
-  const entries = new Map();
-  for (const file of config.release.versionFiles) {
-    entries.set(file.path, [...(entries.get(file.path) ?? []), file]);
+// Mirrors agent-team 0.4.2 set-version: every versionFiles entry is computed from the first reading of its
+// file (LF text), then the results are written in sequence, so a second entry for one file overwrites the first.
+function versionEntryText(entry, text, next) {
+  if (entry.type === "regex") {
+    const hits = [...text.matchAll(new RegExp(entry.pattern, "dgm"))];
+    assert.equal(hits.length, 1, `${entry.path} pattern matches exactly once`);
+    const [start, end] = hits[0].indices[1];
+    return text.slice(0, start) + next + text.slice(end);
   }
-  assert.deepEqual([...entries.keys()].sort(), [
-    "package-lock.json",
+  assert.equal(entry.type, "json");
+  assert.equal(entry.key, "version");
+  const old = JSON.parse(text).version;
+  return text.replace(
+    new RegExp(`("version"\\s*:\\s*)"${old.replace(/\./g, "\\.")}"`),
+    `$1"${next}"`,
+  );
+}
+
+function applyVersionFiles(dir, entries, next) {
+  const computed = entries.map((entry) => {
+    const text = fs.readFileSync(path.join(dir, entry.path), "utf8");
+    return { entry, text: versionEntryText(entry, text, next) };
+  });
+  for (const { entry, text } of computed) fs.writeFileSync(path.join(dir, entry.path), text);
+}
+
+test("set-version raises all six version fields in both manifests and both lockfiles", () => {
+  const root = path.join(__dirname, "..");
+  const config = JSON.parse(fs.readFileSync(path.join(root, "team", "team.config.json"), "utf8"));
+  const files = [
     "package.json",
-    "webapp-banner-tool/package-lock.json",
+    "package-lock.json",
     "webapp-banner-tool/package.json",
-  ]);
-  for (const [file, list] of entries) {
-    const top = list.find((entry) => entry.type === "json" && entry.key === "version");
-    assert.ok(top, `${file} lists its top-level version`);
-    if (!file.endsWith("package-lock.json")) continue;
-    // set-version rejects empty key segments, so packages."".version is addressed by a pattern
-    const nested = list.find((entry) => entry.type === "regex");
-    assert.ok(nested, `${file} lists packages."".version`);
-    const text = fs.readFileSync(path.join(__dirname, "..", file), "utf8");
-    const match = new RegExp(nested.pattern).exec(text);
-    assert.equal(match?.[1], JSON.parse(text).packages[""].version);
+    "webapp-banner-tool/package-lock.json",
+  ];
+  const next = "99.0.0";
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ts-icon-version-"));
+  try {
+    for (const file of files) {
+      fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+      fs.copyFileSync(path.join(root, file), path.join(dir, file));
+    }
+    applyVersionFiles(dir, config.release.versionFiles, next);
+    // npm sets the lockfile top-level version from the manifest, as the configured verify commands do
+    const syncs = config.release.verify.filter((cmd) =>
+      cmd.some((arg) => arg.includes("--package-lock-only")),
+    );
+    assert.equal(syncs.length, 2, "one lockfile sync per package");
+    const quote = (arg) => (/^[\w@./:=,+-]+$/.test(arg) ? arg : `"${arg.replace(/"/g, '""')}"`);
+    const before = Object.fromEntries(
+      files.map((file) => [file, fs.readFileSync(path.join(dir, file), "utf8")]),
+    );
+    for (const cmd of syncs) {
+      const line = cmd.map(quote).join(" ");
+      const result = spawnSync(line, { cwd: dir, shell: true, encoding: "utf8" });
+      assert.equal(result.status, 0, `${line}: ${result.stdout}${result.stderr}`);
+    }
+    // the sync must touch nothing but the lockfile top-level version
+    for (const file of files) {
+      const after = fs.readFileSync(path.join(dir, file), "utf8");
+      if (!file.endsWith("package-lock.json")) {
+        assert.equal(after, before[file], `${file} is unchanged by the lockfile syncs`);
+        continue;
+      }
+      const lock = JSON.parse(before[file]);
+      lock.version = next;
+      assert.deepEqual(JSON.parse(after), lock, `${file} changes only its top-level version`);
+    }
+    const read = (file) => JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
+    const fields = [
+      read("package.json").version,
+      read("package-lock.json").version,
+      read("package-lock.json").packages[""].version,
+      read("webapp-banner-tool/package.json").version,
+      read("webapp-banner-tool/package-lock.json").version,
+      read("webapp-banner-tool/package-lock.json").packages[""].version,
+    ];
+    assert.deepEqual(fields, Array(6).fill(next));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
