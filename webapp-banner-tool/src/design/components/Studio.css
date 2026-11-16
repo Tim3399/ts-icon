@@ -167,7 +167,10 @@
   background-color: var(--color-fill-neutral);
 }
 
+/* The minimum width keeps a short label such as "All" at the hit target
+   whatever the system font is (F-v0120-1). */
 .ds-segment {
+  min-width: var(--size-hit-target-small);
   min-height: var(--size-hit-target-small);
   padding: var(--space-0) var(--space-3);
   border: var(--size-hairline) solid transparent;
@@ -176,6 +179,7 @@
   color: var(--color-label-secondary);
   font-size: var(--font-small-size);
   line-height: var(--font-small-line);
+  text-align: center;
   cursor: pointer;
 }
 
