@@ -4,9 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { Button } from "../primitives/Button";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { FileButton } from "./FileButton";
-import { ListRow, ListSection } from "./ListSection";
 import { MenuButton } from "./MenuButton";
-import { PageHeader } from "./PageHeader";
 import { StatusGlyph } from "./StatusGlyph";
 import { ToolbarButton } from "./Toolbar";
 
@@ -36,41 +34,6 @@ describe("ToolbarButton", () => {
     render(<ToolbarButton icon="refresh" label="Refresh" />);
     const button = screen.getByRole("button", { name: "Refresh" });
     expect(button).toHaveAttribute("title", "Refresh");
-  });
-});
-
-describe("PageHeader", () => {
-  it("renders the title, the subtitle and the toolbar", () => {
-    render(
-      <PageHeader
-        title="Channels"
-        subtitle="One sentence."
-        toolbar={<ToolbarButton icon="refresh" label="Refresh" />}
-      />,
-    );
-    expect(screen.getByRole("heading", { level: 1, name: "Channels" })).toBeVisible();
-    expect(screen.getByText("One sentence.")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Refresh" })).toBeVisible();
-  });
-});
-
-describe("ListSection and ListRow", () => {
-  it("lists rows under a header and hands a dropped file to the row", () => {
-    const onDropFile = vi.fn();
-    render(
-      <ListSection header="Images" footer="Footer text." id="images">
-        <ListRow title="General" subtitle="Own image" onDropFile={onDropFile} data-testid="row" />
-      </ListSection>,
-    );
-    expect(screen.getByRole("list", { name: "Images" })).toBeVisible();
-    const row = screen.getByTestId("row");
-    const file = new File(["x"], "a.png", { type: "image/png" });
-    const data = { types: ["Files"], files: [file] };
-    fireEvent.dragOver(row, { dataTransfer: data });
-    expect(row).toHaveAttribute("data-drag-over");
-    fireEvent.drop(row, { dataTransfer: data });
-    expect(row).not.toHaveAttribute("data-drag-over");
-    expect(onDropFile).toHaveBeenCalledWith(file);
   });
 });
 

@@ -1,14 +1,13 @@
 // T-142-F2 item 5: no form row repeats its label. On every route, no two
 // visible label texts in the same form row are equal or contain one another
 // (case-insensitive). Form rows are the D2 PropertyRow and DataTable rows
-// (T-142-F3 R9) and, until D-142G-3/4 and stage B rebuild the screens, the
-// ListRow of the earlier rounds. Labels are the row title and every visible
+// (T-142-F3 R9). Labels are the row title and every visible
 // field label.
 import { expect, test, type Page } from "@playwright/test";
 import { mockApi } from "./fixtures/api";
 import { ALL_ROUTES, SCREEN_ROUTES } from "./fixtures/routes";
 
-const ROWS = ".ds-property-row, .ds-data-table tbody tr, .ds-list-row";
+const ROWS = ".ds-property-row, .ds-data-table tbody tr";
 
 async function repeatedLabels(page: Page) {
   return page.evaluate((rowsSelector) => {

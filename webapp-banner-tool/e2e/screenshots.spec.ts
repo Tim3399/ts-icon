@@ -15,7 +15,7 @@ const VIEWPORTS = {
   // 1280 and 1024 px: the Studio breakpoints of T-142-F3 R2 (item 14).
   laptop: { width: 1280, height: 800 },
   "1024": { width: 1024, height: 768 },
-  mobile: { width: 375, height: 667 },
+  mobile: { width: 390, height: 844 },
 } as const;
 
 test.beforeAll(() => {
