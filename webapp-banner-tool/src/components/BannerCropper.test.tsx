@@ -16,6 +16,7 @@ const {
   setDataMock,
   resetMock,
   zoomMock,
+  zoomToMock,
   zoomCallbacks,
   readyCallbacks,
   cropCallbacks,
@@ -33,9 +34,12 @@ const {
   setDataMock: vi.fn(),
   resetMock: vi.fn(),
   zoomMock: vi.fn(),
-  zoomCallbacks: [] as Array<(event: { detail: { ratio: number } }) => void>,
+  zoomToMock: vi.fn(),
+  zoomCallbacks: [] as Array<
+    (event: { detail: { ratio: number; oldRatio?: number }; preventDefault?: () => void }) => void
+  >,
   readyCallbacks: [] as Array<() => void>,
-  cropCallbacks: [] as Array<() => void>,
+  cropCallbacks: [] as Array<(event?: { detail: Record<string, number> }) => void>,
   cropperBehavior: { autoReady: true },
   // The cropper's image data: the zoom readout reads it (F-142-29).
   imageState: { width: 640, naturalWidth: 1000, naturalHeight: 800 },
@@ -58,8 +62,11 @@ vi.mock("cropperjs", () => ({
       _image: HTMLImageElement,
       options: {
         ready: () => void;
-        crop: () => void;
-        zoom: (event: { detail: { ratio: number } }) => void;
+        crop: (event?: { detail: Record<string, number> }) => void;
+        zoom: (event: {
+          detail: { ratio: number; oldRatio?: number };
+          preventDefault?: () => void;
+        }) => void;
       },
     ) {
       readyCallbacks.push(options.ready);
@@ -75,6 +82,7 @@ vi.mock("cropperjs", () => ({
     getImageData = () => ({ ...imageState });
     reset = resetMock;
     zoom = zoomMock;
+    zoomTo = zoomToMock;
   },
 }));
 beforeEach(() => {
@@ -623,4 +631,65 @@ describe("edge cases (T-142-F4)", () => {
       </MemoryRouter>,
     );
   }
+});
+
+// T-142-F5 (Critic r5, F-142-36): no crop-correction loop.
+describe("zoom limit and correction (T-142-F5)", () => {
+  const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+
+  it("corrects an invalid frame once and never repeats the same correction", async () => {
+    await load();
+    const calls = setDataMock.mock.calls.length;
+    const invalid = { detail: { x: 0, y: 0, width: 5, height: 0 } };
+    // The frame cannot be reached: every crop event reports the same invalid frame.
+    for (let i = 0; i < 5; i++) {
+      act(() => cropCallbacks.at(-1)!(invalid));
+      await act(frame);
+    }
+    expect(setDataMock.mock.calls.length - calls).toBe(1);
+    expect(setDataMock).toHaveBeenLastCalledWith({ x: 0, y: 0, width: 500, height: 44 });
+    // A valid frame ends the episode; a new invalid one may be corrected once again.
+    act(() => cropCallbacks.at(-1)!({ detail: { x: 15, y: 25, width: 500, height: 44 } }));
+    act(() => cropCallbacks.at(-1)!(invalid));
+    await act(frame);
+    expect(setDataMock.mock.calls.length - calls).toBe(2);
+  });
+
+  it("refuses a zoom step past the minimum frame and lands on the limit", async () => {
+    await load();
+    // Frame 400 px on screen: 500 source px are covered up to a zoom of 400 / 500 = 0.8.
+    const refused = vi.fn();
+    act(() =>
+      zoomCallbacks.at(-1)!({ detail: { ratio: 1.2, oldRatio: 0.64 }, preventDefault: refused }),
+    );
+    expect(refused).toHaveBeenCalled();
+    expect(zoomToMock).toHaveBeenLastCalledWith(0.8);
+    // A step inside the limit passes.
+    const passed = vi.fn();
+    act(() =>
+      zoomCallbacks.at(-1)!({ detail: { ratio: 0.7, oldRatio: 0.64 }, preventDefault: passed }),
+    );
+    expect(passed).not.toHaveBeenCalled();
+  });
+
+  it("disables Zoom in at the limit", async () => {
+    await load();
+    expect(screen.getByRole("button", { name: "Zoom in" })).toBeEnabled();
+    imageState.width = 800; // zoom 0.8: the 400 px frame covers exactly 500 source px
+    act(() => zoomCallbacks.at(-1)!({ detail: { ratio: 0.8, oldRatio: 0.64 } }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Zoom in" })).toBeDisabled());
+    expect(screen.getByLabelText("Zoom level")).toHaveTextContent("80 %");
+  });
+
+  it("keeps updating the preview while crop events arrive every frame", async () => {
+    canvasMock.mockReturnValue(fakeCanvas("start"));
+    await load();
+    canvasMock.mockReturnValue(fakeCanvas("moving"));
+    // A crop event before every frame: the pending update is not cancelled.
+    for (let i = 0; i < 4; i++) {
+      act(() => cropCallbacks.at(-1)!());
+      await act(frame);
+    }
+    expect((await croppedBanner()).getAttribute("src")).toBe(fakeCanvas("moving").toDataURL());
+  });
 });
