@@ -1,6 +1,7 @@
 import type { Channel } from "../api/types";
 import { Dock } from "../design";
 import { BANNER_HEIGHT, BANNER_WIDTH } from "./bannerExport";
+import { BannerImage } from "./BannerImage";
 import { TeamSpeakPreview } from "./TeamSpeakPreview";
 import "./EditorDock.css";
 
@@ -11,13 +12,13 @@ interface EditorDockProps {
   crop: string | null;
   /** The selected channel's current banner, or null. */
   current: string | null;
-  /** The crop differs from what TeamSpeak shows (it carries the "New" marker). */
+  /** The crop is not saved for the selected channel (its row carries "New"). */
   unsaved: boolean;
   /** The current banner is the one this editor just saved. */
   justSaved: boolean;
 }
 
-/** A plain 250 x 22 strip (R8) or the quiet empty tile. */
+/** A plain 250 x 22 strip (R8), or the quiet empty tile when there is none or it fails to load. */
 function Strip({
   label,
   src,
@@ -32,11 +33,14 @@ function Strip({
   return (
     <div className="compare-row">
       <span className="compare-label">{label}</span>
-      {src ? (
-        <img className="compare-strip" src={src} alt={alt} width={250} height={22} />
-      ) : (
-        <span className="compare-strip compare-empty">{empty}</span>
-      )}
+      <BannerImage
+        className="compare-strip"
+        src={src}
+        alt={alt}
+        width={250}
+        height={22}
+        fallback={<span className="compare-strip compare-empty">{empty}</span>}
+      />
     </div>
   );
 }
@@ -65,6 +69,8 @@ export function EditorDock({
           banner={crop ?? current}
           bannerAlt={crop ? `Cropped banner for ${name}` : `Current banner for ${name}`}
           marker={selected && crop && unsaved ? "New" : undefined}
+          // Scroll the edited row into view on a channel select and when a crop starts.
+          focusKey={`${selected?.cid ?? ""}:${crop ? "crop" : "none"}`}
         />
         {selected && (
           <div className="dock-side">

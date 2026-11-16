@@ -72,9 +72,7 @@
   border-radius: var(--radius-small);
 }
 
-.layer-thumb img {
-  width: 100%;
-  height: 100%;
+img.layer-thumb {
   object-fit: cover;
 }
 

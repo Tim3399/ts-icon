@@ -11,7 +11,7 @@ import { useSearchParams } from "react-router-dom";
 import { GET_IMAGE_URL } from "../config";
 import { useAuth } from "../auth/AuthContext";
 import { apiFetch, apiFetchBlob, describeApiError, UPLOAD_TIMEOUT_MS } from "../api/client";
-import { channelImageEndpoint, channelImageUrl } from "../api/channels";
+import { channelImageEndpoint } from "../api/channels";
 import { imageFileError } from "../api/image-file";
 import type { Channel } from "../api/types";
 import { useChannels } from "../hooks/useChannels";
@@ -44,10 +44,16 @@ import {
   BANNER_WIDTH as TARGET_WIDTH,
   bannerBlob,
   bannerDataUrl,
+  clampCrop,
+  cropLimits,
   exportBanner,
   heightForWidth,
+  isBlankBanner,
+  isValidCrop,
   widthForHeight,
+  type CropRect,
 } from "./bannerExport";
+import { channelBanner } from "./channelBanner";
 import { EditorDock } from "./EditorDock";
 import { EditorLayers } from "./EditorLayers";
 import "./BannerCropper.css";
@@ -115,10 +121,11 @@ export default function BannerCropper() {
   const [error, setError] = useState("");
   const [savedRevision, setSavedRevision] = useState<number>();
   const [preview, setPreview] = useState<string | null>(null);
-  const [unsaved, setUnsaved] = useState(false);
+  // The crop counts as saved only for the channel it was saved to (F-142-30).
+  const [savedCrop, setSavedCrop] = useState<{ cid: string; preview: string }>();
   const [crop, setCrop] = useState<CropBox>({ x: 0, y: 0, width: 0, height: 0 });
   const [drafts, setDrafts] = useState<Partial<Record<CropKey, string>>>({});
-  const [zoom, setZoom] = useState<number>();
+  const [zoom, setZoom] = useState<{ ratio: number; atMinimum: boolean }>();
   const [label, setLabel] = useState<{ left: number; top: number }>();
   const imageRef = useRef<HTMLImageElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -157,10 +164,27 @@ export default function BannerCropper() {
     });
   }, []);
 
+  // The readout shows the cropper's real zoom (canvas width over natural
+  // width), read after every change; the zoom event only carries the request,
+  // which viewMode 1 refuses below the frame (F-142-29). At the minimum the
+  // image is as small as the frame allows, and "Zoom out" is disabled.
   const readZoom = useCallback(() => {
-    const image = cropper.current?.getImageData?.();
-    if (image?.naturalWidth) setZoom(image.width / image.naturalWidth);
+    const current = cropper.current;
+    const image = current?.getImageData?.();
+    if (!image?.naturalWidth) return;
+    const ratio = image.width / image.naturalWidth;
+    const box = current?.getCropBoxData?.();
+    const minimum =
+      box && image.naturalHeight
+        ? Math.max(box.width / image.naturalWidth, box.height / image.naturalHeight)
+        : 0;
+    setZoom({ ratio, atMinimum: ratio <= minimum * 1.002 });
   }, []);
+  const zoomFrame = useRef(0);
+  const scheduleZoom = useCallback(() => {
+    cancelAnimationFrame(zoomFrame.current);
+    zoomFrame.current = requestAnimationFrame(readZoom);
+  }, [readZoom]);
 
   const initialize = useCallback(
     (data?: Cropper.Data) => {
@@ -172,7 +196,8 @@ export default function BannerCropper() {
         setLoadingImage(false);
         return;
       }
-      setNatural({ width: image.naturalWidth, height: image.naturalHeight });
+      const size = { width: image.naturalWidth, height: image.naturalHeight };
+      setNatural(size);
       const generation = ++cropperGeneration.current;
       setReady(false);
       cropper.current?.destroy();
@@ -194,22 +219,33 @@ export default function BannerCropper() {
           if (generation !== cropperGeneration.current) return;
           // The crop selection frame is one of the accent uses (T-142-F1 item 1).
           boxRef.current?.querySelector(".cropper-crop-box")?.setAttribute("data-accent", "crop");
+          // The frame is known at once, so Save does not wait a frame for it.
+          const data = cropper.current?.getData(true);
+          if (data) setCrop({ x: data.x, y: data.y, width: data.width, height: data.height });
           setReady(true);
           setLoadingImage(false);
           readZoom();
           schedulePreview(generation);
         },
-        crop() {
+        crop(event) {
           if (generation !== cropperGeneration.current) return;
-          setUnsaved(true);
+          // A handle drag below the limits snaps back to the nearest valid frame.
+          const detail = event?.detail;
+          if (detail && !isValidCrop(detail, size)) {
+            const valid = clampCrop(detail, size);
+            requestAnimationFrame(() => {
+              if (generation === cropperGeneration.current) cropper.current?.setData(valid);
+            });
+          }
           schedulePreview(generation);
+          scheduleZoom();
         },
-        zoom(event) {
-          if (generation === cropperGeneration.current) setZoom(event.detail.ratio);
+        zoom() {
+          if (generation === cropperGeneration.current) scheduleZoom();
         },
       });
     },
-    [source, reportField, schedulePreview, readZoom],
+    [source, reportField, schedulePreview, readZoom, scheduleZoom],
   );
   useEffect(() => {
     setReady(false);
@@ -389,7 +425,13 @@ export default function BannerCropper() {
     fields.clear();
     setError("");
     try {
-      const blob = await bannerBlob(exportBanner(cropper.current));
+      const canvas = exportBanner(cropper.current);
+      if (!cropValid || isBlankBanner(canvas)) {
+        setError("The frame is empty. Fit the image or choose a larger frame, then save again.");
+        focusAfterSave.current = "error";
+        return;
+      }
+      const blob = await bannerBlob(canvas);
       const body = new FormData();
       body.append("file", blob, "banner.png");
       await apiFetch(channelImageEndpoint(cid), {
@@ -400,11 +442,13 @@ export default function BannerCropper() {
       });
       const revision = Date.now();
       setSavedRevision(revision);
-      setUnsaved(false);
+      if (preview) setSavedCrop({ cid, preview });
       // The layer panel and "Before" show the new banner without a reload.
       setChannels((previous) =>
         previous.map((c) =>
-          c.cid === cid ? { ...c, hasImage: true, contentHash: String(revision) } : c,
+          c.cid === cid
+            ? { ...c, hasImage: true, hasFallback: false, contentHash: String(revision) }
+            : c,
         ),
       );
       showToast("Image uploaded successfully!", "success");
@@ -428,40 +472,70 @@ export default function BannerCropper() {
     }
   };
 
-  // Crop numbers (T-142-F3 item 5, R6): typed values set the crop in source
-  // pixels; W and H keep the 500 : 44 ratio.
-  const applyCrop = (key: CropKey, value: number) => {
+  // Crop numbers (T-142-F3 item 5, R6; T-142-F4 F-142-34): typed values set
+  // the crop in source pixels; W and H keep the 500 : 44 ratio. A value
+  // outside the limits (W below 500 px or wider than the image, X or Y
+  // outside it) is not applied while typing – the field shows it as invalid
+  // and Save waits – and it is clamped to the nearest valid frame on leaving
+  // the field.
+  const candidate = (key: CropKey, value: number): CropRect | undefined => {
     const current = cropper.current;
-    if (!current) return;
+    if (!current) return undefined;
     const data = current.getData(true);
-    const next = { ...data, [key]: value };
+    const next = { x: data.x, y: data.y, width: data.width, height: data.height, [key]: value };
     if (key === "width") next.height = heightForWidth(value);
     if (key === "height") next.width = widthForHeight(value);
-    current.setData({ x: next.x, y: next.y, width: next.width, height: next.height });
+    return next;
+  };
+  const parse = (text: string) => (text.trim() === "" ? Number.NaN : Number(text));
+  const draftInvalid = (key: CropKey) => {
+    const text = drafts[key];
+    if (text === undefined || !natural) return false;
+    const next = candidate(key, Math.round(parse(text)));
+    return !next || !Number.isFinite(parse(text)) || !isValidCrop(next, natural);
   };
   const typeCrop = (key: CropKey, text: string) => {
     setDrafts((previous) => ({ ...previous, [key]: text }));
-    const value = Number(text);
-    if (text.trim() !== "" && Number.isFinite(value) && value >= 0)
-      applyCrop(key, Math.round(value));
+    const value = parse(text);
+    if (!Number.isFinite(value) || !natural) return;
+    const next = candidate(key, Math.round(value));
+    if (next && isValidCrop(next, natural)) cropper.current?.setData(next);
+  };
+  const leaveCrop = (key: CropKey) => {
+    const text = drafts[key];
+    setDrafts((previous) => ({ ...previous, [key]: undefined }));
+    const value = text === undefined ? Number.NaN : parse(text);
+    if (!Number.isFinite(value) || !natural) return;
+    const next = candidate(key, Math.round(value));
+    if (next) cropper.current?.setData(clampCrop(next, natural));
   };
   const stepCrop = (key: CropKey, event: KeyboardEvent<HTMLInputElement>) => {
     const step = { ArrowUp: 1, ArrowDown: -1 }[event.key];
-    if (!step) return;
+    if (!step || !natural) return;
     event.preventDefault();
     setDrafts((previous) => ({ ...previous, [key]: undefined }));
-    applyCrop(key, Math.max(0, crop[key] + step * (event.shiftKey ? 10 : 1)));
+    const next = candidate(key, crop[key] + step * (event.shiftKey ? 10 : 1));
+    if (next) cropper.current?.setData(clampCrop(next, natural));
   };
+  // Fit shows the whole image again and always leaves a valid frame: the
+  // previous frame when it was valid, else the fitted default.
   const fit = () => {
     const current = cropper.current;
     if (!current) return;
-    const data = current.getData();
+    const data = current.getData(true);
     current.reset();
-    current.setData(data);
+    if (natural && isValidCrop(data, natural)) current.setData(data);
+    setDrafts({});
     readZoom();
+    scheduleZoom();
   };
 
-  const currentBanner = selected?.hasImage ? channelImageUrl(selected, savedRevision) : null;
+  const cropValid = Boolean(natural && isValidCrop(crop, natural));
+  const editing = CROP_FIELDS.some(({ key }) => draftInvalid(key));
+  const limits = natural ? cropLimits(natural) : undefined;
+  const fallback = Boolean(selected && !selected.hasImage && selected.hasFallback);
+  const currentBanner = selected ? channelBanner(selected, savedRevision) : null;
+  const unsaved = !(savedCrop && savedCrop.cid === cid && savedCrop.preview === preview);
   const tools = !ready || uploading;
   const sourceMeta =
     natural && source
@@ -489,11 +563,11 @@ export default function BannerCropper() {
           <ToolbarButton
             icon="zoomOut"
             label="Zoom out"
-            disabled={tools}
+            disabled={tools || zoom?.atMinimum}
             onClick={() => cropper.current?.zoom(-0.1)}
           />
           <span className="editor-zoom" aria-label="Zoom level">
-            {zoom !== undefined && ready ? `${Math.round(zoom * 100)} %` : "– %"}
+            {zoom !== undefined && ready ? `${Math.round(zoom.ratio * 100)} %` : "– %"}
           </span>
           <ToolbarButton
             icon="zoomIn"
@@ -617,6 +691,8 @@ export default function BannerCropper() {
                 <PropertyRow label="Current">
                   {selected.hasImage ? (
                     <StatusGlyph tone="positive" label="Own image" />
+                  ) : fallback ? (
+                    <StatusGlyph tone="positive" label="Spacer base image" />
                   ) : (
                     <StatusGlyph tone="warning" label="No image" />
                   )}
@@ -678,12 +754,21 @@ export default function BannerCropper() {
                   unit="px"
                   value={drafts[key] ?? (ready ? String(crop[key]) : "")}
                   disabled={tools}
+                  aria-invalid={draftInvalid(key) || undefined}
+                  aria-describedby={limits ? "crop-limits" : undefined}
                   onChange={(e) => typeCrop(key, e.target.value)}
                   onKeyDown={(e) => stepCrop(key, e)}
-                  onBlur={() => setDrafts((previous) => ({ ...previous, [key]: undefined }))}
+                  onBlur={() => leaveCrop(key)}
                 />
               ))}
             </div>
+            {limits && (
+              <p className="editor-hint" id="crop-limits">
+                {limits.minWidth === limits.maxWidth
+                  ? `W is ${limits.minWidth} px for this image.`
+                  : `W from ${limits.minWidth} to ${limits.maxWidth} px; the frame stays inside the image.`}
+              </p>
+            )}
           </InspectorSection>
 
           <InspectorSection title="Export" meta={`PNG · ${TARGET_WIDTH} × ${TARGET_HEIGHT}`}>
@@ -691,7 +776,11 @@ export default function BannerCropper() {
               {selected ? `${selected.name} (#${selected.cid})` : "Choose a channel"}
             </PropertyRow>
             <PropertyRow label="Replaces">
-              {selected?.hasImage ? `Current banner of ${selected.name}` : "No current banner"}
+              {selected?.hasImage
+                ? `Current banner of ${selected.name}`
+                : fallback
+                  ? "The spacer base image"
+                  : "No current banner"}
             </PropertyRow>
             {error && (
               <div ref={errorRef} tabIndex={-1} className="editor-error">
@@ -703,7 +792,7 @@ export default function BannerCropper() {
               className="editor-send"
               icon={uploading ? undefined : "send"}
               onClick={() => void upload()}
-              disabled={uploading || !ready || !selected}
+              disabled={uploading || !ready || !selected || !cropValid || editing}
             >
               {uploading && <Spinner />}
               {uploading ? "Uploading…" : "Crop & send image"}

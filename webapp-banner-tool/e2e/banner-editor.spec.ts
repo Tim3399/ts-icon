@@ -1,6 +1,13 @@
 // Banner editor (route "/"). Owned by T-142 part (a).
 import { expect, test, type Page } from "@playwright/test";
-import { mockApi, sourcePng } from "./fixtures/api";
+import {
+  bannerPng,
+  edgeCaseChannels,
+  fixtureImages,
+  longTreeChannels,
+  mockApi,
+  sourcePng,
+} from "./fixtures/api";
 import { DESTRUCTIVE_VERBS } from "./fixtures/routes";
 import {
   expectHitTargets,
@@ -408,8 +415,11 @@ test.describe("Studio editor", () => {
     expect(Math.abs(shown - Math.round(((await imageWidth()) / 1000) * 100))).toBeLessThanOrEqual(
       1,
     );
-    await page.getByRole("button", { name: "Zoom out", exact: true }).click();
-    await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+    // One step back is the fitted size; zoom-out stops there (F-142-29, the
+    // minimum disables it), so a second click is not possible any more.
+    const zoomOut = page.getByRole("button", { name: "Zoom out", exact: true });
+    await zoomOut.click();
+    if (await zoomOut.isEnabled()) await zoomOut.click();
     expect(await imageWidth()).toBeLessThan(width + 1);
     await page.getByRole("button", { name: "Fit to screen", exact: true }).click();
     await expect(readout).toHaveText(fitted!);
@@ -482,5 +492,188 @@ test.describe("Studio editor", () => {
     await loadSource(page);
     await expect(after(page)).toBeVisible();
     expect(adminCalls).toEqual([]);
+  });
+});
+
+// T-142-F4 (Critic r4): the editor's edge cases, each reproducing the Critic's case.
+test.describe("edge cases (T-142-F4)", () => {
+  const combobox = (page: Page) => page.getByRole("combobox", { name: "Channel", exact: true });
+  async function loadImage(page: Page) {
+    await page.locator("#file-upload").setInputFiles({
+      name: "source.png",
+      mimeType: "image/png",
+      buffer: await sourcePng(page),
+    });
+    await expect(page.getByRole("button", { name: "Zoom in", exact: true })).toBeEnabled();
+  }
+  async function edgeCases(page: Page, spacerBase = false) {
+    await page.goto("about:blank");
+    const { channels, banners } = edgeCaseChannels();
+    await mockApi(page, {
+      channels,
+      images: await fixtureImages(page, banners),
+      spacerBase: spacerBase ? await bannerPng(page, 210, "") : undefined,
+    });
+  }
+
+  test("F-142-28: a banner that fails to load is the quiet empty tile, never a broken image", async ({
+    page,
+  }) => {
+    await edgeCases(page);
+    await page.goto("/?channel=20");
+    const row = page.getByRole("list", { name: "Channels" }).getByRole("button", {
+      name: "Broken banner",
+    });
+    await expect(row).toHaveAttribute("aria-current", "true");
+    await expect(row.locator(".layer-thumb[data-empty]")).toBeVisible();
+    await expect(row.locator("img")).toHaveCount(0);
+    await expect(page.getByText("No banner yet")).toBeVisible();
+    // No broken image anywhere in the editor.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            Array.from(document.images).filter(
+              (img) => img.checkVisibility() && img.complete && img.naturalWidth === 0,
+            ).length,
+        ),
+      )
+      .toBe(0);
+  });
+
+  test("F-142-29: the zoom readout is the real zoom, also at the minimum", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/");
+    await combobox(page).selectOption("43");
+    await loadImage(page);
+    const readout = page.getByLabel("Zoom level");
+    const real = () =>
+      page.evaluate(() => {
+        const canvas = document.querySelector(".preview-box .cropper-canvas")!;
+        const image = document.querySelector<HTMLImageElement>("#preview")!;
+        return Math.round((canvas.getBoundingClientRect().width / image.naturalWidth) * 100);
+      });
+    const expectReal = async () =>
+      expect.poll(async () => parseInt((await readout.textContent())!, 10)).toBe(await real());
+    await expectReal();
+    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await expectReal();
+    await page.getByRole("button", { name: "Fit to screen", exact: true }).click();
+    await expectReal();
+    const zoomOut = page.getByRole("button", { name: "Zoom out", exact: true });
+    for (let i = 0; i < 6 && (await zoomOut.isEnabled()); i++) {
+      await zoomOut.click();
+      await expectReal();
+    }
+    // At the minimum the image cannot shrink any further: zoom-out is disabled.
+    await expect(zoomOut).toBeDisabled();
+    await expectReal();
+  });
+
+  test("F-142-30: New marks the channel with the unsaved crop, also after save and a switch", async ({
+    page,
+  }) => {
+    const api = await mockApi(page);
+    await page.goto("/");
+    await combobox(page).selectOption("42");
+    await loadImage(page);
+    const marker = page.locator(".ts-preview-selected .channel-tree-marker");
+    await expect(marker).toHaveText("New");
+    await page.getByRole("button", { name: "Crop & send image" }).click();
+    await expect.poll(() => api.uploads.length).toBe(1);
+    await expect(marker).toHaveCount(0);
+    await combobox(page).selectOption("43");
+    await expect(marker).toHaveText("New");
+    await expect(page.locator(".ts-preview-selected .channel-tree-name")).toHaveText("General");
+    await expect(page.getByRole("combobox", { name: "Channel", exact: true })).toHaveValue("43");
+  });
+
+  test("F-142-31: a spacer on the spacer base image keeps it when selected", async ({ page }) => {
+    await edgeCases(page, true);
+    await page.goto("/?channel=21");
+    const before = page.getByAltText("Current banner of [spacer]Base");
+    await expect(before).toBeVisible();
+    await expect.poll(() => before.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(500);
+    const selected = page.locator(".ts-preview-selected .channel-tree-pill");
+    await expect(selected).toHaveAttribute("data-kind", "spacer");
+    await expect(
+      page
+        .getByRole("list", { name: "Channels" })
+        .getByRole("button", { name: "[spacer]Base" })
+        .locator("img.layer-thumb"),
+    ).toBeVisible();
+    await expect(page.getByText("Spacer base image", { exact: true })).toBeVisible();
+    await expect(page.getByText("The spacer base image")).toBeVisible();
+  });
+
+  test("F-142-32: with 40 channels the crop, the edited preview row and the layer row are on screen together", async ({
+    page,
+  }) => {
+    test.skip(
+      test.info().project.name !== "desktop",
+      "Measured at 1440 x 900 in the desktop project.",
+    );
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("about:blank");
+    const { channels, banners } = longTreeChannels(40);
+    await mockApi(page, { channels, images: await fixtureImages(page, banners) });
+    await page.goto("/?channel=135");
+    await loadImage(page);
+    const inView = (box: { y: number; height: number } | null) =>
+      box !== null && box.y >= 0 && box.y + box.height <= 900;
+    const stage = page.locator(".preview-box");
+    const row = page.locator(".ts-preview-selected .channel-tree-pill");
+    const layer = page
+      .getByRole("list", { name: "Channels" })
+      .getByRole("button", { name: "Channel 36" });
+    await expect(layer).toHaveAttribute("aria-current", "true");
+    await expect.poll(async () => inView(await row.boundingBox())).toBe(true);
+    await expect.poll(async () => inView(await layer.boundingBox())).toBe(true);
+    expect(inView(await stage.boundingBox())).toBe(true);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    // The preview keeps the whole tree in its own bounded scroll area.
+    await expect(page.locator(".ts-preview-selected")).toHaveCount(1);
+    expect(await page.locator(".ts-preview .channel-tree-row").count()).toBe(40);
+    const scroller = (await page.locator(".ts-preview-scroll").boundingBox())!;
+    expect(scroller.height).toBeLessThanOrEqual(360);
+  });
+
+  test("F-142-34: W = 5 is not applied, Save waits, and leaving the field clamps it", async ({
+    page,
+  }) => {
+    await mockApi(page);
+    await page.goto("/");
+    await combobox(page).selectOption("43");
+    await loadImage(page);
+    const width = page.getByRole("textbox", { name: "Width" });
+    const save = page.getByRole("button", { name: "Crop & send image" });
+    await width.fill("5");
+    await expect(width).toHaveAttribute("aria-invalid", "true");
+    await expect(save).toBeDisabled();
+    await width.blur();
+    await expect(width).toHaveValue("500");
+    await expect(page.getByRole("textbox", { name: "Height" })).toHaveValue("44");
+    await expect(save).toBeEnabled();
+    // The frame on screen is real (not 0 px high).
+    const frame = (await page.locator(".preview-box .cropper-crop-box").boundingBox())!;
+    expect(frame.height).toBeGreaterThan(5);
+  });
+
+  test("F-142-35: Before and After are 250 x 22 at every desktop width", async ({ page }) => {
+    test.skip(test.info().project.name !== "desktop", "Desktop widths in the desktop project.");
+    await mockApi(page);
+    for (const width of [1024, 1280, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/");
+      await combobox(page).selectOption("43");
+      await loadImage(page);
+      const strips = [page.getByText("No banner yet"), page.getByAltText("New banner of General")];
+      for (const strip of strips) {
+        const box = (await strip.boundingBox())!;
+        expect(Math.abs(box.width - 250), `width at ${width} px`).toBeLessThanOrEqual(1);
+        expect(Math.abs(box.height - 22), `height at ${width} px`).toBeLessThanOrEqual(1);
+      }
+    }
   });
 });

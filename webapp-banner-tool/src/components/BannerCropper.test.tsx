@@ -20,6 +20,7 @@ const {
   readyCallbacks,
   cropCallbacks,
   cropperBehavior,
+  imageState,
 } = vi.hoisted(() => ({
   jsonMock: vi.fn(),
   fetchMock: vi.fn(),
@@ -36,6 +37,8 @@ const {
   readyCallbacks: [] as Array<() => void>,
   cropCallbacks: [] as Array<() => void>,
   cropperBehavior: { autoReady: true },
+  // The cropper's image data: the zoom readout reads it (F-142-29).
+  imageState: { width: 640, naturalWidth: 1000, naturalHeight: 800 },
 }));
 vi.mock("../auth/AuthContext", () => ({ useAuth: () => ({ getToken }) }));
 vi.mock("../design", async () => ({
@@ -69,7 +72,7 @@ vi.mock("cropperjs", () => ({
     getData = () => ({ x: 15, y: 25, width: 500, height: 44 });
     getCroppedCanvas = canvasMock;
     getCropBoxData = () => ({ left: 10, top: 20, width: 400, height: 35 });
-    getImageData = () => ({ width: 640, naturalWidth: 1000 });
+    getImageData = () => ({ ...imageState });
     reset = resetMock;
     zoom = zoomMock;
   },
@@ -80,6 +83,7 @@ beforeEach(() => {
   cropCallbacks.length = 0;
   zoomCallbacks.length = 0;
   cropperBehavior.autoReady = true;
+  imageState.width = 640;
   URL.createObjectURL = vi.fn(() => "blob:loaded-image");
   URL.revokeObjectURL = vi.fn();
   jsonMock.mockResolvedValue({
@@ -147,12 +151,41 @@ describe("banner export workflow", () => {
   });
   it("keeps W and H at 500 : 44 (R6)", async () => {
     await load();
-    fireEvent.change(screen.getByLabelText(/Width/), { target: { value: "250" } });
-    expect(setDataMock).toHaveBeenLastCalledWith({ x: 15, y: 25, width: 250, height: 22 });
-    fireEvent.change(screen.getByLabelText(/Height/), { target: { value: "88" } });
-    expect(setDataMock).toHaveBeenLastCalledWith({ x: 15, y: 25, width: 1000, height: 88 });
-    fireEvent.change(screen.getByLabelText(/Width/), { target: { value: "333" } });
-    expect(setDataMock).toHaveBeenLastCalledWith({ x: 15, y: 25, width: 333, height: 29 });
+    fireEvent.change(screen.getByLabelText(/Width/), { target: { value: "600" } });
+    expect(setDataMock).toHaveBeenLastCalledWith({ x: 15, y: 25, width: 600, height: 53 });
+    fireEvent.change(screen.getByLabelText(/Height/), { target: { value: "66" } });
+    expect(setDataMock).toHaveBeenLastCalledWith({ x: 15, y: 25, width: 750, height: 66 });
+    fireEvent.change(screen.getByLabelText(/Width/), { target: { value: "800" } });
+    expect(setDataMock).toHaveBeenLastCalledWith({ x: 15, y: 25, width: 800, height: 70 });
+  });
+  // F-142-34: the crop numbers are clamped; an invalid crop is never applied or saved.
+  it("does not apply W = 1, shows it invalid, blocks Save and clamps it to 500 on leaving", async () => {
+    await load();
+    const width = screen.getByLabelText(/Width/);
+    const calls = setDataMock.mock.calls.length;
+    fireEvent.change(width, { target: { value: "1" } });
+    expect(setDataMock.mock.calls.length).toBe(calls);
+    expect(width).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("button", { name: "Crop & send image" })).toBeDisabled();
+    fireEvent.blur(width);
+    expect(setDataMock).toHaveBeenLastCalledWith({ x: 15, y: 25, width: 500, height: 44 });
+  });
+  it("clamps W above the image width to the image width", async () => {
+    await load();
+    const width = screen.getByLabelText(/Width/);
+    fireEvent.change(width, { target: { value: "2000" } });
+    expect(width).toHaveAttribute("aria-invalid", "true");
+    fireEvent.blur(width);
+    expect(setDataMock).toHaveBeenLastCalledWith({ x: 0, y: 25, width: 1000, height: 88 });
+  });
+  it("clamps a negative X to 0", async () => {
+    await load();
+    const x = screen.getByRole("textbox", { name: "X" });
+    fireEvent.change(x, { target: { value: "-5" } });
+    expect(x).toHaveAttribute("aria-invalid", "true");
+    fireEvent.blur(x);
+    expect(setDataMock).toHaveBeenLastCalledWith({ x: 0, y: 25, width: 500, height: 44 });
+    expect(x).not.toHaveAttribute("aria-invalid");
   });
   it("shows the crop numbers of the live crop", async () => {
     await load();
@@ -167,8 +200,15 @@ describe("banner export workflow", () => {
     expect(zoomMock).toHaveBeenLastCalledWith(0.1);
     fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
     expect(zoomMock).toHaveBeenLastCalledWith(-0.1);
-    act(() => zoomCallbacks.at(-1)!({ detail: { ratio: 1.5 } }));
-    expect(screen.getByLabelText("Zoom level")).toHaveTextContent("150 %");
+    // The readout is the real zoom of the image after the change, not the request (F-142-29).
+    imageState.width = 1500;
+    act(() => zoomCallbacks.at(-1)!({ detail: { ratio: 9 } }));
+    await waitFor(() => expect(screen.getByLabelText("Zoom level")).toHaveTextContent("150 %"));
+    // At the minimum (the frame, 400 px of 1000) zoom-out is disabled.
+    imageState.width = 400;
+    act(() => zoomCallbacks.at(-1)!({ detail: { ratio: 0.1 } }));
+    await waitFor(() => expect(screen.getByLabelText("Zoom level")).toHaveTextContent("40 %"));
+    expect(screen.getByRole("button", { name: "Zoom out" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Fit to screen" }));
     expect(resetMock).toHaveBeenCalled();
     expect(setDataMock).toHaveBeenLastCalledWith({ x: 15, y: 25, width: 500, height: 44 });
@@ -499,4 +539,88 @@ describe("Studio editor (T-142-F3 items 4, 6 and the deep link)", () => {
     expect(await screen.findByAltText("New banner of General")).toBeInTheDocument();
     expect(screen.getByText("Current banner of General")).toBeInTheDocument();
   });
+});
+
+describe("edge cases (T-142-F4)", () => {
+  const marker = () => document.querySelector(".ts-preview-selected .channel-tree-marker");
+
+  it("puts New on the channel that has the unsaved crop, also after save and a switch (F-142-30)", async () => {
+    jsonMock.mockResolvedValue({
+      channels: ["General", "Music"],
+      items: [
+        { cid: "42", name: "General", pid: null, depth: 0, hasImage: false },
+        { cid: "43", name: "Music", pid: null, depth: 0, hasImage: false },
+      ],
+    });
+    canvasMock.mockReturnValue(fakeCanvas("crop"));
+    await load();
+    await waitFor(() => expect(marker()).toHaveTextContent("New"));
+    fireEvent.click(screen.getByRole("button", { name: "Crop & send image" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await waitFor(() => expect(marker()).toBeNull());
+    // The same crop on another channel is not saved there: New again.
+    fireEvent.change(screen.getByRole("combobox", { name: "Channel" }), {
+      target: { value: "43" },
+    });
+    await waitFor(() => expect(marker()).toHaveTextContent("New"));
+    expect(document.querySelector(".ts-preview-selected")).toHaveTextContent("Music");
+  });
+
+  it("keeps the spacer base image of a spacer without its own image (F-142-31)", async () => {
+    jsonMock.mockResolvedValue({
+      channels: ["[spacer]Base"],
+      items: [
+        {
+          cid: "42",
+          name: "[spacer]Base",
+          pid: null,
+          depth: 0,
+          hasImage: false,
+          hasFallback: true,
+          isSpacer: true,
+        },
+      ],
+    });
+    renderEditorAt42();
+    await screen.findByRole("option", { name: "[spacer]Base (#42)" });
+    expect(screen.getByAltText("Current banner of [spacer]Base")).toHaveAttribute(
+      "src",
+      expect.stringContaining("/by-id/42.png"),
+    );
+    expect(screen.getByText("Spacer base image")).toBeInTheDocument();
+    expect(screen.getByText("The spacer base image")).toBeInTheDocument();
+    // The layer panel and the preview row show it too.
+    expect(document.querySelector("img.layer-thumb")).toHaveAttribute(
+      "src",
+      expect.stringContaining("/by-id/42.png"),
+    );
+    expect(document.querySelector(".ts-preview-selected img")).toHaveAttribute(
+      "src",
+      expect.stringContaining("/by-id/42.png"),
+    );
+  });
+
+  it("never sends a fully transparent banner (F-142-34)", async () => {
+    const blank = {
+      ...fakeCanvas("blank"),
+      width: 500,
+      height: 44,
+      getContext: () => ({ getImageData: () => ({ data: new Uint8ClampedArray(500 * 44 * 4) }) }),
+    };
+    canvasMock.mockReturnValue(blank);
+    await load();
+    fireEvent.click(screen.getByRole("button", { name: "Crop & send image" }));
+    expect(await screen.findByText(/The frame is empty/)).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  function renderEditorAt42() {
+    return render(
+      <MemoryRouter initialEntries={["/?channel=42"]}>
+        <StudioShell modes={null} account={null}>
+          <BannerCropper />
+        </StudioShell>
+      </MemoryRouter>,
+    );
+  }
 });
