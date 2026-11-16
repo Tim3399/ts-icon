@@ -142,3 +142,20 @@ test("fresh migrations, SQLite backup and restore preserve real rows", {
     fs.rmSync(resolved, { recursive: true, force: true });
   }
 });
+
+test("setup skips the TeamSpeak credentials only in mock mode", () => {
+  const { checkEnv } = require("./bootstrap.cjs");
+  const base = { PUBLIC_BASE_URL: "http://localhost:3000", AUTH_DISABLED: "true" };
+  assert.doesNotThrow(() =>
+    checkEnv({ ...base, TS_MOCK_MODE: "true", TS_USERNAME: "", TS_USERPASSWORD: "" }),
+  );
+  assert.throws(
+    () => checkEnv({ ...base, TS_USERPASSWORD: "x" }),
+    /Set TS_USERNAME in \.env, then run setup again\./,
+  );
+  assert.throws(() => checkEnv({ ...base, TS_MOCK_MODE: "false" }), /Set TS_USERNAME in \.env/);
+  assert.throws(
+    () => checkEnv({ AUTH_DISABLED: "true", TS_MOCK_MODE: "true" }),
+    /Set PUBLIC_BASE_URL in \.env/,
+  );
+});
