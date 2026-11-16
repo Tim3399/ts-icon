@@ -41,12 +41,8 @@ test("Tab and Enter select the second 'Squad 1' and remove its image, not the fi
   await tabTo(page, confirm);
   await page.keyboard.press("Enter");
   await expect.poll(() => api.deleted).toEqual(["23"]);
-  // The mock records the DELETE before it answers; the answer then reloads the
-  // channels, which replaces the table with the loading tile and back. A row
-  // focused before that is gone, and Space lands on the body (D-V0120F3-1).
-  // The count shows only once the reload is done, with one image fewer.
-  const withImage = channels.filter((channel) => channel.hasImage).length;
-  await expect(page.getByText(new RegExp(` · ${withImage} with an image$`))).toBeVisible();
+  // The rows stay mounted while the channels reload (V-0.12.0-F4), so a row
+  // focused during the reload keeps the focus; no wait for the reload.
 
   // Space selects as well: back to the first "Squad 1".
   const first = page.getByRole("row", { name: "Squad 1, #22" });

@@ -50,7 +50,12 @@ export default function BannerUrlInspector({
         )}
       </PropertyRow>
       <div className="banner-urls-inspector-actions">
-        <Button icon={setting ? undefined : "link"} disabled={busy} onClick={onSet}>
+        {/* Busy, not disabled: the pressed button keeps the focus (V-0.12.0-F4). */}
+        <Button
+          icon={setting ? undefined : "link"}
+          aria-disabled={busy || undefined}
+          onClick={onSet}
+        >
           {setting && <Spinner />}
           {setting ? "Setting…" : "Set banner URL"}
         </Button>

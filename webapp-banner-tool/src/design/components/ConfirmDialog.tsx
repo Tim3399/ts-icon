@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type KeyboardEvent } from "react";
+import { useId, useLayoutEffect, useRef, type KeyboardEvent } from "react";
 import { Button } from "../primitives/Button";
 import "./ConfirmDialog.css";
 
@@ -12,6 +12,12 @@ interface ConfirmDialogProps {
   destructive?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  /**
+   * Moves the focus after Confirm, for an action that disables or removes
+   * the control that opened the dialog. Without it, and always after Cancel,
+   * the focus returns to where it was.
+   */
+  focusAfterConfirm?: () => void;
 }
 
 const FOCUSABLE = "button:not(:disabled), [href], input:not(:disabled)";
@@ -31,20 +37,35 @@ export function ConfirmDialog({
   destructive = false,
   onConfirm,
   onCancel,
+  focusAfterConfirm,
 }: ConfirmDialogProps) {
   const titleId = useId();
   const messageId = useId();
   const box = useRef<HTMLDivElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
+  const confirmed = useRef(false);
+  const afterConfirm = useRef(focusAfterConfirm);
+  afterConfirm.current = focusAfterConfirm;
 
-  useEffect(() => {
+  // A layout effect, so the focus has moved before the page's own layout
+  // effects (useFocusFallback) look at it.
+  useLayoutEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
+    confirmed.current = false;
     cancel.current?.focus();
-    return () => previous?.focus();
+    return () => {
+      if (confirmed.current && afterConfirm.current) afterConfirm.current();
+      else previous?.focus();
+    };
   }, [open]);
 
   if (!open) return null;
+
+  const confirm = () => {
+    confirmed.current = true;
+    onConfirm();
+  };
 
   const onKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
@@ -95,12 +116,12 @@ export function ConfirmDialog({
               type="button"
               className="ds-button ds-button-confirm-destructive"
               data-destructive=""
-              onClick={onConfirm}
+              onClick={confirm}
             >
               {confirmLabel}
             </button>
           ) : (
-            <Button variant="prominent" onClick={onConfirm}>
+            <Button variant="prominent" onClick={confirm}>
               {confirmLabel}
             </Button>
           )}

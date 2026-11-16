@@ -84,6 +84,11 @@ function content(
   );
 }
 
+/**
+ * `aria-disabled` instead of `disabled` keeps a busy button focusable (it
+ * looks and reads as unavailable, and a click does nothing), so the keyboard
+ * focus is not dropped to the page while an operation runs (V-0.12.0-F4).
+ */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   {
     variant = "gray",
@@ -94,11 +99,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     className,
     type = "button",
     children,
+    onClick,
     ...rest
   },
   ref,
 ) {
   const look = resolve(variant, destructive);
+  const unavailable = rest["aria-disabled"] === true || rest["aria-disabled"] === "true";
   return (
     <button
       ref={ref}
@@ -108,6 +115,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       data-accent={accentOf(look)}
       data-destructive={look.destructive ? "" : undefined}
       title={iconOnly ? (rest.title ?? rest["aria-label"]) : rest.title}
+      onClick={unavailable ? (event) => event.preventDefault() : onClick}
       {...rest}
     >
       {content(icon, size, iconOnly, children)}

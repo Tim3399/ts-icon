@@ -101,18 +101,23 @@ describe("channel image workflows", () => {
     page();
     const [a, b] = await rows();
     const input = (row: HTMLElement) => row.querySelector("input[type=file]")!;
+    // A busy row's file button is unavailable but stays focusable (V-0.12.0-F4).
+    const busy = (row: HTMLElement) => {
+      expect(input(row)).not.toBeDisabled();
+      return input(row).getAttribute("aria-disabled") === "true";
+    };
     fireEvent.drop(a, { dataTransfer: { files: [file()], types: ["Files"] } });
     fireEvent.drop(b, { dataTransfer: { files: [file()], types: ["Files"] } });
     fireEvent.drop(b, { dataTransfer: { files: [file()], types: ["Files"] } });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     select(b);
     expect(within(inspector()).getByRole("button", { name: "Remove…" })).toBeDisabled();
-    expect(input(b)).toBeDisabled();
+    expect(busy(b)).toBe(true);
     finishA();
-    await waitFor(() => expect(input(a)).not.toBeDisabled());
-    expect(input(b)).toBeDisabled();
+    await waitFor(() => expect(busy(a)).toBe(false));
+    expect(busy(b)).toBe(true);
     finishB();
-    await waitFor(() => expect(input(b)).not.toBeDisabled());
+    await waitFor(() => expect(busy(b)).toBe(false));
     expect(within(inspector()).getByRole("button", { name: "Remove…" })).not.toBeDisabled();
   });
   it("preserves a failed load as an error with retry, not an empty list", async () => {
@@ -297,4 +302,97 @@ it("selects a row by keyboard and keeps Remove… reachable for it", async () =>
       expect.objectContaining({ method: "DELETE" }),
     ),
   );
+});
+
+describe("reload and focus after an image change (V-0.12.0-F4)", () => {
+  /** The next channel reload answers only when the returned function is called. */
+  function holdReload() {
+    let answer!: () => void;
+    jsonMock.mockResolvedValueOnce({ items: channels, channels: [] }).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answer = () =>
+            resolve({
+              items: channels.map((c) => (c.cid === "20" ? { ...c, hasImage: false } : c)),
+              channels: [],
+            });
+        }),
+    );
+    return () => answer();
+  }
+  const table = () => screen.getByRole("table", { name: "Channels" });
+  const remove = () => within(inspector()).getByRole("button", { name: "Remove…" });
+  const confirmRemove = () =>
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Remove" }),
+    );
+
+  it("keeps the rows and the selection on screen while they reload, and focuses the row", async () => {
+    const answer = holdReload();
+    page();
+    const [first, second] = await rows();
+    select(second);
+    remove().focus();
+    fireEvent.click(remove());
+    confirmRemove();
+    // The removed channel's row takes the focus at once and stays selected.
+    expect(second).toHaveFocus();
+    expect(second).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(jsonMock).toHaveBeenCalledTimes(2));
+    // The reload is pending: rows stay, quiet busy state, no loading tile.
+    expect(table()).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByText("Updating…")).toBeInTheDocument();
+    expect(screen.queryByText("Loading channels…")).not.toBeInTheDocument();
+    expect(await rows()).toEqual([first, second]);
+    answer();
+    await waitFor(() => expect(table()).not.toHaveAttribute("aria-busy"));
+    // Updated in place: the same row elements, the same selection and focus.
+    expect(await rows()).toEqual([first, second]);
+    expect(second).toHaveAttribute("aria-selected", "true");
+    expect(second).toHaveFocus();
+    expect(within(inspector()).getByText("#20")).toBeInTheDocument();
+  });
+
+  it("returns the focus to Remove… after Cancel", async () => {
+    page();
+    await rows();
+    remove().focus();
+    fireEvent.click(remove());
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cancel" }),
+    );
+    expect(remove()).toHaveFocus();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("moves the focus to the table when the removed row leaves the filter", async () => {
+    const answer = holdReload();
+    page();
+    const [, second] = await rows();
+    fireEvent.click(screen.getByRole("radio", { name: "With image" }));
+    select(second);
+    fireEvent.click(remove());
+    confirmRemove();
+    expect(second).toHaveFocus();
+    // The DELETE answer marks the channel as without image: its row leaves.
+    await waitFor(() => expect(second).not.toBeInTheDocument());
+    expect(table()).toHaveFocus();
+    answer();
+    await waitFor(() => expect(table()).not.toHaveAttribute("aria-busy"));
+    expect(table()).toHaveFocus();
+  });
+
+  it("focuses the empty state's action when the last visible row leaves the filter", async () => {
+    const without = (c: (typeof channels)[number]) => ({ ...c, hasImage: false });
+    jsonMock
+      .mockResolvedValueOnce({ items: [channels[0], without(channels[1])], channels: [] })
+      .mockResolvedValue({ items: channels.map(without), channels: [] });
+    page();
+    await rows();
+    fireEvent.click(screen.getByRole("radio", { name: "With image" }));
+    fireEvent.click(remove());
+    confirmRemove();
+    const reset = await screen.findByRole("button", { name: "Reset filters" });
+    expect(reset).toHaveFocus();
+  });
 });

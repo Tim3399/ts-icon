@@ -28,6 +28,7 @@ export * from "./components/ConfirmDialog";
 export * from "./components/StatusGlyph";
 export * from "./components/TextLink";
 export * from "./components/Studio";
+export * from "./components/focusSelectedRow";
 export * from "./components/StateTile";
 
 // Patterns

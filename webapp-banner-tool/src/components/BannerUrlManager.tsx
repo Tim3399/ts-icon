@@ -4,6 +4,7 @@ import { channelBannerEndpoint } from "../api/channels";
 import type { Channel } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { apiFetch, apiFetchJson, describeApiError } from "../api/client";
+import { useFocusFallback } from "../hooks/useFocusFallback";
 import {
   Button,
   ConfirmDialog,
@@ -55,6 +56,11 @@ export default function BannerUrlManager() {
   const { getToken } = useAuth();
   const { showToast } = useToast();
   const { bumpRefresh } = usePreviewOverlay();
+  const table = useRef<HTMLTableElement>(null);
+  const emptyAction = useRef<HTMLButtonElement>(null);
+  // A change that hides the last visible row removes the table: the focus
+  // then goes to the empty state's action.
+  const focus = useFocusFallback(() => table.current ?? emptyAction.current);
   const load = useCallback(async () => {
     request.current?.abort();
     const controller = new AbortController();
@@ -88,6 +94,7 @@ export default function BannerUrlManager() {
   const apply = async (cid?: string) => {
     if (lock.current) return;
     lock.current = true;
+    focus.hold();
     const controller = new AbortController();
     actionRequest.current = controller;
     setBusy(cid || "all");
@@ -134,9 +141,13 @@ export default function BannerUrlManager() {
       if (actionRequest.current === controller) actionRequest.current = null;
       lock.current = false;
       if (mounted.current) setBusy(null);
+      focus.release();
     }
   };
   const managed = channels.length - pending.length;
+  // Rows stay on screen while they reload; the loading tile is only for the
+  // first load, when there are no rows yet (V-0.12.0-F4).
+  const firstLoad = loading && channels.length === 0;
   const visible = channels.filter(
     (c) =>
       c.name.toLowerCase().includes(query.trim().toLowerCase()) &&
@@ -202,7 +213,8 @@ export default function BannerUrlManager() {
         <Button
           size="small"
           aria-label={`Set banner URL for ${channel.name}`}
-          disabled={Boolean(busy)}
+          // Busy, not disabled: the pressed button keeps the focus (V-0.12.0-F4).
+          aria-disabled={Boolean(busy) || undefined}
           onClick={() => void apply(channel.cid)}
         >
           {busy === channel.cid ? "Setting…" : "Set URL"}
@@ -219,7 +231,7 @@ export default function BannerUrlManager() {
           icon="refresh"
           label="Refresh"
           onClick={() => void load()}
-          disabled={loading}
+          disabled={firstLoad}
         />
       </StudioToolbar>
 
@@ -244,15 +256,22 @@ export default function BannerUrlManager() {
           />
         }
         count={
-          loading || (error && channels.length === 0)
+          firstLoad || (error && channels.length === 0)
             ? undefined
-            : `${visible.length} of ${channels.length} channel${channels.length === 1 ? "" : "s"} · ${managed} managed`
+            : loading
+              ? "Updating…"
+              : `${visible.length} of ${channels.length} channel${channels.length === 1 ? "" : "s"} · ${managed} managed`
         }
         trailing={
           <Button
             variant="prominent"
             icon={busy === "all" ? undefined : "link"}
-            disabled={Boolean(busy) || loading || Boolean(error)}
+            disabled={firstLoad}
+            // After the dialog the focus returns here; aria-disabled keeps it
+            // while the operation and the reload run (V-0.12.0-F4).
+            aria-disabled={
+              (!firstLoad && (Boolean(busy) || loading || Boolean(error))) || undefined
+            }
             onClick={() => setConfirming(true)}
           >
             {busy === "all" && <Spinner />}
@@ -278,7 +297,7 @@ export default function BannerUrlManager() {
         </p>
       )}
 
-      {loading && <StateTile icon="refresh" title="Loading channels…" role="status" />}
+      {firstLoad && <StateTile icon="refresh" title="Loading channels…" role="status" />}
 
       {!loading && error && channels.length === 0 && (
         <StateTile
@@ -291,13 +310,14 @@ export default function BannerUrlManager() {
         </StateTile>
       )}
 
-      {!loading && !error && visible.length === 0 && (
+      {!firstLoad && !error && visible.length === 0 && (
         <StateTile
           icon="inbox"
           title={channels.length ? "No channels match these filters." : "No channels found."}
           action={
             filtered && channels.length ? (
               <Button
+                ref={emptyAction}
                 onClick={() => {
                   setQuery("");
                   setFilter("all");
@@ -306,7 +326,9 @@ export default function BannerUrlManager() {
                 Reset filters
               </Button>
             ) : (
-              <Button onClick={() => void load()}>Refresh</Button>
+              <Button ref={emptyAction} onClick={() => void load()}>
+                Refresh
+              </Button>
             )
           }
         >
@@ -316,9 +338,11 @@ export default function BannerUrlManager() {
         </StateTile>
       )}
 
-      {!loading && visible.length > 0 && (
+      {!firstLoad && visible.length > 0 && (
         <DataTable
           label="Channel banner URLs"
+          tableRef={table}
+          busy={loading}
           columns={columns}
           rows={visible}
           rowKey={(channel) => channel.cid}

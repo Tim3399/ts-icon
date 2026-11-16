@@ -11,6 +11,12 @@ interface FileButtonProps {
   onFile: (file: File) => void;
   accept?: string;
   disabled?: boolean;
+  /**
+   * An operation runs: the button looks and reads as unavailable
+   * (aria-disabled) and the picker does not open, but the input keeps the
+   * keyboard focus, which `disabled` would drop to the page (V-0.12.0-F4).
+   */
+  busy?: boolean;
   id?: string;
   /**
    * A rejected file's message. While set, it shows under the button, the
@@ -32,9 +38,11 @@ export function FileButton({
   onFile,
   accept = "image/png,image/jpeg,image/webp",
   disabled = false,
+  busy = false,
   id,
   error,
 }: FileButtonProps) {
+  const unavailable = disabled || busy;
   const fallbackId = useId();
   const inputId = id ?? fallbackId;
   const input = useRef<HTMLInputElement>(null);
@@ -46,7 +54,7 @@ export function FileButton({
       <label
         className="ds-button ds-button-gray ds-file-button"
         data-variant="gray"
-        aria-disabled={disabled || undefined}
+        aria-disabled={unavailable || undefined}
       >
         {label}
         <input
@@ -56,12 +64,14 @@ export function FileButton({
           className="ds-file-button-input"
           accept={accept}
           disabled={disabled}
+          aria-disabled={busy || undefined}
           aria-label={ariaLabel}
           {...fieldDescription(inputId, undefined, error)}
+          onClick={busy ? (event) => event.preventDefault() : undefined}
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = "";
-            if (file) onFile(file);
+            if (file && !busy) onFile(file);
           }}
         />
       </label>
