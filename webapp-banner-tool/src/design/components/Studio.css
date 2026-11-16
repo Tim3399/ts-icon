@@ -272,6 +272,13 @@
   background-color: var(--color-selected-bg);
 }
 
+/* A selectable row is a tab stop (Enter or Space selects it); its focus ring
+   sits inside the row so the table edge does not clip it. */
+.ds-data-table tbody tr[tabindex]:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus);
+  outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
 .ds-data-table tbody tr[data-drag-over] {
   background-color: var(--color-selected-bg);
   outline: var(--size-focus-ring) solid var(--color-focus);

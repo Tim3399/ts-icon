@@ -143,3 +143,11 @@
     padding-left: calc(var(--depth, 0) * var(--space-3));
   }
 }
+
+/* A banner that failed to load: a quiet note under the image state. */
+.channel-image-note {
+  display: block;
+  color: var(--color-label-secondary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}

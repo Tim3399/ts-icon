@@ -430,12 +430,15 @@ action, for example "Set for all channels" on Banner URLs).
 
 **`DataTable`**: `label`, `columns` (`{ key, header, render, align?, wideOnly? }`), `rows`, `rowKey`,
 `selectedKey` / `onSelect` (rows get `aria-selected`), optional `onDropFile(row, file)` (the row
-highlights only while a file is dragged over it), `rowProps`, `footer` and `empty`. Below 1024 px the
+highlights only while a file is dragged over it), `rowProps`, `footer` and `empty`. With `onSelect`
+every row is a tab stop: Enter or Space selects it (keys on controls inside the row keep their own
+meaning), and `rowLabel(row)` gives the row its accessible name (T-142-F4, F-142-33). Below 1024 px the
 table becomes a list of rows and `wideOnly` columns hide.
 
 ```tsx
 <DataTable label="Channels" columns={columns} rows={channels} rowKey={(c) => c.cid}
-  selectedKey={selected} onSelect={(c) => setSelected(c.cid)} onDropFile={(c, file) => replace(c, file)}
+  selectedKey={selected} onSelect={(c) => setSelected(c.cid)} rowLabel={(c) => `${c.name}, #${c.cid}`}
+  onDropFile={(c, file) => replace(c, file)}
   footer="Drop an image on a row to replace that channel's banner." />
 ```
 

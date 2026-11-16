@@ -57,6 +57,9 @@ export default function ChannelGallery() {
   const [operations, setOperations] = useState<Record<string, string>>({});
   const [revisions, setRevisions] = useState<Record<string, number>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Banner URLs that failed to load (404 or error): they show the quiet empty
+  // tile instead of the browser's broken-image icon (T-142-F4, F-142-28).
+  const [broken, setBroken] = useState<ReadonlySet<string>>(() => new Set());
   const [fileErrors, setFileErrors] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ImageFilter>("all");
@@ -120,15 +123,21 @@ export default function ChannelGallery() {
   const selected = visible.find((c) => c.cid === selectedCid) ?? visible[0] ?? null;
   const pending = channels.find((c) => c.cid === removing);
   const withImage = channels.filter((c) => c.hasImage).length;
-  const imageSrc = (channel: Channel) =>
+  const requestedSrc = (channel: Channel) =>
     channel.hasImage || channel.hasFallback
       ? channelImageUrl(channel, revisions[channel.cid])
       : null;
-  const loadError = (cid: string) =>
-    setErrors((prev) => ({
-      ...prev,
-      [cid]: "This image could not be loaded. Refresh the channel list to try again.",
-    }));
+  /** The banner to draw, or null when there is none or it failed to load. */
+  const imageSrc = (channel: Channel) => {
+    const src = requestedSrc(channel);
+    return src && !broken.has(src) ? src : null;
+  };
+  const failed = (channel: Channel) => {
+    const src = requestedSrc(channel);
+    return Boolean(src && broken.has(src));
+  };
+  const markBroken = (src: string) =>
+    setBroken((prev) => (prev.has(src) ? prev : new Set(prev).add(src)));
 
   const columns: DataColumn<Channel>[] = [
     {
@@ -159,7 +168,7 @@ export default function ChannelGallery() {
             src={src}
             alt={channel.name}
             loading="lazy"
-            onError={() => loadError(channel.cid)}
+            onError={() => markBroken(src)}
           />
         ) : (
           <span className="channel-thumb channel-thumb-empty">No image</span>
@@ -173,6 +182,9 @@ export default function ChannelGallery() {
       render: (channel) => (
         <span className="channel-state">
           <ImageState channel={channel} />
+          {failed(channel) && (
+            <span className="channel-image-note">Banner could not be loaded</span>
+          )}
           {errors[channel.cid] && (
             <span className="channel-row-error" role="alert">
               {errors[channel.cid]}
@@ -308,6 +320,7 @@ export default function ChannelGallery() {
           onDropFile={(channel, file) => {
             if (!locks.current.has(channel.cid)) void changeImage(channel.cid, file);
           }}
+          rowLabel={(channel) => `${channel.name}, #${channel.cid}`}
           rowProps={(channel) => ({ className: "channel-row", "data-cid": channel.cid })}
           footer="Drop an image on a row to replace that channel's banner. Spacer channels without their own image use the spacer base image."
         />
@@ -323,6 +336,7 @@ export default function ChannelGallery() {
               channel={selected}
               channels={channels}
               imageSrc={imageSrc(selected)}
+              imageFailed={failed(selected)}
               busy={operations[selected.cid]}
               fileError={fileErrors[selected.cid]}
               onFile={(file) => void changeImage(selected.cid, file)}
