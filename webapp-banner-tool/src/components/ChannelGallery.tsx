@@ -3,12 +3,14 @@ import { useAuth } from "../auth/AuthContext";
 import { apiFetch, describeApiError, UPLOAD_TIMEOUT_MS } from "../api/client";
 import { channelImageEndpoint, channelImageUrl } from "../api/channels";
 import { useChannels } from "../hooks/useChannels";
+import { useFocusFallback } from "../hooks/useFocusFallback";
 import {
   Button,
   ConfirmDialog,
   DataTable,
   FileButton,
   FilterBar,
+  focusSelectedRow,
   Icon,
   SegmentedControl,
   Spinner,
@@ -65,6 +67,14 @@ export default function ChannelGallery() {
   const [filter, setFilter] = useState<ImageFilter>("all");
   const [selectedCid, setSelectedCid] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const table = useRef<HTMLTableElement>(null);
+  const emptyAction = useRef<HTMLButtonElement>(null);
+  // A change that hides the last visible row removes the table: the focus
+  // then goes to the empty state's action.
+  const focus = useFocusFallback(() => table.current ?? emptyAction.current);
+  // Rows stay on screen while they reload; the loading tile is only for the
+  // first load, when there are no rows yet (V-0.12.0-F4).
+  const firstLoad = loading && channels.length === 0;
 
   const changeImage = async (cid: string, file?: File) => {
     if (locks.current.has(cid)) return;
@@ -76,6 +86,7 @@ export default function ChannelGallery() {
       return;
     }
     locks.current.add(cid);
+    focus.hold();
     setOperations((prev) => ({ ...prev, [cid]: file ? "Uploading…" : "Removing…" }));
     setErrors((prev) => ({ ...prev, [cid]: "" }));
     setFileErrors((prev) => ({ ...prev, [cid]: "" }));
@@ -110,6 +121,7 @@ export default function ChannelGallery() {
         delete next[cid];
         return next;
       });
+      focus.release();
     }
   };
 
@@ -222,7 +234,7 @@ export default function ChannelGallery() {
               id={`file-upload-${channel.cid}`}
               aria-label={`${verb} image of ${channel.name}`}
               label={busy ?? `${verb}…`}
-              disabled={Boolean(busy)}
+              busy={Boolean(busy)}
               error={fileErrors[channel.cid]}
               onFile={(file) => void changeImage(channel.cid, file)}
             />
@@ -240,7 +252,7 @@ export default function ChannelGallery() {
           icon="refresh"
           label="Refresh channels"
           onClick={() => void reload()}
-          disabled={loading}
+          disabled={firstLoad}
         />
       </StudioToolbar>
 
@@ -265,13 +277,15 @@ export default function ChannelGallery() {
           />
         }
         count={
-          loading || error
+          firstLoad || error
             ? undefined
-            : `${visible.length} of ${channels.length} channel${channels.length === 1 ? "" : "s"} · ${withImage} with an image`
+            : loading
+              ? "Updating…"
+              : `${visible.length} of ${channels.length} channel${channels.length === 1 ? "" : "s"} · ${withImage} with an image`
         }
       />
 
-      {loading && <StateTile icon="refresh" title="Loading channels…" role="status" />}
+      {firstLoad && <StateTile icon="refresh" title="Loading channels…" role="status" />}
 
       {!loading && error && (
         <StateTile
@@ -284,13 +298,14 @@ export default function ChannelGallery() {
         </StateTile>
       )}
 
-      {!loading && !error && visible.length === 0 && (
+      {!firstLoad && !error && visible.length === 0 && (
         <StateTile
           icon="inbox"
           title={channels.length ? "No channels match these filters." : "No channels found."}
           action={
             filtered && channels.length ? (
               <Button
+                ref={emptyAction}
                 onClick={() => {
                   setQuery("");
                   setFilter("all");
@@ -299,7 +314,9 @@ export default function ChannelGallery() {
                 Reset filters
               </Button>
             ) : (
-              <Button onClick={() => void reload()}>Refresh</Button>
+              <Button ref={emptyAction} onClick={() => void reload()}>
+                Refresh
+              </Button>
             )
           }
         >
@@ -309,9 +326,11 @@ export default function ChannelGallery() {
         </StateTile>
       )}
 
-      {!loading && !error && visible.length > 0 && (
+      {!firstLoad && !error && visible.length > 0 && (
         <DataTable
           label="Channels"
+          tableRef={table}
+          busy={loading}
           columns={columns}
           rows={visible}
           rowKey={(channel) => channel.cid}
@@ -359,6 +378,9 @@ export default function ChannelGallery() {
           setRemoving(null);
           if (cid) void changeImage(cid);
         }}
+        // "Remove…" is disabled from now on: the focus goes to the channel's
+        // row, which stays selected (V-0.12.0-F4). Cancel returns to "Remove…".
+        focusAfterConfirm={() => focusSelectedRow(table.current)}
       />
     </div>
   );

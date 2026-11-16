@@ -1,12 +1,15 @@
 import {
   forwardRef,
+  useCallback,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type DragEvent,
   type InputHTMLAttributes,
   type KeyboardEvent,
   type ReactNode,
+  type Ref,
 } from "react";
 import "./Studio.css";
 
@@ -272,6 +275,13 @@ interface DataTableProps<Row> {
   footer?: ReactNode;
   /** Shown instead of the body when there are no rows. */
   empty?: ReactNode;
+  /**
+   * The rows are being reloaded in the background: they stay on screen and
+   * the table is aria-busy (V-0.12.0-F4).
+   */
+  busy?: boolean;
+  /** The <table>; with `focusSelectedRow` it moves the focus after an action. */
+  tableRef?: Ref<HTMLTableElement>;
 }
 
 /** A dense table with a header row, selectable rows and optional row drop targets. */
@@ -287,13 +297,53 @@ export function DataTable<Row>({
   rowProps,
   footer,
   empty,
+  busy,
+  tableRef,
 }: DataTableProps<Row>) {
   const [dragOver, setDragOver] = useState<string | null>(null);
   const isFileDrag = (event: DragEvent) => event.dataTransfer?.types.includes("Files") ?? false;
+  const table = useRef<HTMLTableElement | null>(null);
+  // The row that holds the focus (the row itself or a control in it). When an
+  // update removes that row, the focus would fall to the page; it moves to
+  // the table instead (V-0.12.0-F4).
+  const focusedKey = useRef<string | null>(null);
+  const keys = rows.map(rowKey);
+  useLayoutEffect(() => {
+    const key = focusedKey.current;
+    if (key === null || keys.includes(key)) return;
+    focusedKey.current = null;
+    const active = document.activeElement;
+    if (!active || active === document.body) table.current?.focus();
+  });
+  // Stable, so React does not detach the ref (null) and attach it again on
+  // every render: a dialog's focus handling between the two would miss it.
+  const setTable = useCallback(
+    (node: HTMLTableElement | null) => {
+      table.current = node;
+      if (typeof tableRef === "function") tableRef(node);
+      else if (tableRef) (tableRef as { current: HTMLTableElement | null }).current = node;
+    },
+    [tableRef],
+  );
 
   return (
     <div className="ds-data-table">
-      <table aria-label={label}>
+      <table
+        ref={setTable}
+        aria-label={label}
+        aria-busy={busy || undefined}
+        tabIndex={onSelect ? -1 : undefined}
+        onFocus={(event) => {
+          const row = (event.target as Element).closest<HTMLElement>("tbody tr[data-row-key]");
+          focusedKey.current = row?.dataset.rowKey ?? null;
+        }}
+        onBlur={(event) => {
+          // Focus that moves to another element outside the table ends the
+          // tracking; a removed row blurs without a new target and keeps it.
+          const next = event.relatedTarget as Node | null;
+          if (next && !event.currentTarget.contains(next)) focusedKey.current = null;
+        }}
+      >
         <thead>
           <tr>
             {columns.map((column) => (
@@ -316,6 +366,7 @@ export function DataTable<Row>({
             return (
               <tr
                 key={key}
+                data-row-key={key}
                 {...rowProps?.(row)}
                 aria-selected={onSelect ? selected : undefined}
                 aria-label={onSelect ? rowLabel?.(row) : undefined}

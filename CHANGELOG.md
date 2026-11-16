@@ -20,6 +20,7 @@
 ### Fixed
 
 - `npm run setup` with `TS_MOCK_MODE=true` no longer asks for `TS_USERNAME` and `TS_USERPASSWORD` and runs to the end, as the README states (V-0.12.0-F1).
+- Manage channel images and Banner URLs keep the channel list on screen while it reloads after an image change or a banner URL update, instead of replacing it with a loading state, and the keyboard focus no longer falls to the page: after a confirmed removal it moves to the channel's row, and a busy button keeps it (V-0.12.0-F4).
 
 ### Security
 
