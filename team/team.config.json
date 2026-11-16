@@ -28,6 +28,31 @@
                 "path": "package.json",
                 "type": "json",
                 "key": "version"
+            },
+            {
+                "path": "package-lock.json",
+                "type": "json",
+                "key": "version"
+            },
+            {
+                "path": "package-lock.json",
+                "type": "regex",
+                "pattern": "\"packages\": \\{\\s*\"\": \\{\\s*\"name\": \"[^\"]*\",\\s*\"version\": \"([^\"]+)\""
+            },
+            {
+                "path": "webapp-banner-tool/package.json",
+                "type": "json",
+                "key": "version"
+            },
+            {
+                "path": "webapp-banner-tool/package-lock.json",
+                "type": "json",
+                "key": "version"
+            },
+            {
+                "path": "webapp-banner-tool/package-lock.json",
+                "type": "regex",
+                "pattern": "\"packages\": \\{\\s*\"\": \\{\\s*\"name\": \"[^\"]*\",\\s*\"version\": \"([^\"]+)\""
             }
         ],
         "changelog": "CHANGELOG.md",
