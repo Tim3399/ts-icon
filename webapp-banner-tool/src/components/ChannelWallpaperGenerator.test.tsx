@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
+import type { ReactNode } from "react";
 import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ChannelWallpaperGenerator from "./ChannelWallpaperGenerator";
@@ -11,9 +12,13 @@ const { jsonMock, getToken, showToast, setOverlay, bumpRefresh } = vi.hoisted(()
   bumpRefresh: vi.fn(),
 }));
 vi.mock("../auth/AuthContext", () => ({ useAuth: () => ({ getToken }) }));
+// The Studio slots portal into StudioShell; here they render in place.
 vi.mock("../design", async () => ({
   ...(await vi.importActual("../design")),
   useToast: () => ({ showToast }),
+  StudioInspector: ({ children }: { children: ReactNode }) => (
+    <aside aria-label="Inspector">{children}</aside>
+  ),
 }));
 vi.mock("../preview/PreviewOverlayContext", () => ({
   usePreviewOverlay: () => ({ setOverlay, bumpRefresh, refreshKey: 0 }),

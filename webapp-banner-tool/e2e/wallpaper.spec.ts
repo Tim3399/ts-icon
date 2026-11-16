@@ -1,4 +1,4 @@
-// Channel Wallpaper (route "/wallpaper"), T-142 part (d). Every state of the
+// Channel Wallpaper (route "/wallpaper"), T-142 part (d), a D2 Studio page since D-142F-38. Every state of the
 // route is checked for hit targets (item 8) and the prominent-button rule
 // (item 18, screen table: "Generate channels" is the prominent action; "Undo",
 // "Discard" are destructive).
@@ -82,7 +82,7 @@ async function open(page: Page) {
 }
 
 async function addSource(page: Page) {
-  await page.getByLabel("Or load from a URL instead").fill("https://example.com/wallpaper.png");
+  await page.getByLabel("Image URL").fill("https://example.com/wallpaper.png");
 }
 
 /**
@@ -182,4 +182,32 @@ test("the prominent button is Generate channels, never an Undo or Discard action
       "data-destructive",
       "",
     );
+});
+
+// D-142F-38: the rows to create are TS6 pills at the real geometry, and the
+// parent picker in the inspector uses the same row height (shared ChannelTreeRow).
+test("dock pills are 456 × 30 at 1440 px and the picker rows match their height", async ({
+  page,
+}) => {
+  test.skip(test.info().project.name !== "desktop", "Geometry is measured in the desktop project.");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mockWallpaper(page);
+  await open(page);
+  await addSource(page);
+  const dock = page.getByRole("list", { name: "Generated rows" });
+  const dockRows = dock.locator(".channel-tree-row");
+  await expect(dockRows).toHaveCount(3);
+  const pill = (await dock.locator(".channel-tree-pill").first().boundingBox())!;
+  expect(Math.round(pill.width)).toBe(456);
+  expect(Math.round(pill.height)).toBe(30);
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  const picker = inspector.getByRole("group", { name: "Parent channel" });
+  await expect(picker).toBeVisible();
+  const pickerRows = picker.locator(".channel-tree-row");
+  expect(await pickerRows.count()).toBeGreaterThan(0);
+  const dockRow = (await dockRows.first().boundingBox())!;
+  const pickerRow = (await pickerRows.first().boundingBox())!;
+  expect(Math.abs(pickerRow.height - dockRow.height)).toBeLessThanOrEqual(1);
+  const pickerPill = (await picker.locator(".channel-tree-pill").first().boundingBox())!;
+  expect(Math.abs(pickerPill.height - pill.height)).toBeLessThanOrEqual(1);
 });

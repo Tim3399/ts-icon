@@ -9,28 +9,37 @@ import { ApiError, apiFetchJson, describeApiError, UPLOAD_TIMEOUT_MS } from "../
 import type { PreviewRow, WallpaperRun } from "../api/types";
 import {
   Button,
+  Canvas,
   Checkbox,
   ConfirmDialog,
-  EmptyState,
+  DataTable,
+  Dock,
   FieldError,
-  Grid,
-  ListRow,
-  ListSection,
+  FileButton,
+  InspectorSection,
   LoadingState,
-  PageHeader,
+  Panel,
+  PropertyRow,
   RequestError,
   Select,
   Spinner,
-  Stack,
+  StateTile,
   StatusGlyph,
+  StudioInspector,
   TextField,
   ToolbarButton,
   UploadInput,
   useToast,
+  type DataColumn,
 } from "../design";
+import { imageFileError } from "../api/image-file";
 import ChannelTreePreview from "./ChannelTreePreview";
+import { ChannelTreeRow } from "./ChannelTreeRow";
+import { BANNER_HEIGHT, BANNER_WIDTH } from "./bannerExport";
+import { TEAMSPEAK_GEOMETRY } from "./teamspeakGeometry";
 import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
 import { fieldAttributes, useFieldErrors, type FieldMessages } from "../hooks/useFieldErrors";
+import "./TeamSpeakPreview.css";
 import "./ChannelWallpaperGenerator.css";
 
 const RUNS_URL = `${CHANNEL_WALLPAPER_URL}/runs`;
@@ -91,6 +100,27 @@ const RUN_STATUS: Record<
   undone: { label: "Undone" },
 };
 
+/**
+ * The names the server gives the rows (namesForRows in
+ * src/images/channel-wallpaper.controller.ts): "<prefix> <n>" for art rows,
+ * "<prefix> spacer <n>" for spacer rows, each counted on its own.
+ */
+function rowNames(prefix: string, rows: PreviewRow[]): string[] {
+  let art = 0;
+  let spacer = 0;
+  return rows.map((row) => (row.isSpacer ? `${prefix} spacer ${++spacer}` : `${prefix} ${++art}`));
+}
+
+/** A short label for a source URL: its file name, else its host. */
+function sourceLabel(url: string): string {
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.pathname.split("/").filter(Boolean).pop() || parsed.host;
+  } catch {
+    return "Image URL";
+  }
+}
+
 function validation(options: Options, source: string, file: File | null): FieldMessages {
   const errors: FieldMessages = {};
   if (!options.namePrefix.trim()) errors.namePrefix = "Enter a channel name prefix.";
@@ -132,6 +162,7 @@ export default function ChannelWallpaperGenerator() {
   const [options, setOptions] = useState(initialOptions);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [undoTarget, setUndoTarget] = useState<WallpaperRun | null>(null);
+  const [fileError, setFileError] = useState("");
   const [preview, setPreview] = useState<{ draft: string; rows: PreviewRow[] } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
@@ -190,6 +221,38 @@ export default function ChannelWallpaperGenerator() {
     fields.clear(key);
     setOptions((prev) => ({ ...prev, [key]: value }));
   };
+
+  const chooseFile = useCallback(
+    (chosen: File) => {
+      const problem = imageFileError(chosen);
+      if (problem) {
+        setFileError(problem);
+        return;
+      }
+      setFileError("");
+      clearFieldErrors("file");
+      clearFieldErrors("sourceImageUrl");
+      setFile(chosen);
+      setSourceImageUrl("");
+    },
+    [clearFieldErrors],
+  );
+  // Paste an image anywhere on the page (as in the Banner editor).
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      if (busy) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea")) return;
+      const pasted = Array.from(event.clipboardData?.files ?? []).find((f) =>
+        f.type.startsWith("image/"),
+      );
+      if (!pasted) return;
+      event.preventDefault();
+      chooseFile(pasted);
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [busy, chooseFile]);
 
   const loadRuns = useCallback(async () => {
     listRequest.current?.abort();
@@ -384,7 +447,9 @@ export default function ChannelWallpaperGenerator() {
     }
   };
 
-  const blocked = Object.keys(fieldErrors).length > 0;
+  const blocked = Object.keys(fieldErrors).length > 0 || Boolean(fileError);
+  const names = rowNames(options.namePrefix.trim() || "Wallpaper", rows);
+  const sourceName = file ? file.name : sourceLabel(sourceImageUrl);
   const undoCopy = undoTarget && {
     title:
       undoTarget.createdChannels.length === 0
@@ -397,66 +462,291 @@ export default function ChannelWallpaperGenerator() {
       : "Discard this incomplete operation? The server will check for any channels created by it before cleanup.",
     confirmLabel: undoTarget.createdChannels.length === 0 ? "Discard" : "Delete channels",
   };
+  const runColumns: DataColumn<WallpaperRun>[] = [
+    {
+      key: "started",
+      header: "Started",
+      render: (run) =>
+        run.createdAt
+          ? new Date(run.createdAt).toLocaleString()
+          : `Operation ${run.runId.slice(0, 8)}`,
+    },
+    { key: "rows", header: "Rows", align: "end", render: (run) => run.rowCount },
+    {
+      key: "status",
+      header: "Status",
+      render: (run) => {
+        const status = RUN_STATUS[run.status] ?? { label: run.status };
+        return (
+          <span className="wallpaper-run-status" role="status">
+            {status.tone ? (
+              <StatusGlyph tone={status.tone} label={status.label} />
+            ) : (
+              <span className="wallpaper-run-state">
+                {status.busy && <Spinner />}
+                {status.label}
+              </span>
+            )}
+            {(run.error || run.failedAt) && (
+              <span className="wallpaper-run-error">
+                {run.error || `${run.failedAt?.name}: ${run.failedAt?.error}`}
+              </span>
+            )}
+          </span>
+        );
+      },
+    },
+    {
+      key: "channels",
+      header: "Created channels",
+      wideOnly: true,
+      render: (run) =>
+        run.createdChannels.length ? (
+          <ul className="wallpaper-run-channels">
+            {run.createdChannels.map((c) => (
+              <li key={c.cid}>
+                {c.name} (#{c.cid})
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <span className="wallpaper-run-none">None</span>
+        ),
+    },
+    {
+      key: "actions",
+      header: <span className="ds-visually-hidden">Actions</span>,
+      align: "end",
+      render: (run) => (
+        <span className="wallpaper-run-actions">
+          {["pending", "partial-failure"].includes(run.status) && (
+            <Button
+              size="small"
+              icon="refresh"
+              disabled={Boolean(busy)}
+              onClick={() => void mutateRun(run, "resume")}
+            >
+              Resume generation
+            </Button>
+          )}
+          {!["running", "undoing", "undone"].includes(run.status) && (
+            <Button
+              variant="plain"
+              destructive
+              size="small"
+              disabled={Boolean(busy)}
+              onClick={() => setUndoTarget(run)}
+            >
+              {run.createdChannels.length === 0
+                ? "Discard operation"
+                : run.status === "undo-partial"
+                  ? "Retry undo"
+                  : "Undo this generation"}
+            </Button>
+          )}
+        </span>
+      ),
+    },
+  ];
 
   return (
-    <Stack gap={7}>
-      <PageHeader
-        title="Channel wallpaper generator"
-        subtitle="Slice one large image into 500 × 44 rows and create a channel per row."
-        toolbar={
+    <div className="studio-wallpaper">
+      <h1 className="ds-visually-hidden">Channel wallpaper generator</h1>
+
+      <Canvas
+        label="Source image"
+        className="wallpaper-canvas"
+        overlay={
+          rows.length > 0 ? (
+            <p className="wallpaper-canvas-hint">Each band of 44 px becomes one channel row</p>
+          ) : undefined
+        }
+      >
+        {!hasSource && (
+          <div className="wallpaper-drop">
+            <UploadInput
+              id="wallpaper-file-drop"
+              resetKey={fileResetKey}
+              disabled={Boolean(busy)}
+              onFile={chooseFile}
+              label="Drop the wallpaper image here, or click to browse"
+            />
+            <p className="wallpaper-drop-hint">
+              You can also paste an image with <kbd>Ctrl V</kbd>, or load a URL in the inspector.
+            </p>
+          </div>
+        )}
+        {hasSource && rows.length > 0 && (
+          <div className="wallpaper-artboard">
+            <span className="wallpaper-artboard-name">
+              {sourceName} · {BANNER_WIDTH} × {BANNER_HEIGHT * rows.length} · {rows.length}{" "}
+              {rows.length === 1 ? "band" : "bands"}
+            </span>
+            <div className="wallpaper-bands" data-accent="crop">
+              {rows.map((row, i) => (
+                <img key={i} src={row.imageDataUrl} alt="" className="wallpaper-band" />
+              ))}
+            </div>
+          </div>
+        )}
+        {hasSource && rows.length === 0 && previewLoading && (
+          <StateTile icon="refresh" title="Slicing preview…" role="status" />
+        )}
+        {hasSource && previewError && (
+          <StateTile
+            icon="alert"
+            title="Couldn't slice the image."
+            role="alert"
+            action={<Button onClick={() => setPreviewRetry((v) => v + 1)}>Try again</Button>}
+          >
+            {previewError}
+          </StateTile>
+        )}
+        {!previewLoading && hasSource && !previewError && !issue && rows.length === 0 && (
+          <StateTile
+            icon="refresh"
+            title="No current preview"
+            action={<Button onClick={() => setPreviewRetry((v) => v + 1)}>Refresh preview</Button>}
+          >
+            The last preview no longer matches these settings.
+          </StateTile>
+        )}
+        {hasSource && issue && rows.length === 0 && !previewLoading && (
+          <StateTile icon="alert" title="Fix the highlighted fields to see the bands.">
+            The inspector shows what to change.
+          </StateTile>
+        )}
+      </Canvas>
+
+      <Dock
+        title="Rows to create"
+        meta={
+          rows.length > 0
+            ? `TS6 · ${options.parentCid ? "below the chosen parent" : "at the top level"}`
+            : undefined
+        }
+      >
+        {rows.length > 0 ? (
+          <div className="wallpaper-dock">
+            <div className="ts-preview-stack">
+              <figure className="ts-preview" aria-label="Rows in TeamSpeak">
+                <div className="ts-preview-scroll">
+                  <ul
+                    className="ts-preview-tree"
+                    style={{ width: TEAMSPEAK_GEOMETRY.treeWidth }}
+                    aria-label="Generated rows"
+                  >
+                    {rows.map((row, i) => (
+                      <ChannelTreeRow
+                        key={i}
+                        name={names[i]}
+                        depth={row.depth}
+                        isSpacer={row.isSpacer}
+                        hasChildren={(rows[i + 1]?.depth ?? -1) > row.depth}
+                        image={row.imageDataUrl}
+                        imageAlt={row.isSpacer ? "spacer row" : "channel row"}
+                        className="wallpaper-row"
+                      />
+                    ))}
+                  </ul>
+                </div>
+              </figure>
+            </div>
+            <div className="wallpaper-dock-side">
+              <div className="wallpaper-names">
+                <span className="wallpaper-names-label">Names</span>
+                <p className="wallpaper-hint">
+                  {names[0]}
+                  {names.length > 1 ? ` … ${names[names.length - 1]}` : ""}, created in this order{" "}
+                  {options.parentCid ? "directly below the chosen parent" : "at the top level"}.
+                </p>
+              </div>
+              <p className="wallpaper-hint">
+                Exactly as TeamSpeak will show them. Undo removes all of them again.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="wallpaper-hint">
+            {hasSource
+              ? "The rows appear here as soon as the image is sliced."
+              : "No source image yet. Add one to see the rows that would be created."}
+          </p>
+        )}
+      </Dock>
+
+      <section className="wallpaper-ops" aria-labelledby="wallpaper-ops-title">
+        <div className="wallpaper-ops-head">
+          <h2 className="wallpaper-ops-title" id="wallpaper-ops-title">
+            Recent operations
+          </h2>
           <ToolbarButton
             icon="refresh"
             label="Refresh operations"
             onClick={() => void loadRuns()}
           />
-        }
-      />
+        </div>
+        <RequestError message={actionError} />
+        <RequestError message={runsError} retry={() => void loadRuns()} />
+        {runsLoading && <LoadingState label="Loading operations…" />}
+        {!runsLoading && !runsError && runs.length === 0 && (
+          <p className="wallpaper-hint">
+            No operations yet. Generated runs appear here with their created channels.
+          </p>
+        )}
+        {runs.length > 0 && (
+          <DataTable
+            label="Recent operations"
+            columns={runColumns}
+            rows={runs}
+            rowKey={(run) => run.runId}
+            footer="Results stay available after leaving this page."
+          />
+        )}
+      </section>
 
-      <Stack gap={7}>
-        <ListSection
-          header="Source image"
-          footer="One image is sliced top to bottom into banner-sized rows."
-        >
-          <ListRow title="File or URL">
-            <Stack gap={4}>
-              <UploadInput
-                id="wallpaper-file-upload"
-                resetKey={fileResetKey}
-                error={fieldErrors.file}
-                disabled={Boolean(busy)}
-                label={file ? `Selected: ${file.name}` : undefined}
-                onFile={(chosen) => {
-                  fields.clear("file");
-                  fields.clear("sourceImageUrl");
-                  setFile(chosen);
-                  setSourceImageUrl("");
-                }}
-              />
+      <StudioInspector>
+        <Panel title="Inspector" className="wallpaper-inspector">
+          <InspectorSection title="Source" meta={hasSource ? sourceName : undefined}>
+            <PropertyRow label="URL">
               <TextField
                 id="wallpaper-source-url"
-                label="Or load from a URL instead"
+                label="Image URL"
+                labelHidden
                 error={fieldErrors.sourceImageUrl}
                 type="url"
                 value={sourceImageUrl}
                 disabled={Boolean(busy)}
-                placeholder="https://example.com/wallpaper.png"
+                placeholder="https://…"
                 onChange={(e) => {
                   fields.clear("sourceImageUrl");
                   fields.clear("file");
+                  setFileError("");
                   setFileResetKey((previous) => previous + 1);
                   setSourceImageUrl(e.target.value);
                   if (e.target.value) setFile(null);
                 }}
               />
-            </Stack>
-          </ListRow>
-        </ListSection>
+            </PropertyRow>
+            <div className="wallpaper-actions-row">
+              <FileButton
+                id={FIELD_IDS.file}
+                label="Open…"
+                aria-label="Open a wallpaper image"
+                disabled={Boolean(busy)}
+                error={fileError || fieldErrors.file}
+                onFile={chooseFile}
+              />
+            </div>
+            <p className="wallpaper-hint">
+              One image is sliced top to bottom into banner-sized rows.
+            </p>
+          </InspectorSection>
 
-        <ListSection
-          header="Parent channel"
-          footer="The generated channels are created below this channel, or at the top level."
-        >
-          <ListRow title="Create the channels below">
+          <InspectorSection
+            title="Parent"
+            meta={options.parentCid ? `#${options.parentCid}` : "Top level"}
+          >
             <div
               id={FIELD_IDS.parentCid}
               tabIndex={-1}
@@ -475,255 +765,114 @@ export default function ChannelWallpaperGenerator() {
               />
             </div>
             {fieldError("parentCid")}
-          </ListRow>
-        </ListSection>
+          </InspectorSection>
 
-        <fieldset disabled={Boolean(busy)} className="wallpaper-options">
-          <ListSection
-            header="Options"
-            footer="Naming and layout of the channels that will be created."
-          >
-            <ListRow title="Channel name prefix">
-              <TextField
-                id="wallpaper-name-prefix"
-                label="Channel name prefix"
-                labelHidden
-                error={fieldErrors.namePrefix}
-                value={options.namePrefix}
-                maxLength={88}
-                onChange={(e) => setOption("namePrefix", e.target.value)}
-              />
-            </ListRow>
-            <ListRow title="Spacer mode">
-              <Select
-                id={FIELD_IDS.spacerMode}
-                label="Spacer mode"
-                labelHidden
-                error={fieldErrors.spacerMode}
-                value={options.spacerMode}
-                onChange={(e) => setOption("spacerMode", e.target.value as Options["spacerMode"])}
+          <fieldset disabled={Boolean(busy)} className="wallpaper-options">
+            <InspectorSection title="Options">
+              <PropertyRow label="Name prefix" htmlFor="wallpaper-name-prefix">
+                <TextField
+                  id="wallpaper-name-prefix"
+                  label="Channel name prefix"
+                  labelHidden
+                  error={fieldErrors.namePrefix}
+                  value={options.namePrefix}
+                  maxLength={88}
+                  onChange={(e) => setOption("namePrefix", e.target.value)}
+                />
+              </PropertyRow>
+              <PropertyRow label="Spacer mode" htmlFor={FIELD_IDS.spacerMode}>
+                <Select
+                  id={FIELD_IDS.spacerMode}
+                  label="Spacer mode"
+                  labelHidden
+                  error={fieldErrors.spacerMode}
+                  value={options.spacerMode}
+                  onChange={(e) => setOption("spacerMode", e.target.value as Options["spacerMode"])}
+                >
+                  <option value="flat">Flat</option>
+                  <option value="nested-spacer">Nested spacer</option>
+                </Select>
+              </PropertyRow>
+              <Button
+                variant="plain"
+                size="small"
+                icon={advancedOpen ? "up" : "down"}
+                aria-expanded={advancedOpen}
+                aria-controls="wallpaper-advanced"
+                onClick={() => setAdvancedOpen((v) => !v)}
               >
-                <option value="flat">Flat</option>
-                <option value="nested-spacer">Nested spacer</option>
-              </Select>
-            </ListRow>
-            <ListRow
-              title={
-                <Button
-                  variant="plain"
-                  size="small"
-                  icon={advancedOpen ? "up" : "down"}
-                  aria-expanded={advancedOpen}
-                  aria-controls="wallpaper-advanced"
-                  onClick={() => setAdvancedOpen((v) => !v)}
-                >
-                  Advanced options
-                </Button>
-              }
-            >
+                Advanced options
+              </Button>
               {advancedOpen && (
-                <div id="wallpaper-advanced">
-                  <Stack gap={4}>
-                    <Grid min="medium">
-                      {(["xOffset", "yOffset"] as const).map((key) => (
-                        <TextField
-                          key={key}
-                          id={FIELD_IDS[key]}
-                          label={key === "xOffset" ? "X offset (px)" : "Y offset (px)"}
-                          error={fieldErrors[key]}
-                          type="number"
-                          step="1"
-                          min="-20000"
-                          max="20000"
-                          value={options[key]}
-                          onChange={(e) => setOption(key, e.target.value)}
-                        />
-                      ))}
-                      <TextField
-                        id={FIELD_IDS.backgroundColor}
-                        label="Background color (#RRGGBBAA)"
-                        error={fieldErrors.backgroundColor}
-                        value={options.backgroundColor}
-                        onChange={(e) => setOption("backgroundColor", e.target.value)}
-                      />
-                    </Grid>
-                    <Checkbox
-                      id={FIELD_IDS.coverFitMode}
-                      label="Cover-fit mode"
-                      hint="Fills nested rows with image content instead of letterboxing them."
-                      error={fieldErrors.coverFitMode}
-                      checked={options.coverFitMode}
-                      onChange={(e) => setOption("coverFitMode", e.target.checked)}
-                    />
-                  </Stack>
-                </div>
-              )}
-            </ListRow>
-          </ListSection>
-        </fieldset>
-
-        <Stack gap={4}>
-          <ListSection
-            header="Preview"
-            footer={rows.length > 0 ? `${rows.length} rows` : undefined}
-          >
-            <ListRow
-              title="Rows to create"
-              subtitle="Exactly as they will be created, at their real proportions."
-            >
-              {blocked && (
-                <Button
-                  size="small"
-                  icon="alert"
-                  onClick={() => {
-                    if (ADVANCED_FIELDS.some((key) => fieldErrors[key])) setAdvancedOpen(true);
-                    fields.focusFirst(fieldErrors);
-                  }}
-                >
-                  Review highlighted fields
-                </Button>
-              )}
-              <RequestError message={previewError} retry={() => setPreviewRetry((v) => v + 1)} />
-              {previewLoading && <LoadingState label="Slicing preview…" />}
-              {!hasSource && (
-                <EmptyState
-                  icon="image"
-                  title="No source image yet"
-                  description="Add a source image to see the rows that would be created."
-                />
-              )}
-              {!previewLoading && hasSource && !previewError && !issue && rows.length === 0 && (
-                <EmptyState
-                  icon="refresh"
-                  title="No current preview"
-                  description="The last preview no longer matches these settings."
-                  action={
-                    <Button size="small" onClick={() => setPreviewRetry((v) => v + 1)}>
-                      Refresh preview
-                    </Button>
-                  }
-                />
-              )}
-              {rows.length > 0 && (
-                <div className="wallpaper-preview-stack">
-                  {rows.map((row, i) => (
-                    <img
-                      key={i}
-                      src={row.imageDataUrl}
-                      alt={row.isSpacer ? "spacer row" : "channel row"}
-                      style={{
-                        marginInlineStart: `calc(${row.depth} * var(--size-channel-indent))`,
-                      }}
-                      className="wallpaper-preview-row"
+                <div id="wallpaper-advanced" className="wallpaper-advanced">
+                  {(["xOffset", "yOffset"] as const).map((key) => (
+                    <TextField
+                      key={key}
+                      id={FIELD_IDS[key]}
+                      label={key === "xOffset" ? "X offset (px)" : "Y offset (px)"}
+                      error={fieldErrors[key]}
+                      type="number"
+                      step="1"
+                      min="-20000"
+                      max="20000"
+                      value={options[key]}
+                      onChange={(e) => setOption(key, e.target.value)}
                     />
                   ))}
+                  <TextField
+                    id={FIELD_IDS.backgroundColor}
+                    label="Background color (#RRGGBBAA)"
+                    error={fieldErrors.backgroundColor}
+                    value={options.backgroundColor}
+                    onChange={(e) => setOption("backgroundColor", e.target.value)}
+                  />
+                  <Checkbox
+                    id={FIELD_IDS.coverFitMode}
+                    label="Cover-fit mode"
+                    hint="Fills nested rows with image content instead of letterboxing them."
+                    error={fieldErrors.coverFitMode}
+                    checked={options.coverFitMode}
+                    onChange={(e) => setOption("coverFitMode", e.target.checked)}
+                  />
                 </div>
               )}
-            </ListRow>
-          </ListSection>
-          <Button
-            variant="prominent"
-            className="wallpaper-generate"
-            icon={busy === "generate" ? undefined : "sparkles"}
-            onClick={() => void generate()}
-            disabled={Boolean(busy) || previewLoading || rows.length === 0 || blocked}
-          >
-            {busy === "generate" && <Spinner />}
-            {busy === "generate" ? "Generating…" : "Generate channels"}
-          </Button>
-        </Stack>
-      </Stack>
+            </InspectorSection>
+          </fieldset>
 
-      <Stack gap={4}>
-        <RequestError message={actionError} />
-        <RequestError message={runsError} retry={() => void loadRuns()} />
-        {runsLoading && <LoadingState label="Loading operations…" />}
-        {!runsLoading && !runsError && runs.length === 0 && (
-          <EmptyState
-            icon="inbox"
-            title="No operations yet"
-            description="Generated runs appear here with their created channels."
-          />
-        )}
-        {runs.length > 0 && (
-          <ListSection
-            header="Recent operations"
-            footer="Results stay available after leaving this page."
+          <InspectorSection
+            title="Generate"
+            meta={rows.length > 0 ? `${rows.length} rows` : undefined}
           >
-            {runs.map((run) => {
-              const status = RUN_STATUS[run.status] ?? { label: run.status };
-              return (
-                <ListRow
-                  key={run.runId}
-                  title={
-                    run.createdAt
-                      ? new Date(run.createdAt).toLocaleString()
-                      : `Operation ${run.runId.slice(0, 8)}`
-                  }
-                  subtitle={
-                    <span role="status">
-                      {status.tone ? (
-                        <StatusGlyph tone={status.tone} label={status.label} />
-                      ) : (
-                        <span>
-                          {"busy" in status && <Spinner />}
-                          {status.label}
-                        </span>
-                      )}
-                      <span>{` · ${run.rowCount} channel(s) remaining`}</span>
-                    </span>
-                  }
-                  trailing={
-                    <>
-                      {["pending", "partial-failure"].includes(run.status) && (
-                        <Button
-                          size="small"
-                          icon="refresh"
-                          disabled={Boolean(busy)}
-                          onClick={() => void mutateRun(run, "resume")}
-                        >
-                          Resume generation
-                        </Button>
-                      )}
-                      {!["running", "undoing", "undone"].includes(run.status) && (
-                        <Button
-                          variant="plain"
-                          destructive
-                          size="small"
-                          icon="undo"
-                          disabled={Boolean(busy)}
-                          onClick={() => setUndoTarget(run)}
-                        >
-                          {run.createdChannels.length === 0
-                            ? "Discard operation"
-                            : run.status === "undo-partial"
-                              ? "Retry undo"
-                              : "Undo this generation"}
-                        </Button>
-                      )}
-                    </>
-                  }
-                >
-                  {(run.error || run.failedAt) && (
-                    <RequestError
-                      message={run.error || `${run.failedAt?.name}: ${run.failedAt?.error}`}
-                    />
-                  )}
-                  {run.createdChannels.length > 0 && (
-                    <ul className="wallpaper-run-channels">
-                      {run.createdChannels.map((c) => (
-                        <li key={c.cid}>
-                          {c.name} (#{c.cid})
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </ListRow>
-              );
-            })}
-          </ListSection>
-        )}
-      </Stack>
+            {blocked && (
+              <Button
+                size="small"
+                icon="alert"
+                onClick={() => {
+                  if (ADVANCED_FIELDS.some((key) => fieldErrors[key])) setAdvancedOpen(true);
+                  fields.focusFirst(fieldErrors);
+                }}
+              >
+                Review highlighted fields
+              </Button>
+            )}
+            <Button
+              variant="prominent"
+              className="wallpaper-generate"
+              icon={busy === "generate" ? undefined : "sparkles"}
+              onClick={() => void generate()}
+              disabled={Boolean(busy) || previewLoading || rows.length === 0 || blocked}
+            >
+              {busy === "generate" && <Spinner />}
+              {busy === "generate" ? "Generating…" : "Generate channels"}
+            </Button>
+            <p className="wallpaper-hint">
+              {rows.length > 0
+                ? `Creates ${rows.length} channel${rows.length === 1 ? "" : "s"} on the server. You can undo it in Recent operations.`
+                : "Add a source image to enable generating."}
+            </p>
+          </InspectorSection>
+        </Panel>
+      </StudioInspector>
 
       <ConfirmDialog
         open={Boolean(undoTarget)}
@@ -738,6 +887,6 @@ export default function ChannelWallpaperGenerator() {
           if (run) void mutateRun(run, "undo");
         }}
       />
-    </Stack>
+    </div>
   );
 }
