@@ -82,6 +82,33 @@ test("release retry repairs both images without moving an older version tag", ()
   assert.equal(publishVersionTag("commit-b", "commit-a"), false);
 });
 
+test("release config raises both manifests and both lockfiles", () => {
+  const config = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "team", "team.config.json"), "utf8"),
+  );
+  const entries = new Map();
+  for (const file of config.release.versionFiles) {
+    entries.set(file.path, [...(entries.get(file.path) ?? []), file]);
+  }
+  assert.deepEqual([...entries.keys()].sort(), [
+    "package-lock.json",
+    "package.json",
+    "webapp-banner-tool/package-lock.json",
+    "webapp-banner-tool/package.json",
+  ]);
+  for (const [file, list] of entries) {
+    const top = list.find((entry) => entry.type === "json" && entry.key === "version");
+    assert.ok(top, `${file} lists its top-level version`);
+    if (!file.endsWith("package-lock.json")) continue;
+    // set-version rejects empty key segments, so packages."".version is addressed by a pattern
+    const nested = list.find((entry) => entry.type === "regex");
+    assert.ok(nested, `${file} lists packages."".version`);
+    const text = fs.readFileSync(path.join(__dirname, "..", file), "utf8");
+    const match = new RegExp(nested.pattern).exec(text);
+    assert.equal(match?.[1], JSON.parse(text).packages[""].version);
+  }
+});
+
 test("SQLite paths are identical for app, CLI, absolute file URLs and relative config", () => {
   const expected = path.resolve("prisma/dev.db");
   assert.equal(resolveSqlitePath("file:./dev.db"), expected);
