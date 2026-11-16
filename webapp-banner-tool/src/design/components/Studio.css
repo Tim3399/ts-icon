@@ -397,52 +397,6 @@
   }
 }
 
-/* ---------------------------------------------------------------- StateTile */
-
-.ds-state-tile {
-  display: grid;
-  place-items: center;
-  min-height: var(--size-canvas-min);
-  padding: var(--space-7) var(--space-4);
-  background-color: var(--color-bg-canvas);
-  background-image: radial-gradient(var(--color-canvas-dot) 1px, transparent 1.4px);
-  background-size: var(--size-dot-grid) var(--size-dot-grid);
-}
-
-.ds-state-tile-card {
-  display: grid;
-  justify-items: center;
-  gap: var(--space-2);
-  width: min(100%, var(--size-grid-large));
-  padding: var(--space-6) var(--space-5);
-  border: var(--size-hairline) solid var(--color-border);
-  border-radius: var(--radius-panel);
-  background-color: var(--color-bg-content);
-  text-align: center;
-}
-
-.ds-state-tile-glyph {
-  display: grid;
-  place-items: center;
-  color: var(--color-label-secondary);
-}
-
-.ds-state-tile-title {
-  font-size: var(--font-text-size);
-  line-height: var(--font-text-line);
-  font-weight: var(--font-weight-semibold);
-}
-
-.ds-state-tile-text {
-  color: var(--color-label-secondary);
-  font-size: var(--font-small-size);
-  line-height: var(--font-small-line);
-}
-
-.ds-state-tile-action {
-  margin-top: var(--space-2);
-}
-
 /* --------------------------------------------- Padded page in the main region */
 
 .ds-studio-page {

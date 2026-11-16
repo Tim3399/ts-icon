@@ -56,6 +56,9 @@
   --size-dot-grid: 16px; /* D2 canvas dot grid pitch */
   --size-canvas-min: 360px; /* D2 canvas minimum height */
   --size-property-label: 76px; /* D2 inspector label column */
+  --size-state-tile: 380px; /* D2 state tile width */
+  --size-state-glyph: 48px; /* D2 state tile glyph badge */
+  --size-state-region: 240px; /* state tile inside a panel or table area */
   --size-spinner: 16px;
   --size-spinner-large: 28px;
   --size-banner-ratio: 500 / 44;

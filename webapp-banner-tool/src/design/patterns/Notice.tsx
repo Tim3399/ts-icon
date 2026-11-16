@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { Icon, type IconName } from "../primitives/Icon";
+import type { IconName } from "../primitives/Icon";
 import { Spinner } from "../components/States";
+import { StateTile } from "../components/StateTile";
 import "./Notice.css";
 
 interface NoticeProps {
@@ -10,14 +11,15 @@ interface NoticeProps {
   brand?: ReactNode;
   children?: ReactNode;
   actions?: ReactNode;
-  /** Fill the whole window (sign-in splash) instead of the content column. */
+  /** Fill the whole window (sign-in splash) instead of the main region. */
   fullscreen?: boolean;
   /** Heading level: h1 on a page, a plain paragraph on the splash. */
   as?: "h1" | "p";
 }
 
-// A centred card for whole-page states: Access denied, Not found and the
-// sign-in splash. One look for "this page cannot show its content".
+// Whole-page states: Access denied, Not found and the sign-in splash. One look
+// for "this page cannot show its content": the D2 state tile filling the main
+// region (T-142-F3 item 11).
 export function Notice({
   title,
   icon,
@@ -25,22 +27,20 @@ export function Notice({
   children,
   actions,
   fullscreen = false,
-  as: Title = "h1",
+  as = "h1",
 }: NoticeProps) {
   return (
-    <div className={`ds-notice${fullscreen ? " ds-notice-fullscreen" : ""}`}>
-      <div className="ds-notice-card">
-        {brand}
-        {icon && (
-          <div className="ds-notice-icon" aria-hidden="true">
-            <Icon name={icon} size={28} strokeWidth={1.5} />
-          </div>
-        )}
-        <Title className="ds-notice-title">{title}</Title>
-        {children && <div className="ds-notice-text">{children}</div>}
-        {actions && <div className="ds-notice-actions">{actions}</div>}
-      </div>
-    </div>
+    <StateTile
+      icon={brand ? undefined : icon}
+      glyph={brand}
+      title={title}
+      level={as === "h1" ? 1 : "p"}
+      action={actions}
+      size="page"
+      className={fullscreen ? "ds-notice-fullscreen" : undefined}
+    >
+      {children}
+    </StateTile>
   );
 }
 
@@ -63,7 +63,7 @@ export function Splash({
       fullscreen
       as="p"
       title={name}
-      brand={<img src={logoSrc} alt="" width={44} height={44} />}
+      brand={<img src={logoSrc} alt="" width={28} height={28} />}
       actions={actions}
     >
       {busy && <Spinner large />}

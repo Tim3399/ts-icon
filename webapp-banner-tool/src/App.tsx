@@ -29,11 +29,11 @@ function NotFound() {
       title="Page not found"
       actions={
         <LinkButton to="/" variant="prominent" icon="crop">
-          Create a banner
+          Open the banner editor
         </LinkButton>
       }
     >
-      <p>This page doesn't exist. The banner editor is a good place to start.</p>
+      <p>This page doesn't exist.</p>
     </Notice>
   );
 }
@@ -143,20 +143,10 @@ export default function App() {
           />
           <Route
             path="/access-denied"
-            element={
-              <Page>
-                <AccessDenied />
-              </Page>
-            }
+            // The state tile fills the main region itself (D-142F-39).
+            element={<AccessDenied />}
           />
-          <Route
-            path="*"
-            element={
-              <Page>
-                <NotFound />
-              </Page>
-            }
-          />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </StudioShell>
     </PreviewOverlayProvider>

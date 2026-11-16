@@ -10,7 +10,7 @@ test("unknown route offers a usable recovery path", async ({ page }) => {
   await mockApi(page);
   await page.goto("/missing-page");
   await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
-  await page.getByRole("link", { name: "Create a banner" }).click();
+  await page.getByRole("link", { name: "Open the banner editor" }).click();
   await expect(page.getByRole("heading", { name: "Create a channel banner" })).toBeVisible();
 });
 

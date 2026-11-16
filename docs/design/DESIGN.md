@@ -103,19 +103,20 @@ At most one prominent (accent-filled) button per route. Destructive actions use 
 are never prominent. `e2e/prominent-action.spec.ts` checks this; the verbs below are the destructive verbs
 it rejects on a prominent button.
 
-| Route            | Screen                | Prominent action       | Destructive actions                                                       |
-| ---------------- | --------------------- | ---------------------- | ------------------------------------------------------------------------- |
-| `/`              | Banner editor         | "Crop & send image"    | none                                                                      |
-| `/channels`      | Manage channel images | none                   | "Delete image" (Delete)                                                   |
-| `/banner-urls`   | Banner URLs           | "Set for all channels" | none                                                                      |
-| `/wallpaper`     | Channel Wallpaper     | "Generate channels"    | "Undo this generation", "Retry undo", "Discard operation" (Undo, Discard) |
-| `/access-denied` | Access denied         | none                   | none ("Log out" is not destructive)                                       |
-| any other path   | Not found             | "Create a banner"      | none                                                                      |
+| Route            | Screen                | Prominent action         | Destructive actions                                                       |
+| ---------------- | --------------------- | ------------------------ | ------------------------------------------------------------------------- |
+| `/`              | Banner editor         | "Crop & send image"      | none                                                                      |
+| `/channels`      | Manage channel images | none                     | "Delete image" (Delete)                                                   |
+| `/banner-urls`   | Banner URLs           | "Set for all channels"   | none                                                                      |
+| `/wallpaper`     | Channel Wallpaper     | "Generate channels"      | "Undo this generation", "Retry undo", "Discard operation" (Undo, Discard) |
+| `/access-denied` | Access denied         | none                     | none ("Log out" is not destructive)                                       |
+| any other path   | Not found             | "Open the banner editor" | none                                                                      |
 
-Access denied and Not found are calm pages: a glyph in secondary label, one friendly sentence and one
-clear next action (stage B moves them to the D2 state tile, item 11). Access denied: "Ask an administrator to
-give you access." with a gray "Log out". Not found: "This page doesn't exist. The banner editor is a good
-place to start." with the prominent "Create a banner".
+Access denied, Not found and the empty, loading and error states are the D2 state tile (T-142-F3 item 11,
+mockup `D2/state.html`): a white card centred on the dotted canvas, a glyph in a round badge, one short
+sentence and one action. Access denied: "Ask an administrator to give you access." with a gray "Log out".
+Not found: "This page doesn't exist." with the prominent "Open the banner editor". An error tile offers
+"Try again".
 
 The Studio shell itself (top bar, mode switcher, layer panel) has no prominent button.
 
