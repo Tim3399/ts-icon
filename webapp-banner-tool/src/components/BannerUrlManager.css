@@ -1,32 +1,79 @@
-/* Screen styles of BannerUrlManager (T-142-F1, D-142F-5). The list comes from
-   ListSection and ListRow; only the URL line and the inline result message are
-   styled here, with role tokens (src/design/README.md). */
+/* Screen styles of Banner URLs (T-142-F3 item 10, concept D2). Filter bar,
+   table, inspector sections and state tiles are design building blocks; this
+   file styles only the cell content, the inline notices and the inspector
+   extras, with role tokens (src/design/README.md). */
 
-.banner-urls-row-url {
+.banner-urls {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Channel cell: glyph, name and tags, indented by the tree depth. */
+.banner-urls-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-left: calc(var(--depth, 0) * var(--space-4));
+  font-weight: var(--font-weight-medium);
+}
+
+.banner-urls-name svg {
+  flex: none;
+  color: var(--color-label-tertiary);
+}
+
+.banner-urls-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.banner-urls-tag {
+  flex: none;
+  padding: var(--space-0) var(--space-2);
+  border: var(--size-hairline) solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-fill-neutral);
+  color: var(--color-label-secondary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Only a real URL is monospace; the missing-URL placeholder is plain text. */
+.banner-urls-url {
   color: var(--color-label-secondary);
   font-family: var(--font-family-mono);
-  font-size: var(--font-footnote-size);
-  line-height: var(--font-footnote-line);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
   overflow-wrap: anywhere;
 }
 
-.banner-urls-row-empty {
+.banner-urls-none {
   color: var(--color-label-secondary);
-  font-size: var(--font-footnote-size);
-  line-height: var(--font-footnote-line);
 }
 
-/* Banner-style inline message: neutral box, no tint (colour budget). */
-.banner-urls-result {
+.banner-urls-cell-number {
+  color: var(--color-label-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Inline notices under the filter bar: neutral boxes, no tint (colour budget). */
+.banner-urls-result,
+.banner-urls-error {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
+  margin: var(--space-3) var(--space-4) var(--space-0);
   padding: var(--space-3) var(--space-4);
   border: var(--size-hairline) solid var(--color-border);
   border-radius: var(--radius-control);
   color: var(--color-label);
-  font-size: var(--font-subheadline-size);
-  line-height: var(--font-subheadline-line);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
 }
 
 .banner-urls-result > svg {
@@ -35,7 +82,65 @@
   color: var(--color-label-secondary);
 }
 
+.banner-urls-error > svg {
+  flex: none;
+  margin-top: var(--space-half);
+  color: var(--color-destructive);
+}
+
 .banner-urls-result-body {
+  flex: 1 1 auto;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* Inspector */
+.banner-urls-inspector-head {
+  display: flex;
+  align-items: center;
+  height: var(--size-panel-head);
+  padding: var(--space-0) var(--space-4);
+  border-bottom: var(--size-hairline) solid var(--color-border);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+  font-weight: var(--font-weight-semibold);
+}
+
+.banner-urls-inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.banner-urls-hint {
+  color: var(--color-label-secondary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+/* Below 1024 px the table is a list of rows (DataTable): name and action on
+   the first line, state and URL across the row under it. */
+@media (max-width: 1023px) {
+  .banner-urls-row .banner-urls-cell-name {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .banner-urls-row .banner-urls-cell-state {
+    order: 3;
+  }
+
+  /* The state column already says it; the tag would only squeeze the name. */
+  .banner-urls-row .banner-urls-tag-state {
+    display: none;
+  }
+
+  .banner-urls-row .banner-urls-cell-url {
+    order: 4;
+    flex-basis: 100%;
+  }
+
+  .banner-urls-row .banner-urls-name {
+    padding-left: calc(var(--depth, 0) * var(--space-3));
+  }
 }
