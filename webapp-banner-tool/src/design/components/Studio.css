@@ -1,0 +1,420 @@
+/* Studio building blocks (concept D2): panels, inspector rows, number
+   fields, segmented control, filter bar, data table, canvas, dock and the
+   quiet state tile. */
+
+/* ------------------------------------------------------------------ Panel */
+
+.ds-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background-color: var(--color-bg-content);
+}
+
+.ds-panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-panel-head);
+  padding: var(--space-0) var(--space-3) var(--space-0) var(--space-4);
+  border-bottom: var(--size-hairline) solid var(--color-border);
+}
+
+.ds-panel-title {
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-label);
+  white-space: nowrap;
+}
+
+.ds-panel-meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-label-tertiary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+.ds-panel-body {
+  min-width: 0;
+}
+
+.ds-panel-foot {
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-label-tertiary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+/* -------------------------------------------------------- Inspector rows */
+
+.ds-inspector-section {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: var(--size-hairline) solid var(--color-border);
+}
+
+.ds-inspector-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.ds-inspector-section-title {
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ds-inspector-section-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-label-tertiary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+.ds-property-row {
+  display: grid;
+  grid-template-columns: var(--size-property-label) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+}
+
+.ds-property-label {
+  color: var(--color-label-secondary);
+}
+
+.ds-property-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------- NumberField */
+
+.ds-number-field {
+  display: flex;
+  align-items: center;
+  min-height: var(--size-hit-target);
+  border: var(--size-hairline) solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-control-bg);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+}
+
+.ds-number-field:focus-within {
+  outline: var(--size-focus-ring) solid var(--color-focus);
+  outline-offset: var(--space-half);
+}
+
+.ds-number-key {
+  flex: none;
+  min-width: var(--size-hit-target-small);
+  padding: var(--space-0) var(--space-1);
+  color: var(--color-label-tertiary);
+  text-align: center;
+}
+
+.ds-number-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--size-hit-target);
+  padding: var(--space-0) var(--space-2);
+  border: 0;
+  background-color: transparent;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ds-number-field input:focus-visible {
+  outline: none;
+}
+
+.ds-number-unit {
+  flex: none;
+  padding-right: var(--space-2);
+  color: var(--color-label-tertiary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+/* --------------------------------------------------------- Segmented control */
+
+.ds-segmented {
+  display: inline-flex;
+  gap: var(--space-half);
+  padding: var(--space-half);
+  border: var(--size-hairline) solid var(--color-border);
+  border-radius: var(--radius-card);
+  background-color: var(--color-fill-neutral);
+}
+
+.ds-segment {
+  min-height: var(--size-hit-target-small);
+  padding: var(--space-0) var(--space-3);
+  border: var(--size-hairline) solid transparent;
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-label-secondary);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+  cursor: pointer;
+}
+
+.ds-segment:hover {
+  color: var(--color-label);
+}
+
+/* D2 marks the chosen segment with a 1 px ring; here it is a border, so no
+   in-flow shadow appears (F1 item 6). */
+.ds-segment[aria-checked="true"] {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-control-bg);
+  color: var(--color-label);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ------------------------------------------------------------- Filter bar */
+
+.ds-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--size-hairline) solid var(--color-border);
+  background-color: var(--color-bg-content);
+}
+
+.ds-filter-bar-search {
+  flex: 0 1 var(--size-grid-large);
+  min-width: 0;
+}
+
+.ds-filter-bar-count {
+  color: var(--color-label-tertiary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+.ds-filter-bar-trailing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+/* -------------------------------------------------------------- Data table */
+
+.ds-data-table {
+  min-width: 0;
+  background-color: var(--color-bg-content);
+}
+
+.ds-data-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+}
+
+.ds-data-table th {
+  height: var(--size-panel-head);
+  padding: var(--space-0) var(--space-4);
+  border-bottom: var(--size-hairline) solid var(--color-border);
+  background-color: var(--color-bg-panel);
+  color: var(--color-label-secondary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ds-data-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--size-hairline) solid var(--color-border);
+  vertical-align: middle;
+}
+
+.ds-data-table [data-align="end"] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-data-table tbody tr:hover {
+  background-color: var(--color-hover-bg);
+}
+
+.ds-data-table tbody tr[aria-selected] {
+  cursor: pointer;
+}
+
+.ds-data-table tbody tr[aria-selected="true"] {
+  background-color: var(--color-selected-bg);
+}
+
+/* A selectable row is a tab stop (Enter or Space selects it); its focus ring
+   sits inside the row so the table edge does not clip it. */
+.ds-data-table tbody tr[tabindex]:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus);
+  outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
+.ds-data-table tbody tr[data-drag-over] {
+  background-color: var(--color-selected-bg);
+  outline: var(--size-focus-ring) solid var(--color-focus);
+  outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
+.ds-data-table-foot {
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-label-secondary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+/* Below 1024 px the table becomes a list of rows (D2 390 px). */
+@media (max-width: 1023px) {
+  .ds-data-table thead,
+  .ds-data-table [data-wide-only] {
+    display: none;
+  }
+
+  .ds-data-table table,
+  .ds-data-table tbody,
+  .ds-data-table tr {
+    display: block;
+  }
+
+  .ds-data-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-3);
+    border-bottom: var(--size-hairline) solid var(--color-border);
+  }
+
+  .ds-data-table td {
+    display: block;
+    padding: var(--space-0);
+    border: 0;
+  }
+
+  .ds-data-table td[data-align="end"] {
+    margin-left: auto;
+  }
+}
+
+/* ------------------------------------------------------------------ Canvas */
+
+.ds-canvas {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: var(--size-canvas-min);
+  padding: var(--space-7) var(--space-6) var(--space-8);
+  background-color: var(--color-bg-canvas);
+  background-image: radial-gradient(var(--color-canvas-dot) 1px, transparent 1.4px);
+  background-size: var(--size-dot-grid) var(--size-dot-grid);
+  background-position: var(--space-2) var(--space-2);
+  color: var(--color-canvas-label);
+}
+
+.ds-canvas-artboard {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+}
+
+.ds-canvas-overlay {
+  position: absolute;
+  inset: var(--space-0);
+  pointer-events: none;
+}
+
+.ds-canvas-overlay > * {
+  pointer-events: auto;
+}
+
+@media (max-width: 1023px) {
+  .ds-canvas {
+    min-height: 0;
+    padding: var(--space-7) var(--space-3);
+  }
+}
+
+/* -------------------------------------------------------------------- Dock */
+
+.ds-dock {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border-top: var(--size-hairline) solid var(--color-border);
+  background-color: var(--color-bg-content);
+}
+
+.ds-dock-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
+.ds-dock-title {
+  font-size: var(--font-title-size);
+  line-height: var(--font-title-line);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ds-dock-meta {
+  color: var(--color-label-secondary);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+}
+
+.ds-dock-body {
+  min-width: 0;
+}
+
+@media (max-width: 1023px) {
+  .ds-dock {
+    padding: var(--space-4) var(--space-3);
+  }
+}
+
+/* --------------------------------------------- Padded page in the main region */
+
+.ds-studio-page {
+  width: 100%;
+  max-width: var(--size-content-max);
+  margin: var(--space-0) auto;
+  padding: var(--space-7) var(--space-6) var(--space-9);
+}
+
+@media (max-width: 1023px) {
+  .ds-studio-page {
+    padding: var(--space-5) var(--space-4) var(--space-8);
+  }
+}

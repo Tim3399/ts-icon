@@ -1,0 +1,44 @@
+/* Spinner and Skeleton. EmptyState and LoadingState are StateTiles. */
+
+.ds-spinner {
+  display: inline-block;
+  flex: none;
+  width: var(--size-spinner);
+  height: var(--size-spinner);
+  border: var(--size-focus-ring) solid var(--color-divider);
+  border-top-color: var(--color-label-secondary);
+  border-radius: var(--radius-pill);
+  animation: ds-spin calc(var(--motion-slow) * 3) linear infinite;
+}
+
+.ds-spinner-large {
+  width: var(--size-spinner-large);
+  height: var(--size-spinner-large);
+}
+
+@keyframes ds-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ds-skeleton {
+  display: block;
+  border-radius: var(--radius-control);
+  background-color: var(--color-bg-row);
+  animation: ds-pulse calc(var(--motion-slow) * 6) ease-in-out infinite;
+}
+
+.ds-skeleton[data-radius="small"] {
+  border-radius: var(--radius-small);
+}
+
+.ds-skeleton[data-radius="card"] {
+  border-radius: var(--radius-card);
+}
+
+@keyframes ds-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}

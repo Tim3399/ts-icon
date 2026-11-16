@@ -3,17 +3,13 @@ import { CHANNEL_BANNER_URLS_URL } from "../config";
 import { useAuth } from "../auth/AuthContext";
 import { apiFetchJson, describeApiError } from "../api/client";
 import { channelImageUrl } from "../api/channels";
-import { useToast } from "./ToastContext";
+import { EmptyState, LoadingState, RequestError, useToast } from "../design";
 import type { PreviewOverlay } from "../preview/PreviewOverlayContext";
 import type { Channel } from "../api/types";
-import RequestError from "./RequestError";
-import { EmptyState, LoadingState } from "./ui/States";
+import { ChannelTreeRow } from "./ChannelTreeRow";
+import "./ChannelTreePreview.css";
 
 export type TreeChannel = Channel;
-
-/** Matches the tree indent used for the row padding below. */
-const INDENT_PX = 20;
-const BASE_PADDING_PX = 12;
 
 interface Props {
   selectable?: boolean;
@@ -65,10 +61,10 @@ export default function ChannelTreePreview({
     key: c.cid,
     cid: c.cid as string | null,
     name: c.name,
-    managed: c.managed,
     depth: c.depth,
     image: c.managed ? channelImageUrl(c, c.contentHash || refreshKey) : c.bannerGfxUrl,
     pending: false,
+    isSpacer: Boolean(c.isSpacer),
   }));
   if (
     overlay?.rows.length &&
@@ -84,10 +80,10 @@ export default function ChannelTreePreview({
         key: `pending-${i}`,
         cid: null,
         name: r.isSpacer ? "Spacer (pending)" : "New channel (pending)",
-        managed: false,
         depth: parentDepth + 1 + r.depth,
         image: r.imageDataUrl,
         pending: true,
+        isSpacer: r.isSpacer,
       })),
     );
   }
@@ -103,58 +99,30 @@ export default function ChannelTreePreview({
         <EmptyState icon="tree" title="No channels found." />
       )}
       {!loading && rows.length > 0 && (
-        <div className="channel-tree-scroll scroll-area">
+        <div className="channel-tree-scroll">
           <ul className="channel-tree-list">
             {selectable && (
-              <li className="channel-tree-row channel-tree-row-selectable">
-                <button
-                  type="button"
-                  className="tree-select"
-                  aria-pressed={selectedCid === null}
-                  onClick={() => onSelectParent?.(null)}
-                >
-                  Top-level (no parent)
-                </button>
-              </li>
+              <ChannelTreeRow
+                name="Top-level (no parent)"
+                depth={0}
+                selected={selectedCid === null}
+                onSelect={() => onSelectParent?.(null)}
+              />
             )}
-            {rows.map((row) => {
-              const content = (
-                <>
-                  {row.image ? (
-                    <img className="channel-tree-thumb" src={row.image} alt="" loading="lazy" />
-                  ) : (
-                    <span className="channel-tree-thumb channel-tree-thumb-placeholder" />
-                  )}
-                  <span className="channel-tree-name" title={row.name}>
-                    {row.name}
-                  </span>
-                  {row.managed && <span className="badge badge-managed">Managed</span>}
-                  {row.pending && <span className="badge badge-pending">Pending</span>}
-                </>
-              );
-              return (
-                <li
-                  key={row.key}
-                  className={`channel-tree-row${row.pending ? " channel-tree-row-pending" : ""}${
-                    selectable && !row.pending ? " channel-tree-row-selectable" : ""
-                  }`}
-                  style={{ paddingLeft: BASE_PADDING_PX + row.depth * INDENT_PX }}
-                >
-                  {selectable && !row.pending ? (
-                    <button
-                      type="button"
-                      className="tree-select"
-                      aria-pressed={selectedCid === row.cid}
-                      onClick={() => onSelectParent?.(row.cid)}
-                    >
-                      {content}
-                    </button>
-                  ) : (
-                    content
-                  )}
-                </li>
-              );
-            })}
+            {rows.map((row, index) => (
+              <ChannelTreeRow
+                key={row.key}
+                name={row.name}
+                depth={row.depth}
+                image={row.image}
+                isSpacer={row.isSpacer}
+                hasChildren={(rows[index + 1]?.depth ?? 0) > row.depth}
+                pending={row.pending}
+                selected={selectable && !row.pending && selectedCid === row.cid}
+                onSelect={selectable && !row.pending ? () => onSelectParent?.(row.cid) : undefined}
+                lazy
+              />
+            ))}
           </ul>
         </div>
       )}

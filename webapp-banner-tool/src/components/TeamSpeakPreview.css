@@ -1,0 +1,42 @@
+/* TeamSpeakPreview: the whole channel tree in a TeamSpeak 6 client mock at
+   the TS6 client size (T-142-F3 item 7, D-10). The rows are ChannelTreeRow;
+   this file gives them the client's tree column (--color-ts-tree-bg,
+   theme-independent). The tree is 456 px wide (set inline from
+   teamspeakGeometry.ts); with the 16 px padding the row area is 488 px (R2).
+   It is never scaled: a narrower column scrolls it sideways (item 12). */
+
+.ts-preview-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ts-preview {
+  margin: 0;
+  border: var(--size-hairline) solid var(--color-ts-divider);
+  border-radius: var(--radius-card);
+  background-color: var(--color-ts-tree-bg);
+  color: var(--color-ts-label);
+  overflow: hidden;
+}
+
+/* A long tree scrolls inside the preview: at most 352 px (eight rows) high (≤ 360 px, F-142-32). */
+.ts-preview-scroll {
+  max-height: calc(var(--size-thumb) * 8);
+  padding: var(--space-2) var(--space-4);
+  overflow: auto;
+  scrollbar-color: var(--color-ts-divider) transparent;
+}
+
+.ts-preview-tree {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ts-preview-note {
+  color: var(--color-label-secondary);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+}

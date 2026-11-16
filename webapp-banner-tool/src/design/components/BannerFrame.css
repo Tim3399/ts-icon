@@ -1,0 +1,39 @@
+/* BannerFrame: every banner on the same checkerboard at 500:44. */
+
+.ds-banner-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 100%;
+  border: var(--size-hairline) solid var(--color-border);
+  border-radius: var(--radius-small);
+  background-color: var(--color-checker-a);
+  background-image:
+    linear-gradient(45deg, var(--color-checker-b) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--color-checker-b) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--color-checker-b) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--color-checker-b) 75%);
+  background-size: var(--size-checker) var(--size-checker);
+  background-position:
+    0 0,
+    0 calc(var(--size-checker) / 2),
+    calc(var(--size-checker) / 2) calc(var(--size-checker) / -2),
+    calc(var(--size-checker) / -2) 0;
+}
+
+.ds-banner-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ds-banner-frame-ratio {
+  aspect-ratio: var(--size-banner-ratio);
+}
+
+.ds-banner-frame-placeholder {
+  color: var(--color-label-secondary);
+  font-size: var(--font-footnote-size);
+  line-height: var(--font-footnote-line);
+}

@@ -1,0 +1,97 @@
+/* Button and LinkButton in the D2 look: prominent has the accent fill; gray
+   is a white control with D2's 1 px --line-strong edge; plain is borderless
+   text in the accent. */
+
+.ds-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: var(--size-hit-target);
+  min-width: var(--size-hit-target);
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  font-family: inherit;
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing);
+}
+
+.ds-button:disabled,
+.ds-button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.ds-button-glyph {
+  flex: none;
+}
+
+.ds-button-small {
+  min-height: var(--size-hit-target-small);
+  padding: var(--space-half) var(--space-2);
+}
+
+.ds-button-icon-only {
+  padding: var(--space-0);
+}
+
+/* Prominent: the accent-filled primary action (one per view). */
+.ds-button-prominent {
+  min-height: var(--size-control-prominent);
+  background-color: var(--color-accent-fill);
+  color: var(--color-on-accent-fill);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ds-button-prominent:hover:not(:disabled) {
+  background-color: var(--color-accent-fill-hover);
+}
+
+.ds-button-prominent:active:not(:disabled) {
+  background-color: var(--color-accent-fill-pressed);
+}
+
+/* Gray: the default for every other action: a white control with D2's
+   1 px --line-strong edge and the label colour. */
+.ds-button-gray {
+  border: var(--size-hairline) solid var(--color-border-strong);
+  background-color: var(--color-control-bg);
+  color: var(--color-label);
+}
+
+.ds-button-gray:hover:not(:disabled) {
+  background-color: var(--color-hover-bg);
+}
+
+.ds-button-gray:active:not(:disabled) {
+  background-color: var(--color-fill-pressed);
+}
+
+/* Plain: borderless text in the link colour, for inline actions. */
+.ds-button-plain {
+  background-color: transparent;
+  color: var(--color-link);
+}
+
+.ds-button-plain:hover:not(:disabled) {
+  background-color: var(--color-fill-hover);
+}
+
+.ds-button-plain:active:not(:disabled) {
+  background-color: var(--color-fill-pressed);
+}
+
+/* Destructive: red text and glyph on a gray or plain button. The red fill
+   exists only inside ConfirmDialog. */
+.ds-button-destructive {
+  color: var(--color-destructive);
+}

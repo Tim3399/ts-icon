@@ -1,17 +1,42 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { CHANNEL_BANNER_URLS_URL, APPLY_BANNER_URLS_URL } from "../config";
 import { channelBannerEndpoint } from "../api/channels";
 import type { Channel } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { apiFetch, apiFetchJson, describeApiError } from "../api/client";
-import { useToast } from "./ToastContext";
+import {
+  Button,
+  ConfirmDialog,
+  DataTable,
+  FilterBar,
+  Icon,
+  SegmentedControl,
+  Spinner,
+  StateTile,
+  StatusGlyph,
+  StudioInspector,
+  StudioToolbar,
+  TextField,
+  ToolbarButton,
+  useToast,
+  type DataColumn,
+} from "../design";
 import SpacerBaseImageManager from "./SpacerBaseImageManager";
+import BannerUrlInspector from "./BannerUrlInspector";
 import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
-import RequestError from "./RequestError";
-import Icon from "./ui/Icon";
-import PageHeader from "./ui/PageHeader";
-import Section from "./ui/Section";
-import { EmptyState, LoadingState, Skeleton } from "./ui/States";
+import "./BannerUrlManager.css";
+
+// Banner URLs as concept D2 draws it (T-142-F3 item 10): a filter bar with the
+// page's one prominent action, the channel table, and an inspector for the
+// selected row with the spacer base image below it.
+
+type ManagedFilter = "all" | "managed" | "unmanaged";
+
+const FILTERS: { value: ManagedFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "managed", label: "Managed" },
+  { value: "unmanaged", label: "Not managed" },
+];
 
 export default function BannerUrlManager() {
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -19,6 +44,10 @@ export default function BannerUrlManager() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<ManagedFilter>("all");
+  const [selectedCid, setSelectedCid] = useState<string | null>(null);
   const lock = useRef(false);
   const mounted = useRef(true);
   const request = useRef<AbortController | null>(null);
@@ -58,8 +87,6 @@ export default function BannerUrlManager() {
   const pending = channels.filter((c) => !c.managed);
   const apply = async (cid?: string) => {
     if (lock.current) return;
-    if (!cid && !window.confirm(`Set managed banner URLs for ${pending.length} channel(s)?`))
-      return;
     lock.current = true;
     const controller = new AbortController();
     actionRequest.current = controller;
@@ -110,151 +137,230 @@ export default function BannerUrlManager() {
     }
   };
   const managed = channels.length - pending.length;
+  const visible = channels.filter(
+    (c) =>
+      c.name.toLowerCase().includes(query.trim().toLowerCase()) &&
+      (filter === "all" || (filter === "managed") === Boolean(c.managed)),
+  );
+  const filtered = query.trim() !== "" || filter !== "all";
+  // The selection follows the filter: a hidden row hands it to the first visible one.
+  const selected = visible.find((c) => c.cid === selectedCid) ?? visible[0] ?? null;
+
+  const columns: DataColumn<Channel>[] = [
+    {
+      key: "channel",
+      header: "Channel",
+      className: "banner-urls-cell-name",
+      render: (channel) => (
+        <span className="banner-urls-name" style={{ "--depth": channel.depth } as CSSProperties}>
+          <Icon name={channel.isSpacer ? "sliders" : "layers"} size={14} />
+          <span className="banner-urls-name-text" title={channel.name}>
+            {channel.name}
+          </span>
+          {channel.isSpacer && <span className="banner-urls-tag">Spacer</span>}
+          {!channel.managed && (
+            <span className="banner-urls-tag banner-urls-tag-state">Not managed</span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "state",
+      header: "State",
+      className: "banner-urls-cell-state",
+      render: (channel) => (
+        <StatusGlyph
+          tone={channel.managed ? "positive" : "warning"}
+          label={channel.managed ? "Managed" : "Not managed"}
+        />
+      ),
+    },
+    {
+      key: "url",
+      header: "Banner URL",
+      className: "banner-urls-cell-url",
+      render: (channel) =>
+        channel.bannerGfxUrl ? (
+          <code className="banner-urls-url">{channel.bannerGfxUrl}</code>
+        ) : (
+          <span className="banner-urls-none">No banner URL set</span>
+        ),
+    },
+    {
+      key: "id",
+      header: "ID",
+      wideOnly: true,
+      className: "banner-urls-cell-number",
+      render: (channel) => `#${channel.cid}`,
+    },
+    {
+      key: "action",
+      header: <span className="ds-visually-hidden">Action</span>,
+      align: "end",
+      className: "banner-urls-cell-action",
+      render: (channel) => (
+        <Button
+          size="small"
+          aria-label={`Set banner URL for ${channel.name}`}
+          disabled={Boolean(busy)}
+          onClick={() => void apply(channel.cid)}
+        >
+          {busy === channel.cid ? "Setting…" : "Set URL"}
+        </Button>
+      ),
+    },
+  ];
+
   return (
-    <div>
-      <PageHeader
-        eyebrow="TeamSpeak"
-        icon="link"
-        title="Channel banner URLs"
-        lead="Point each channel's TeamSpeak banner at the image this application serves. Until a channel is managed, TeamSpeak keeps showing whatever URL it had before."
-        actions={
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => void load()}
-            disabled={loading}
+    <div className="banner-urls">
+      <h1 className="ds-visually-hidden">Channel banner URLs</h1>
+      <StudioToolbar>
+        <ToolbarButton
+          icon="refresh"
+          label="Refresh"
+          onClick={() => void load()}
+          disabled={loading}
+        />
+      </StudioToolbar>
+
+      <FilterBar
+        search={
+          <TextField
+            id="banner-urls-search"
+            type="search"
+            label="Filter channels"
+            labelHidden
+            value={query}
+            placeholder="Filter channels"
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        }
+        filter={
+          <SegmentedControl
+            label="Managed state"
+            options={FILTERS}
+            value={filter}
+            onChange={setFilter}
+          />
+        }
+        count={
+          loading || (error && channels.length === 0)
+            ? undefined
+            : `${visible.length} of ${channels.length} channel${channels.length === 1 ? "" : "s"} · ${managed} managed`
+        }
+        trailing={
+          <Button
+            variant="prominent"
+            icon={busy === "all" ? undefined : "link"}
+            disabled={Boolean(busy) || loading || Boolean(error)}
+            onClick={() => setConfirming(true)}
           >
-            <Icon name="refresh" size={15} />
-            Refresh
-          </button>
+            {busy === "all" && <Spinner />}
+            {busy === "all" ? "Applying…" : "Set for all channels"}
+          </Button>
         }
       />
 
-      <div className="page-sections">
-        <div className="stat-grid">
-          <div className="stat">
-            <p className="stat-label">
-              <Icon name="check" size={13} />
-              Managed
-            </p>
-            <p className="stat-value">{loading ? "—" : managed}</p>
-          </div>
-          <div className="stat">
-            <p className="stat-label">
-              <Icon name="alert" size={13} />
-              Not managed
-            </p>
-            <p className="stat-value">{loading ? "—" : pending.length}</p>
-          </div>
-          <div className="stat">
-            <p className="stat-label">
-              <Icon name="tree" size={13} />
-              Channels
-            </p>
-            <p className="stat-value">{loading ? "—" : channels.length}</p>
-          </div>
-        </div>
+      {result && (
+        <p role="status" className="banner-urls-result">
+          <Icon name="info" size={16} />
+          <span className="banner-urls-result-body">{result}</span>
+        </p>
+      )}
 
-        <Section
-          title="Apply to every channel"
-          icon="sparkles"
-          subtitle="Rewrites the banner URL of each channel that is not managed yet. Existing images are untouched."
-          footer={
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={Boolean(busy) || loading || Boolean(error)}
-              onClick={() => void apply()}
-            >
-              {busy === "all" ? (
-                <span className="spinner" aria-hidden="true" />
-              ) : (
-                <Icon name="link" size={15} />
-              )}
-              {busy === "all" ? "Applying…" : "Set for all channels"}
-            </button>
+      {error && channels.length > 0 && (
+        <p role="alert" className="banner-urls-error">
+          <Icon name="alert" size={16} />
+          <span className="banner-urls-result-body">{error}</span>
+          <Button size="small" icon="refresh" onClick={() => void load()}>
+            Try again
+          </Button>
+        </p>
+      )}
+
+      {loading && <StateTile icon="refresh" title="Loading channels…" role="status" />}
+
+      {!loading && error && channels.length === 0 && (
+        <StateTile
+          icon="alert"
+          title="Couldn't load the channels."
+          role="alert"
+          action={<Button onClick={() => void load()}>Try again</Button>}
+        >
+          {error}
+        </StateTile>
+      )}
+
+      {!loading && !error && visible.length === 0 && (
+        <StateTile
+          icon="inbox"
+          title={channels.length ? "No channels match these filters." : "No channels found."}
+          action={
+            filtered && channels.length ? (
+              <Button
+                onClick={() => {
+                  setQuery("");
+                  setFilter("all");
+                }}
+              >
+                Reset filters
+              </Button>
+            ) : (
+              <Button onClick={() => void load()}>Refresh</Button>
+            )
           }
         >
-          <p className="hint">
-            {loading
-              ? "Checking which channels already point at this application…"
-              : pending.length === 0
-                ? "Every channel already points at a managed banner URL."
-                : `${pending.length} channel(s) still point somewhere else.`}
-          </p>
-          {result && (
-            <p role="status" className="alert alert-info">
-              <Icon name="info" size={16} />
-              <span className="alert-body">{result}</span>
-            </p>
-          )}
-        </Section>
+          {channels.length
+            ? "Clear the search or choose a different state."
+            : "TeamSpeak reported no channels for this server."}
+        </StateTile>
+      )}
 
-        <SpacerBaseImageManager />
+      {!loading && visible.length > 0 && (
+        <DataTable
+          label="Channel banner URLs"
+          columns={columns}
+          rows={visible}
+          rowKey={(channel) => channel.cid}
+          selectedKey={selected?.cid ?? null}
+          onSelect={(channel) => setSelectedCid(channel.cid)}
+          rowLabel={(channel) => `${channel.name}, #${channel.cid}`}
+          rowProps={(channel) => ({ className: "banner-urls-row", "data-cid": channel.cid })}
+          footer={
+            '"Set for all channels" points every channel that is not managed yet at the banner this application serves. Existing images stay as they are.'
+          }
+        />
+      )}
 
-        <RequestError message={error} retry={() => void load()} />
-
-        {loading && (
-          <div className="card">
-            <LoadingState label="Loading channels…" />
-            <Skeleton height={54} radius={10} />
+      <StudioInspector>
+        <div className="banner-urls-inspector">
+          <div className="banner-urls-inspector-head" aria-hidden="true">
+            Inspector
           </div>
-        )}
-
-        {!loading && !error && channels.length === 0 && (
-          <div className="card">
-            <EmptyState
-              icon="inbox"
-              title="No channels found."
-              description="TeamSpeak reported no channels for this server."
+          {selected && (
+            <BannerUrlInspector
+              channel={selected}
+              channels={channels}
+              busy={Boolean(busy)}
+              setting={busy === selected.cid}
+              onSet={() => void apply(selected.cid)}
             />
-          </div>
-        )}
+          )}
+          <SpacerBaseImageManager />
+        </div>
+      </StudioInspector>
 
-        {!loading && channels.length > 0 && (
-          <section className="card">
-            <div className="card-head">
-              <div className="card-head-text">
-                <h2 className="card-title">
-                  <Icon name="tree" size={16} />
-                  Per channel
-                </h2>
-                <p className="card-subtitle">
-                  Set a single channel's banner URL without touching the rest.
-                </p>
-              </div>
-            </div>
-            <ul className="url-list">
-              {channels.map((channel) => (
-                <li className="url-row" key={channel.cid}>
-                  <div className="url-row-main">
-                    <p className="url-row-name truncate" title={channel.name}>
-                      {channel.name}
-                    </p>
-                    <p className="url-row-meta">
-                      <span
-                        className={`badge ${channel.managed ? "badge-managed" : "badge-unmanaged"}`}
-                      >
-                        {channel.managed ? "Managed" : "Not managed"}
-                      </span>
-                      <span className="muted">Channel #{channel.cid}</span>
-                    </p>
-                    <p className="url-text mono">{channel.bannerGfxUrl || "No banner URL set"}</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    disabled={Boolean(busy)}
-                    onClick={() => void apply(channel.cid)}
-                  >
-                    {busy === channel.cid ? "Setting…" : "Set banner URL"}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-      </div>
+      <ConfirmDialog
+        open={confirming}
+        title="Set banner URLs?"
+        message={`Set managed banner URLs for ${pending.length} channel(s)?`}
+        confirmLabel="Set URLs"
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => {
+          setConfirming(false);
+          void apply();
+        }}
+      />
     </div>
   );
 }

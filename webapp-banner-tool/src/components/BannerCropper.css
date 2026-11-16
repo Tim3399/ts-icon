@@ -1,0 +1,184 @@
+/* The Banner editor as D2's Studio editor (T-142-F3 items 4–8): the canvas
+   with the crop and the dock in the main region; the layer panel and the
+   inspector live in the shell's slots. Roles and tokens only
+   (src/design/README.md). */
+
+.studio-editor {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------------- Canvas */
+
+/* The artboard takes the canvas width and never less: min-width 0 and the
+   clip keep the cropper's fixed-size container from holding the canvas wide
+   after a resize (the ResizeObserver then re-initializes the cropper). */
+.artboard {
+  display: block;
+  width: 100%;
+  max-width: calc(var(--size-grid-large) * 2);
+  min-width: 0;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.artboard-name {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--color-canvas-label);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+/* The cropper's stage. No width/height transition on purpose: Cropper.js
+   re-initializes on a resize and measures this box synchronously. */
+.preview-box {
+  position: relative;
+  width: 100%;
+  height: calc(var(--size-thumb) * 6);
+}
+
+.preview-box > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.preview-box-empty {
+  display: grid;
+  place-items: center;
+  height: auto;
+  min-height: calc(var(--size-thumb) * 5);
+}
+
+/* Cropper.js paints its own chrome: the frame and handles in the crop role,
+   the shade outside the crop from its modal. */
+/* The image sits on the canvas dot grid, not on the cropper's own checkerboard. */
+.preview-box .cropper-bg {
+  background-image: none;
+}
+
+.preview-box .cropper-view-box {
+  outline-color: var(--color-crop);
+}
+
+.preview-box .cropper-line,
+.preview-box .cropper-point {
+  background-color: var(--color-crop);
+}
+
+/* "W × H → 500 × 44" under the frame */
+.crop-size {
+  position: absolute;
+  z-index: 2;
+  margin-top: var(--space-2);
+  padding: var(--space-half) var(--space-2);
+  transform: translateX(-50%);
+  border-radius: var(--radius-small);
+  background-color: var(--color-crop-label-bg);
+  color: var(--color-on-crop-label);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.editor-canvas-hint {
+  position: absolute;
+  right: var(--space-4);
+  bottom: var(--space-3);
+  color: var(--color-canvas-label);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+/* The empty canvas: the one drop target with a short hint. */
+.editor-drop {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  width: min(100%, calc(var(--size-grid-large) * 1.5));
+}
+
+.editor-drop > * {
+  width: 100%;
+}
+
+.editor-drop-hint {
+  color: var(--color-canvas-label);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+  text-align: center;
+}
+
+.studio-editor kbd {
+  padding: var(--space-0) var(--space-1);
+  border: var(--size-hairline) solid var(--color-border-strong);
+  border-radius: var(--radius-small);
+  font-family: inherit;
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+/* --------------------------------------------------------------- Toolbar */
+
+.editor-zoom {
+  min-width: calc(var(--space-8) + var(--space-2));
+  color: var(--color-label-secondary);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------- Inspector */
+
+.editor-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.editor-hint {
+  color: var(--color-label-secondary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+.editor-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.crop-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.editor-send {
+  width: 100%;
+}
+
+.editor-error:focus {
+  outline: none;
+}
+
+.editor-error:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus);
+  outline-offset: var(--size-focus-ring);
+}
+
+@media (max-width: 1023px) {
+  .preview-box {
+    height: calc(var(--size-thumb) * 5);
+  }
+
+  .editor-canvas-hint {
+    display: none;
+  }
+}

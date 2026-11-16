@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ChannelWallpaperGenerator from "./ChannelWallpaperGenerator";
 import { ApiError } from "../api/client";
@@ -11,7 +12,14 @@ const { jsonMock, getToken, showToast, setOverlay, bumpRefresh } = vi.hoisted(()
   bumpRefresh: vi.fn(),
 }));
 vi.mock("../auth/AuthContext", () => ({ useAuth: () => ({ getToken }) }));
-vi.mock("./ToastContext", () => ({ useToast: () => ({ showToast }) }));
+// The Studio slots portal into StudioShell; here they render in place.
+vi.mock("../design", async () => ({
+  ...(await vi.importActual("../design")),
+  useToast: () => ({ showToast }),
+  StudioInspector: ({ children }: { children: ReactNode }) => (
+    <aside aria-label="Inspector">{children}</aside>
+  ),
+}));
 vi.mock("../preview/PreviewOverlayContext", () => ({
   usePreviewOverlay: () => ({ setOverlay, bumpRefresh, refreshKey: 0 }),
 }));
@@ -96,9 +104,13 @@ describe("wallpaper operation recovery", () => {
             },
       ),
     );
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     page();
     fireEvent.click(await screen.findByRole("button", { name: "Undo this generation" }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Delete channels",
+      }),
+    );
     expect(await screen.findByRole("button", { name: "Retry undo" })).toBeInTheDocument();
     expect(screen.getByText("Wall 1 (#10)")).toBeInTheDocument();
     const call = jsonMock.mock.calls.find(([url]) => url.endsWith("/undo"));
@@ -244,9 +256,11 @@ it("allows safe cleanup of an incomplete operation with zero recorded channels",
           },
     ),
   );
-  vi.spyOn(window, "confirm").mockReturnValue(true);
   page();
   fireEvent.click(await screen.findByRole("button", { name: "Discard operation" }));
+  fireEvent.click(
+    within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Discard" }),
+  );
   await waitFor(() =>
     expect(screen.queryByRole("button", { name: "Discard operation" })).not.toBeInTheDocument(),
   );

@@ -1,0 +1,36 @@
+/* Screen styles of SpacerBaseImageManager: an inspector section in the D2
+   look (T-142-F3 item 9); the whole section takes a dropped file. Role
+   tokens only (src/design/README.md). */
+
+.spacer-base[data-drag-over] {
+  background-color: var(--color-selected-bg);
+}
+
+.spacer-base-banner {
+  max-width: 500px;
+}
+
+/* No base image: a quiet tile, not a second dashed drop zone. */
+.spacer-base-empty {
+  display: grid;
+  place-items: center;
+  aspect-ratio: var(--size-banner-ratio);
+  border-radius: var(--radius-small);
+  background-color: var(--color-fill-neutral);
+  color: var(--color-label-tertiary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+.spacer-base-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.spacer-base-hint {
+  margin: var(--space-0);
+  color: var(--color-label-secondary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { SPACER_BASE_IMAGE_URL } from "../config";
 import { useAuth } from "../auth/AuthContext";
 import {
@@ -8,13 +8,11 @@ import {
   describeApiError,
   UPLOAD_TIMEOUT_MS,
 } from "../api/client";
-import { useToast } from "./ToastContext";
+import { BannerFrame, FileButton, InspectorSection, RequestError, useToast } from "../design";
+import { imageFileError } from "../api/image-file";
 import { usePreviewOverlay } from "../preview/PreviewOverlayContext";
-import UploadInput from "./UploadInput";
-import RequestError from "./RequestError";
-import Section from "./ui/Section";
-import BannerFrame from "./ui/BannerFrame";
 import { uploadFieldError } from "../hooks/useFieldErrors";
+import "./SpacerBaseImageManager.css";
 
 export default function SpacerBaseImageManager({
   onChanged,
@@ -29,6 +27,7 @@ export default function SpacerBaseImageManager({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [fileError, setFileError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const objectUrl = useRef<string | null>(null);
   const request = useRef<AbortController | null>(null);
   const locked = useRef(false);
@@ -102,29 +101,54 @@ export default function SpacerBaseImageManager({
       setUploading(false);
     }
   };
+  const take = (file: File) => {
+    const issue = imageFileError(file);
+    setFileError(issue || "");
+    if (!issue) void upload(file);
+  };
+  const isFileDrag = (event: DragEvent) => event.dataTransfer?.types.includes("Files") ?? false;
+  // D2 inspector section (T-142-F3 item 9); the whole section is the drop target.
   return (
-    <Section
-      title="Spacer base image"
-      icon="layers"
-      subtitle="Used for every spacer channel that has no image of its own."
+    <div
+      className="spacer-base"
+      data-drag-over={dragOver || undefined}
+      onDragOver={(event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragOver(false);
+        const file = event.dataTransfer.files[0];
+        if (file) take(file);
+      }}
     >
-      <div className="spacer-base">
-        <BannerFrame
-          src={imageUrl}
-          alt="Spacer base"
-          placeholder={loading ? "Loading…" : "No spacer base image set"}
-        />
-        <div className="spacer-base-upload">
-          <UploadInput
+      <InspectorSection
+        title="Spacer base image"
+        meta={loading ? "loading" : imageUrl ? "set" : "not set"}
+      >
+        {imageUrl ? (
+          <BannerFrame src={imageUrl} alt="Spacer base" className="spacer-base-banner" />
+        ) : (
+          <span className="spacer-base-empty">
+            {loading ? "Loading…" : "No spacer base image set"}
+          </span>
+        )}
+        <div className="spacer-base-actions">
+          <FileButton
             id="spacer-base-image-upload"
-            error={fileError}
+            aria-label="Replace the spacer base image"
+            label={uploading ? "Uploading…" : imageUrl ? "Replace…" : "Choose image…"}
             disabled={uploading}
-            label={uploading ? "Uploading…" : undefined}
-            onFile={(file) => void upload(file)}
+            error={fileError}
+            onFile={take}
           />
         </div>
-      </div>
-      <RequestError message={error} retry={() => void loadImage()} />
-    </Section>
+        <p className="spacer-base-hint">Used for spacer channels without an image of their own.</p>
+        <RequestError message={error} retry={() => void loadImage()} />
+      </InspectorSection>
+    </div>
   );
 }

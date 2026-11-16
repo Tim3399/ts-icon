@@ -1,0 +1,303 @@
+/* Studio shell (concept D2, T-142-F3 items 1 and 3, R2, R7): a top bar over
+   three workspace regions. The breakpoints 1240 px and 1024 px are mirrored
+   in StudioShell.tsx (STUDIO_WIDE_QUERY, STUDIO_DESKTOP_QUERY);
+   testing/layout.test.ts keeps both in step. */
+
+.ds-studio {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  /* One column that never grows past the viewport with wide content. */
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 100dvh;
+  background-color: var(--color-bg-window);
+}
+
+.ds-skip-link {
+  position: fixed;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: var(--layer-skip-link);
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--size-hit-target);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-control);
+  background-color: var(--color-accent-fill);
+  color: var(--color-on-accent-fill);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  transform: translateY(calc(-100% - var(--space-4)));
+}
+
+.ds-skip-link:focus {
+  transform: none;
+}
+
+/* ---------------------------------------------------------------- Top bar */
+
+.ds-studio-bar {
+  position: sticky;
+  top: var(--space-0);
+  z-index: var(--layer-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: var(--size-toolbar);
+  padding: var(--space-0) var(--space-4);
+  border-bottom: var(--size-hairline) solid var(--color-border);
+  background-color: var(--color-bg-content);
+}
+
+.ds-studio-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-title-size);
+  line-height: var(--font-title-line);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+/* D2 draws the glyph in the accent; here it stays neutral, so the accent
+   keeps to its five uses (colour budget, F1 item 1). */
+.ds-studio-mark-glyph {
+  display: grid;
+  place-items: center;
+  width: var(--size-hit-target-small);
+  height: var(--size-hit-target-small);
+  border-radius: var(--radius-control);
+  background-color: var(--color-fill-neutral);
+  color: var(--color-label);
+}
+
+.ds-studio-mark-sub {
+  color: var(--color-label-secondary);
+  font-weight: var(--font-weight-regular);
+}
+
+.ds-studio-bar-spacer {
+  flex: 1;
+}
+
+.ds-studio-bar-tools,
+.ds-studio-bar-account {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ds-studio-bar-tools:empty {
+  display: none;
+}
+
+/* Mode switcher */
+
+.ds-mode-switcher {
+  padding-left: var(--space-4);
+  border-left: var(--size-hairline) solid var(--color-border);
+}
+
+.ds-mode-list {
+  display: flex;
+  gap: var(--space-1);
+  list-style: none;
+}
+
+.ds-mode-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--size-hit-target);
+  min-width: var(--size-hit-target);
+  padding: var(--space-0) var(--space-3);
+  border-radius: var(--radius-control);
+  color: var(--color-label-secondary);
+  font-size: var(--font-text-size);
+  line-height: var(--font-text-line);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--motion-fast) var(--motion-easing);
+}
+
+.ds-mode-link:hover {
+  background-color: var(--color-hover-bg);
+  color: var(--color-label);
+}
+
+.ds-mode-link[aria-current="page"] {
+  background-color: var(--color-selected-bg);
+  color: var(--color-label);
+}
+
+.ds-mode-icon {
+  display: grid;
+  place-items: center;
+}
+
+.ds-mode-link[aria-current="page"] .ds-mode-icon {
+  color: var(--color-accent);
+}
+
+/* --------------------------------------------------------- Workspace */
+
+.ds-studio-workspace {
+  display: grid;
+  grid-template-columns: var(--ds-col-layers,) minmax(0, 1fr) var(--ds-col-inspector,);
+  min-height: 0;
+}
+
+.ds-studio[data-layout="wide"][data-layers="panel"] {
+  --ds-col-layers: var(--size-layers);
+}
+
+.ds-studio:not([data-layout="stacked"])[data-inspector="panel"] {
+  --ds-col-inspector: var(--size-inspector);
+}
+
+.ds-studio-main {
+  min-width: 0;
+  background-color: var(--color-bg-content);
+}
+
+.ds-studio-main:focus {
+  outline: none;
+}
+
+.ds-studio-layers,
+.ds-studio-inspector {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background-color: var(--color-bg-sidebar);
+}
+
+.ds-studio-layers {
+  border-right: var(--size-hairline) solid var(--color-border);
+  /* The drawer slides in below 1240 px; the same declaration exists in every
+     layout so Reduce Motion can be checked on one element (T-142 item 9). */
+  transition:
+    transform var(--motion-standard) var(--motion-easing),
+    visibility var(--motion-standard) linear;
+}
+
+.ds-studio-inspector {
+  border-left: var(--size-hairline) solid var(--color-border);
+}
+
+.ds-studio-layers[hidden],
+.ds-studio-inspector[hidden] {
+  display: none;
+}
+
+/* 1024-1239 px: the layer panel is an overlay drawer (R2). */
+.ds-studio[data-layers="open"] .ds-studio-layers,
+.ds-studio[data-layers="closed"] .ds-studio-layers {
+  position: fixed;
+  top: var(--size-toolbar);
+  bottom: var(--space-0);
+  left: var(--space-0);
+  z-index: var(--layer-drawer);
+  width: var(--size-layers);
+  overflow-y: auto;
+}
+
+.ds-studio[data-layers="closed"] .ds-studio-layers {
+  transform: translateX(-100%);
+  visibility: hidden;
+}
+
+.ds-studio[data-layers="open"] .ds-studio-layers {
+  box-shadow: var(--shadow-overlay);
+}
+
+.ds-studio-scrim {
+  position: fixed;
+  inset: var(--size-toolbar) var(--space-0) var(--space-0);
+  z-index: var(--layer-scrim);
+  background-color: var(--color-scrim);
+}
+
+/* From 1240 px the panels fill the workspace height under the top bar, as in
+   D2: background and border reach the bottom of the viewport, also while the
+   main region scrolls; their content scrolls inside the panel. */
+@media (min-width: 1240px) {
+  .ds-studio[data-layout="wide"] .ds-studio-layers,
+  .ds-studio[data-layout="wide"] .ds-studio-inspector {
+    position: sticky;
+    top: var(--size-toolbar);
+    align-self: start;
+    height: calc(100dvh - var(--size-toolbar));
+    overflow-y: auto;
+  }
+}
+
+/* Below 1240 px the mode labels collapse to icons; the label stays the
+   accessible name and the tooltip (R7). */
+@media (max-width: 1239px) {
+  .ds-mode-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .ds-mode-link {
+    padding: var(--space-0);
+  }
+}
+
+/* Below 1024 px: stacked (top bar, main, inspector, layers). */
+@media (max-width: 1023px) {
+  .ds-studio-bar {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+  }
+
+  .ds-studio-bar-spacer {
+    display: none;
+  }
+
+  .ds-studio-bar-account {
+    margin-left: auto;
+  }
+
+  .ds-studio-bar-tools {
+    order: 3;
+  }
+
+  .ds-mode-switcher {
+    order: 4;
+    width: 100%;
+    padding: var(--space-0) var(--space-0) var(--space-1);
+    border-left: 0;
+  }
+
+  .ds-mode-link {
+    width: 100%;
+  }
+
+  .ds-mode-list > li {
+    flex: 1;
+  }
+
+  .ds-studio-workspace {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ds-studio-inspector {
+    border-left: 0;
+    border-top: var(--size-hairline) solid var(--color-border);
+  }
+
+  .ds-studio-layers {
+    order: 3;
+    border-right: 0;
+    border-top: var(--size-hairline) solid var(--color-border);
+  }
+}

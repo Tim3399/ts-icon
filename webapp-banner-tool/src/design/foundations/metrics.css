@@ -1,0 +1,25 @@
+/* Viewport metrics: the one media query of the foundations (D-6, R9). Below
+   1024 px the phone values of typography.css and tokens.css apply (44 px hit
+   targets); from 1024 px the desktop values of concept D2 below replace them
+   (30 px controls, 28 px floor, D2's desktop type scale). */
+
+@media (min-width: 1024px) {
+  :root {
+    --size-hit-target: 30px; /* D2 --control */
+    --size-hit-target-small: 28px;
+    --size-control-prominent: 34px; /* D2 --control-prominent */
+    --size-row-min: 40px; /* D2 rows: 12 px padding around 16 px text */
+    --size-toolbar: 52px; /* D2 --topbar */
+
+    --font-micro-size: 11px;
+    --font-micro-line: 16px;
+    --font-small-size: 12px;
+    --font-small-line: 18px;
+    --font-text-size: 13px;
+    --font-text-line: 20px;
+    --font-title-size: 15px;
+    --font-title-line: 20px;
+    --font-heading-size: 17px;
+    --font-heading-line: 22px;
+  }
+}

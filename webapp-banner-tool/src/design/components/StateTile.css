@@ -1,0 +1,83 @@
+/* StateTile: the D2 state tile (mockup D2/state.html). A white card with a
+   1 px border on the dotted canvas, a glyph in a round neutral badge, a title,
+   one line of secondary text and one action. */
+
+.ds-state-tile {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: var(--space-7) var(--space-4);
+  background-color: var(--color-bg-canvas);
+  background-image: radial-gradient(var(--color-canvas-dot) 1px, transparent 1.4px);
+  background-size: var(--size-dot-grid) var(--size-dot-grid);
+  background-position: var(--space-2) var(--space-2);
+}
+
+.ds-state-tile[data-size="region"] {
+  min-height: var(--size-state-region);
+}
+
+/* Fills the main region under the top bar. */
+.ds-state-tile[data-size="page"] {
+  min-height: calc(100dvh - var(--size-toolbar));
+}
+
+.ds-state-tile-card {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  width: min(100%, var(--size-state-tile));
+  padding: var(--space-7) var(--space-6);
+  border: var(--size-hairline) solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background-color: var(--color-bg-content);
+  text-align: center;
+}
+
+.ds-state-tile-glyph {
+  display: grid;
+  place-items: center;
+  width: var(--size-state-glyph);
+  height: var(--size-state-glyph);
+  margin-bottom: var(--space-2);
+  border: var(--size-hairline) solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-fill-neutral);
+  color: var(--color-label-secondary);
+}
+
+.ds-state-tile-title {
+  font-size: var(--font-title-size);
+  line-height: var(--font-title-line);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-label);
+}
+
+.ds-state-tile-text {
+  color: var(--color-label-secondary);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+}
+
+.ds-state-tile-text strong {
+  color: var(--color-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ds-state-tile-action {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+@media (max-width: 1023px) {
+  .ds-state-tile {
+    padding: var(--space-6) var(--space-3);
+  }
+
+  .ds-state-tile-card {
+    padding: var(--space-6) var(--space-4);
+  }
+}

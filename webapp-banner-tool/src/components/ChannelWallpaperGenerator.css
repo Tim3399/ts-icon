@@ -1,0 +1,247 @@
+/* ChannelWallpaperGenerator as a D2 Studio page (T-142-F3 item 10, D-142F-38):
+   the source on the canvas with its 44 px bands, the rows to create in the
+   dock as TS6 pills, recent operations as a table under the dock and the
+   inspector with source, parent picker, options and "Generate channels".
+   Roles and tokens only (src/design/README.md). */
+
+.studio-wallpaper {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.studio-wallpaper kbd {
+  padding: var(--space-0) var(--space-1);
+  border: var(--size-hairline) solid var(--color-border-strong);
+  border-radius: var(--radius-small);
+  font-family: inherit;
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+/* ---------------------------------------------------------------- Canvas */
+
+.wallpaper-artboard {
+  display: block;
+  width: 100%;
+  max-width: 500px;
+  min-width: 0;
+  margin: 0 auto;
+}
+
+.wallpaper-artboard-name {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--color-canvas-label);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+  overflow-wrap: anywhere;
+}
+
+/* The sliced bands, stacked back into the source; a 1 px line in the crop
+   role marks where one channel row ends and the next begins. */
+.wallpaper-bands {
+  display: flex;
+  flex-direction: column;
+}
+
+.wallpaper-band {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: var(--size-banner-ratio);
+}
+
+.wallpaper-band + .wallpaper-band {
+  border-top: var(--size-hairline) solid var(--color-crop);
+}
+
+.wallpaper-canvas-hint {
+  position: absolute;
+  right: var(--space-4);
+  bottom: var(--space-3);
+  color: var(--color-canvas-label);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+.wallpaper-drop {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  width: min(100%, calc(var(--size-grid-large) * 1.5));
+}
+
+.wallpaper-drop > * {
+  width: 100%;
+}
+
+.wallpaper-drop-hint {
+  color: var(--color-canvas-label);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------ Dock */
+
+.wallpaper-dock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-5) var(--space-6);
+}
+
+.wallpaper-dock > .ts-preview-stack {
+  flex: none;
+  max-width: 100%;
+}
+
+.wallpaper-dock-side {
+  display: grid;
+  flex: 1 1 calc(var(--size-grid-medium) + var(--space-8));
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.wallpaper-names {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.wallpaper-names-label {
+  color: var(--color-label);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+  font-weight: var(--font-weight-semibold);
+}
+
+.wallpaper-hint {
+  color: var(--color-label-secondary);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+}
+
+/* ------------------------------------------------------ Recent operations */
+
+.wallpaper-ops {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border-top: var(--size-hairline) solid var(--color-border);
+  background-color: var(--color-bg-content);
+}
+
+.wallpaper-ops-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.wallpaper-ops-title {
+  font-size: var(--font-title-size);
+  line-height: var(--font-title-line);
+  font-weight: var(--font-weight-semibold);
+}
+
+.wallpaper-run-status {
+  display: grid;
+  gap: var(--space-half);
+}
+
+.wallpaper-run-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.wallpaper-run-error {
+  color: var(--color-label-secondary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+.wallpaper-run-channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-half) var(--space-2);
+  margin: var(--space-0);
+  padding: var(--space-0);
+  list-style: none;
+  color: var(--color-label-secondary);
+}
+
+.wallpaper-run-none {
+  color: var(--color-label-secondary);
+}
+
+.wallpaper-run-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+@media (max-width: 1023px) {
+  .wallpaper-ops {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  .wallpaper-run-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* -------------------------------------------------------------- Inspector */
+
+.wallpaper-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* The parent picker keeps its room (C1 needs at least 280 px) and fits the
+   panel: it takes the inspector width minus half the section padding, so its
+   pills (width = picker width minus indent, right edges aligned) never reach
+   the panel edge. */
+.wallpaper-parent {
+  min-width: 280px;
+  margin-inline: calc(var(--space-2) * -1);
+}
+
+/* In the inspector the picker shows about five rows and scrolls, so Options
+   and "Generate channels" stay in reach; the rows keep the TS6 pitch. */
+.wallpaper-parent .channel-tree-scroll {
+  max-height: 236px;
+}
+
+.wallpaper-options {
+  min-width: 0;
+  margin: var(--space-0);
+  padding: var(--space-0);
+  border: 0;
+}
+
+.wallpaper-advanced {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.wallpaper-generate {
+  width: 100%;
+}
+
+/* From 1024 px the Generate section sticks to the bottom of the inspector
+   (its own scroll area from 1240 px, the viewport below), so the page's one
+   prominent action is always in view; the sections above scroll under it. */
+@media (min-width: 1024px) {
+  .wallpaper-generate-section {
+    position: sticky;
+    bottom: var(--space-0);
+    z-index: 1;
+    border-top: var(--size-hairline) solid var(--color-border);
+    background-color: var(--color-bg-sidebar);
+  }
+}

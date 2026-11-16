@@ -1,0 +1,12 @@
+/* Notice: the whole-page state tile (Access denied, Not found). The sign-in
+   splash has no top bar, so its tile fills the whole window. */
+
+.ds-state-tile.ds-notice-fullscreen {
+  min-height: 100dvh;
+}
+
+.ds-notice-fullscreen .ds-state-tile-text {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+}

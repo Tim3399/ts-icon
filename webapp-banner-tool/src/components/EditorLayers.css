@@ -1,0 +1,91 @@
+/* EditorLayers: the D2 layer panel – compact rows with a glyph, the name and
+   a banner thumbnail; the selected channel has the selected surface. A row
+   is a design Button (plain); the selectors carry the list class so they win
+   over the Button's own look. Roles and tokens only (src/design/README.md). */
+
+.layers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  margin: 0;
+  padding: var(--space-2);
+  list-style: none;
+}
+
+.layers .layer-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--size-hit-target);
+  padding: var(--space-0) var(--space-2);
+  justify-content: flex-start;
+  border: 0;
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-label);
+  font: inherit;
+  font-size: var(--font-text-size);
+  line-height: var(--font-text-line);
+  text-align: left;
+  cursor: pointer;
+}
+
+.layers .layer-row:hover:not(:disabled) {
+  background-color: var(--color-hover-bg);
+}
+
+.layers .layer-row[aria-current="true"] {
+  background-color: var(--color-selected-bg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.layers .layer-row[aria-current="true"] .layer-glyph {
+  color: var(--color-accent);
+}
+
+.layers .layer-row:disabled {
+  cursor: default;
+}
+
+.layer-glyph {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-label-secondary);
+}
+
+.layer-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A thin strip of the banner, as in D2; an outlined empty strip when the
+   channel has none (solid: the drop zone is the one dashed element). */
+.layer-thumb {
+  flex: none;
+  width: var(--size-thumb);
+  height: var(--space-2);
+  overflow: hidden;
+  border-radius: var(--radius-small);
+}
+
+img.layer-thumb {
+  object-fit: cover;
+}
+
+.layer-thumb[data-empty] {
+  border: var(--size-hairline) solid var(--color-border);
+}
+
+.layers-notice {
+  padding: var(--space-3) var(--space-4) var(--space-0);
+}
+
+.layers-empty {
+  color: var(--color-label-secondary);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+}

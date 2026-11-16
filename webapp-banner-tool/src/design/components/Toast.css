@@ -1,0 +1,65 @@
+/* Toasts: elevated pills at the bottom edge, status shown by icon and
+   colour together (HIG: never colour alone). */
+
+.ds-toast-region {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  left: var(--space-4);
+  z-index: var(--layer-toast);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.ds-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: min(100%, var(--size-panel));
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
+  border: var(--size-hairline) solid var(--color-border);
+  border-radius: var(--radius-card);
+  background-color: var(--color-bg-elevated);
+  box-shadow: var(--shadow-overlay);
+  color: var(--color-label);
+  font-size: var(--font-subheadline-size);
+  line-height: var(--font-subheadline-line);
+  pointer-events: auto;
+  animation: ds-toast-in var(--motion-standard) var(--motion-easing);
+}
+
+@keyframes ds-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+}
+
+.ds-toast-icon {
+  flex: none;
+}
+
+.ds-toast[data-tone="success"] .ds-toast-icon {
+  color: var(--color-positive);
+}
+
+.ds-toast[data-tone="error"] .ds-toast-icon {
+  color: var(--color-destructive);
+}
+
+.ds-toast[data-tone="info"] .ds-toast-icon {
+  color: var(--color-label-secondary);
+}
+
+.ds-toast-message {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--space-2) var(--space-0);
+}
+
+.ds-toast-dismiss {
+  flex: none;
+}

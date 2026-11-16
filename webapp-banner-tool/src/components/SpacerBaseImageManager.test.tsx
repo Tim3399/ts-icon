@@ -18,7 +18,8 @@ vi.mock("../auth/AuthContext", () => ({
   useAuth: () => ({ getToken: getTokenMock }),
 }));
 
-vi.mock("./ToastContext", () => ({
+vi.mock("../design", async () => ({
+  ...(await vi.importActual("../design")),
   useToast: () => ({ showToast: showToastMock }),
 }));
 
@@ -74,12 +75,12 @@ describe("SpacerBaseImageManager", () => {
     apiFetchBlobMock.mockResolvedValueOnce(new Blob(["new-bytes"], { type: "image/png" }));
 
     render(<SpacerBaseImageManager />);
-    const dropzone = (await screen.findByText(/Drag & drop an image here/i)).closest(
-      "label",
+    const dropzone = (await screen.findByText(/Used for spacer channels/i)).closest(
+      ".spacer-base",
     ) as HTMLElement;
 
     const file = new File(["bytes"], "base.png", { type: "image/png" });
-    fireEvent.drop(dropzone, { dataTransfer: { files: [file] } });
+    fireEvent.drop(dropzone, { dataTransfer: { files: [file], types: ["Files"] } });
 
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
     const [url, options] = apiFetchMock.mock.calls[0] as [string, RequestInit];
@@ -94,16 +95,16 @@ describe("SpacerBaseImageManager", () => {
     apiFetchMock.mockResolvedValue(new Response(null, { status: 200 }));
 
     render(<SpacerBaseImageManager />);
-    const dropzone = (await screen.findByText(/Drag & drop an image here/i)).closest(
-      "label",
+    const dropzone = (await screen.findByText(/Used for spacer channels/i)).closest(
+      ".spacer-base",
     ) as HTMLElement;
 
-    fireEvent.dragOver(dropzone, { dataTransfer: { files: [] } });
-    expect(dropzone).toHaveClass("dropzone-drag-over");
+    fireEvent.dragOver(dropzone, { dataTransfer: { files: [], types: ["Files"] } });
+    expect(dropzone).toHaveAttribute("data-drag-over");
 
     const file = new File(["bytes"], "base.png", { type: "image/png" });
-    fireEvent.drop(dropzone, { dataTransfer: { files: [file] } });
+    fireEvent.drop(dropzone, { dataTransfer: { files: [file], types: ["Files"] } });
 
-    await waitFor(() => expect(dropzone).not.toHaveClass("dropzone-drag-over"));
+    await waitFor(() => expect(dropzone).not.toHaveAttribute("data-drag-over"));
   });
 });

@@ -1,0 +1,153 @@
+/* Screen styles of Channel images (T-142-F3 item 9, concept D2). Filter bar,
+   table, inspector sections and state tiles are design building blocks; this
+   file styles only the cell content and the inspector extras, with role
+   tokens (src/design/README.md). */
+
+.channel-images {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Channel cell: glyph, name and tags, indented by the tree depth. */
+.channel-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-left: calc(var(--depth, 0) * var(--space-4));
+  font-weight: var(--font-weight-medium);
+}
+
+.channel-name svg {
+  flex: none;
+  color: var(--color-label-tertiary);
+}
+
+.channel-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel-tag {
+  flex: none;
+  padding: var(--space-0) var(--space-2);
+  border: var(--size-hairline) solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-fill-neutral);
+  color: var(--color-label-secondary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Banner thumbnail at half size; a quiet tile when there is none. */
+.channel-thumb {
+  display: block;
+  width: var(--size-grid-medium);
+  max-width: 100%;
+  aspect-ratio: var(--size-banner-ratio);
+  border-radius: var(--radius-small);
+  object-fit: cover;
+}
+
+.channel-thumb-empty {
+  display: grid;
+  place-items: center;
+  background-color: var(--color-fill-neutral);
+  color: var(--color-label-tertiary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+.channel-state {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.channel-image-state {
+  color: var(--color-label-secondary);
+}
+
+.channel-row-error {
+  color: var(--color-destructive);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}
+
+.channel-cell-number {
+  color: var(--color-label-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.channel-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Inspector */
+.channel-inspector-head {
+  display: flex;
+  align-items: center;
+  height: var(--size-panel-head);
+  padding: var(--space-0) var(--space-4);
+  border-bottom: var(--size-hairline) solid var(--color-border);
+  font-size: var(--font-small-size);
+  line-height: var(--font-small-line);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* The selected channel as a read-only TS6 pill on the TeamSpeak tree surface. */
+.channel-inspector-pill {
+  margin: var(--space-0);
+  padding: var(--space-0) var(--space-3);
+  border-radius: var(--radius-panel);
+  background-color: var(--color-ts-tree-bg);
+  list-style: none;
+}
+
+.channel-inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Below 1024 px the table is a list of rows (DataTable): name and action on
+   the first line, the banner across the row, the image state under it. */
+@media (max-width: 1023px) {
+  .channel-row .channel-cell-name {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .channel-row .channel-cell-banner {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .channel-row .channel-cell-banner .channel-thumb {
+    width: 100%;
+  }
+
+  .channel-row .channel-cell-state {
+    order: 4;
+    flex-basis: 100%;
+    font-size: var(--font-micro-size);
+    line-height: var(--font-micro-line);
+  }
+
+  .channel-row .channel-name {
+    padding-left: calc(var(--depth, 0) * var(--space-3));
+  }
+}
+
+/* A banner that failed to load: a quiet note under the image state. */
+.channel-image-note {
+  display: block;
+  color: var(--color-label-secondary);
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+}

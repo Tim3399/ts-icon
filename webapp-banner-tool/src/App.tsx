@@ -1,238 +1,154 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link, NavLink, Routes, Route } from "react-router-dom";
+import type { ReactNode } from "react";
+import { Routes, Route } from "react-router-dom";
 import BannerCropper from "./components/BannerCropper";
 import ChannelGallery from "./components/ChannelGallery";
 import BannerUrlManager from "./components/BannerUrlManager";
 import ChannelWallpaperGenerator from "./components/ChannelWallpaperGenerator";
-import ChannelTreePreview from "./components/ChannelTreePreview";
-import AccessDenied from "./components/AccessDenied";
 import RequireUpload from "./components/RequireUpload";
 import RequireAdmin from "./components/RequireAdmin";
-import Icon from "./components/ui/Icon";
-import ThemeToggle from "./components/ui/ThemeToggle";
+import {
+  AccessDenied,
+  LinkButton,
+  MenuButton,
+  ModeLink,
+  ModeSwitcher,
+  Notice,
+  StudioPage,
+  StudioShell,
+  type MenuItem,
+} from "./design";
+import { THEME_LABELS, THEME_ORDER, useTheme } from "./theme/theme";
 import { useAuth } from "./auth/AuthContext";
 import { useCanUpload, useIsAdmin } from "./auth/permissions";
-import { usePreviewOverlay } from "./preview/PreviewOverlayContext";
 import { PreviewOverlayProvider } from "./preview/PreviewOverlayProvider";
 
-// Keeps the persistent panel reasonably fresh even when nothing in this tab
-// triggers an explicit bumpRefresh() (e.g. another admin changing channels
-// elsewhere) -- fetchLiveChannels() on the backend already caches for 30s,
-// so polling faster than that would just re-read the same cached result.
-const LIVE_TREE_POLL_MS = 30_000;
-
-const RAIL_STORAGE_KEY = "ts-icon-rail-open";
-
-function readRailPreference(): boolean {
-  try {
-    return localStorage.getItem(RAIL_STORAGE_KEY) !== "closed";
-  } catch {
-    return true;
-  }
-}
-
-function initials(name?: string): string {
-  const source = (name ?? "").trim();
-  if (!source) return "?";
-  const parts = source.split(/[\s._-]+/).filter(Boolean);
-  return (parts.length > 1 ? parts[0][0] + parts[1][0] : source.slice(0, 2)).toUpperCase();
-}
-
-const LivePreviewPanel: React.FC<{ open: boolean }> = ({ open }) => {
-  const { overlay, refreshKey } = usePreviewOverlay();
-  const [pollTick, setPollTick] = useState(0);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible") setPollTick((t) => t + 1);
-    }, LIVE_TREE_POLL_MS);
-    return () => clearInterval(id);
-  }, []);
-
+function NotFound() {
   return (
-    <aside
-      className={`app-rail${open ? "" : " app-rail-hidden"}`}
-      aria-label="Live channel tree"
-      id="live-tree-panel"
+    <Notice
+      icon="search"
+      title="Page not found"
+      actions={
+        <LinkButton to="/" variant="prominent" icon="crop">
+          Open the banner editor
+        </LinkButton>
+      }
     >
-      <div className="app-rail-head">
-        <h2 className="app-rail-title">
-          <Icon name="tree" size={13} />
-          Live channel tree
-        </h2>
-      </div>
-      <div className="app-rail-body">
-        <ChannelTreePreview refreshKey={refreshKey + pollTick} overlay={overlay} />
-      </div>
-    </aside>
+      <p>This page doesn't exist.</p>
+    </Notice>
   );
-};
+}
+
+/** A screen that has not been rebuilt in the Studio idiom yet: padded in the main region. */
+function Page({ children }: { children: ReactNode }) {
+  return <StudioPage>{children}</StudioPage>;
+}
 
 export default function App() {
   const { username, logout } = useAuth();
   const canUpload = useCanUpload();
   const isAdmin = useIsAdmin();
-  const [railOpen, setRailOpen] = useState(readRailPreference);
+  const { preference, setPreference } = useTheme();
 
-  const toggleRail = useCallback(() => {
-    setRailOpen((open) => {
-      try {
-        localStorage.setItem(RAIL_STORAGE_KEY, open ? "closed" : "open");
-      } catch {
-        /* The choice still applies for this session. */
-      }
-      return !open;
-    });
-  }, []);
+  // The one account menu of the top bar: the signed-in name as its header,
+  // the appearance choice and the way out.
+  const accountItems: MenuItem[] = [
+    ...THEME_ORDER.map(
+      (theme, i): MenuItem => ({
+        label: THEME_LABELS[theme],
+        checked: preference === theme,
+        onSelect: () => setPreference(theme),
+        separatorBefore: i === 0,
+        groupLabel: i === 0 ? "Appearance" : undefined,
+      }),
+    ),
+    { label: "Log out", onSelect: logout, separatorBefore: true },
+  ];
 
   return (
     <PreviewOverlayProvider>
-      <div className="app-shell">
-        <a className="skip-link" href="#main-content">
-          Skip to content
-        </a>
-        <header className="app-header">
-          <div className="app-header-inner">
-            <Link to="/" className="brand" aria-label="TS-Icon home">
-              <span className="brand-mark">
-                <img src="/icon.svg" alt="" width={30} height={30} />
-              </span>
-              <span>
-                <span className="brand-name">TS-Icon</span>
-                <span className="brand-tagline">Channel banners</span>
-              </span>
-            </Link>
-            {/* Never collapsed behind a disclosure: with four destinations a
-                wrapping bar keeps every page reachable with Tab alone at any
-                width, which a hidden menu would not. */}
-            <nav className="app-nav" aria-label="Primary">
-              {canUpload && (
-                <NavLink to="/" end className="app-nav-link">
-                  <Icon name="crop" size={15} />
-                  Banner editor
-                </NavLink>
-              )}
-              {canUpload && (
-                <NavLink to="/channels" className="app-nav-link">
-                  <Icon name="image" size={15} />
-                  Manage channel images
-                </NavLink>
-              )}
-              {isAdmin && (
-                <NavLink to="/banner-urls" className="app-nav-link">
-                  <Icon name="link" size={15} />
-                  Banner URLs
-                </NavLink>
-              )}
-              {isAdmin && (
-                <NavLink to="/wallpaper" className="app-nav-link">
-                  <Icon name="sparkles" size={15} />
-                  Channel Wallpaper
-                </NavLink>
-              )}
-            </nav>
-            <div className="app-header-actions">
-              {isAdmin && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-icon"
-                  onClick={toggleRail}
-                  aria-expanded={railOpen}
-                  aria-controls="live-tree-panel"
-                  title={railOpen ? "Hide the live channel tree" : "Show the live channel tree"}
-                  aria-label={
-                    railOpen ? "Hide the live channel tree" : "Show the live channel tree"
-                  }
-                >
-                  <Icon name="panel" size={17} />
-                </button>
-              )}
-              <ThemeToggle />
-              <span className="user-chip" title={username}>
-                <span className="user-avatar" aria-hidden="true">
-                  {initials(username)}
-                </span>
-                <span className="user-name truncate">
-                  <span className="sr-only">Signed in as </span>
-                  {username}
-                </span>
-              </span>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={logout}
-                aria-label="Logout"
-                title="Logout"
-              >
-                <Icon name="logout" size={16} />
-                <span className="hide-sm">Logout</span>
-              </button>
-            </div>
-          </div>
-        </header>
-        <div className={`app-body${isAdmin && railOpen ? " app-body-with-rail" : ""}`}>
-          <main className="app-main" id="main-content">
-            <Routes>
-              <Route
-                path="/"
-                element={
-                  <RequireUpload>
-                    <BannerCropper />
-                  </RequireUpload>
-                }
-              />
-              <Route
-                path="/channels"
-                element={
-                  <RequireUpload>
-                    <ChannelGallery />
-                  </RequireUpload>
-                }
-              />
-              <Route
-                path="/banner-urls"
-                element={
-                  <RequireAdmin>
-                    <BannerUrlManager />
-                  </RequireAdmin>
-                }
-              />
-              <Route
-                path="/wallpaper"
-                element={
-                  <RequireAdmin>
-                    <ChannelWallpaperGenerator />
-                  </RequireAdmin>
-                }
-              />
-              <Route path="/access-denied" element={<AccessDenied />} />
-              <Route
-                path="*"
-                element={
-                  <section className="card">
-                    <h1 className="page-title">Page not found</h1>
-                    <p className="page-lead">
-                      This address does not match a page. The banner editor is the usual place to
-                      start.
-                    </p>
-                    <div className="actions-row" style={{ marginTop: "var(--space-5)" }}>
-                      <Link to="/" className="btn btn-primary">
-                        <Icon name="crop" size={15} />
-                        Create a banner
-                      </Link>
-                    </div>
-                  </section>
-                }
-              />
-            </Routes>
-          </main>
-          {/* Gated to admin, matching the nav links above: the backend
-              endpoint this panel reads (GET channels/banner-urls) is
-              admin-only, so an editor-only account would otherwise see a
-              constant stream of 403 toasts from a panel it can't use. */}
-          {isAdmin && <LivePreviewPanel open={railOpen} />}
-        </div>
-      </div>
+      <StudioShell
+        modes={
+          <ModeSwitcher label="Primary">
+            {canUpload && (
+              <ModeLink to="/" end icon="crop">
+                Banner editor
+              </ModeLink>
+            )}
+            {canUpload && (
+              <ModeLink to="/channels" icon="image">
+                Manage channel images
+              </ModeLink>
+            )}
+            {isAdmin && (
+              <ModeLink to="/banner-urls" icon="link">
+                Banner URLs
+              </ModeLink>
+            )}
+            {isAdmin && (
+              <ModeLink to="/wallpaper" icon="sparkles">
+                Channel Wallpaper
+              </ModeLink>
+            )}
+          </ModeSwitcher>
+        }
+        account={
+          <MenuButton
+            label={username || "Account"}
+            icon="user"
+            header={username ? `Signed in as ${username}` : undefined}
+            items={accountItems}
+            align="end"
+            collapseLabel
+          />
+        }
+      >
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <RequireUpload>
+                {/* The editor fills the main region (canvas and dock) and brings
+                    its own layer panel and inspector (T-142-F3 item 4, R4). */}
+                <BannerCropper />
+              </RequireUpload>
+            }
+          />
+          <Route
+            path="/channels"
+            element={
+              <RequireUpload>
+                <ChannelGallery />
+              </RequireUpload>
+            }
+          />
+          <Route
+            path="/banner-urls"
+            element={
+              <RequireAdmin>
+                <Page>
+                  <BannerUrlManager />
+                </Page>
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/wallpaper"
+            element={
+              <RequireAdmin>
+                <Page>
+                  <ChannelWallpaperGenerator />
+                </Page>
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/access-denied"
+            // The state tile fills the main region itself (D-142F-39).
+            element={<AccessDenied />}
+          />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </StudioShell>
     </PreviewOverlayProvider>
   );
 }
